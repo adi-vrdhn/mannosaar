@@ -25,7 +25,7 @@ export default function Footer() {
         {/* Contact Info */}
         <div className="text-center mb-6 pb-6 border-b border-purple-400">
           <p className="text-purple-100 text-sm">
-            Email: <a href="mailto:hello@mannosaar.com" className="hover:text-white transition-colors font-medium">hello@mannosaar.com</a>
+            Email: <a href="mailto:care@mannosaar.com" className="hover:text-white transition-colors font-medium">care@mannosaar.com</a>
           </p>
           <p className="text-purple-100 text-sm mt-2">
             Phone: <a href="tel:+15551234567" className="hover:text-white transition-colors font-medium">+1 (555) 123-4567</a>
