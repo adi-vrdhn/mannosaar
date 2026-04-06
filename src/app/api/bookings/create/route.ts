@@ -138,6 +138,7 @@ export async function POST(request: Request) {
     // (based on who created the slot, not who is booking)
     let meetLink = null;
     try {
+      console.log('🔵 Creating Google Calendar event...');
       const googleEvent = await createGoogleCalendarEvent(
         slotData.therapist_id,
         userData.email,
@@ -148,20 +149,27 @@ export async function POST(request: Request) {
         sessionType
       );
 
+      console.log('✅ Google Calendar event response:', googleEvent);
       meetLink = googleEvent.meetLink;
 
       // Update booking with Google Meet link
       if (meetLink) {
+        console.log('✅ Updating booking with meet link:', meetLink);
         await supabase
           .from('bookings')
           .update({ meeting_link: meetLink })
           .eq('id', booking.id);
 
         booking.meeting_link = meetLink;
+      } else {
+        console.warn('⚠️ No meet link returned from Google Calendar event');
       }
     } catch (googleError) {
       const errorMsg = googleError instanceof Error ? googleError.message : 'Unknown error';
-      console.warn('⚠️ Google Calendar integration error (non-blocking):', errorMsg);
+      console.error('❌ Google Calendar integration error (detailed):', {
+        error: errorMsg,
+        stack: googleError instanceof Error ? googleError.stack : 'No stack trace',
+      });
       // Don't fail the booking if Google Calendar fails
     }
 

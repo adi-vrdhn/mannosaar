@@ -177,10 +177,16 @@ export async function createGoogleCalendarEvent(
 
     const event = await eventResponse.json();
 
+    console.log('📋 Full Google Calendar event response:', JSON.stringify(event, null, 2));
+
     // Extract the Google Meet link
     const meetLink = event.conferenceData?.entryPoints?.find(
       (ep: any) => ep.entryPointType === 'video'
     )?.uri;
+
+    console.log('🔗 Conference data:', event.conferenceData);
+    console.log('📞 Entry points:', event.conferenceData?.entryPoints);
+    console.log('✅ Meet link:', meetLink);
 
     const response = {
       success: true,
