@@ -108,7 +108,7 @@ const LoginPage = () => {
             <p className="mb-2">By continuing, you agree to our</p>
             <div className="flex justify-center gap-2">
               <Link 
-                href="/terms" 
+                href="/legal" 
                 target="_blank"
                 className="text-purple-300 hover:text-white font-semibold underline transition"
               >
@@ -116,7 +116,7 @@ const LoginPage = () => {
               </Link>
               <span>and</span>
               <Link 
-                href="/privacy" 
+                href="/legal" 
                 target="_blank"
                 className="text-purple-300 hover:text-white font-semibold underline transition"
               >

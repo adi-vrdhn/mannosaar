@@ -31,7 +31,7 @@ export default function PaymentAgreement({ isChecked, onCheck }: PaymentAgreemen
                 <span>
                   I understand the{' '}
                   <Link
-                    href="/refund-policy"
+                    href="/legal"
                     target="_blank"
                     className="text-purple-600 font-semibold hover:text-purple-700 underline"
                   >
@@ -45,7 +45,7 @@ export default function PaymentAgreement({ isChecked, onCheck }: PaymentAgreemen
                 <span>
                   I agree to the{' '}
                   <Link
-                    href="/terms"
+                    href="/legal"
                     target="_blank"
                     className="text-purple-600 font-semibold hover:text-purple-700 underline"
                   >

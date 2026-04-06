@@ -59,7 +59,7 @@ export default function TermsAcceptanceModal({
               <span className="text-sm text-gray-700">
                 I agree to the{' '}
                 <Link
-                  href="/terms"
+                  href="/legal"
                   target="_blank"
                   className="text-purple-600 hover:text-purple-700 font-semibold underline"
                 >
@@ -67,7 +67,7 @@ export default function TermsAcceptanceModal({
                 </Link>
                 {' '}and{' '}
                 <Link
-                  href="/privacy"
+                  href="/legal"
                   target="_blank"
                   className="text-purple-600 hover:text-purple-700 font-semibold underline"
                 >

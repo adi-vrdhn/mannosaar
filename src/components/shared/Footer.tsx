@@ -25,10 +25,10 @@ export default function Footer() {
         {/* Contact Info */}
         <div className="text-center mb-6 pb-6 border-b border-purple-400">
           <p className="text-purple-100 text-sm">
-            📧 <a href="mailto:hello@mannosaar.com" className="hover:text-white transition-colors font-medium">hello@mannosaar.com</a>
+            Email: <a href="mailto:hello@mannosaar.com" className="hover:text-white transition-colors font-medium">hello@mannosaar.com</a>
           </p>
           <p className="text-purple-100 text-sm mt-2">
-            📱 <a href="tel:+15551234567" className="hover:text-white transition-colors font-medium">+1 (555) 123-4567</a>
+            Phone: <a href="tel:+15551234567" className="hover:text-white transition-colors font-medium">+1 (555) 123-4567</a>
           </p>
         </div>
 
@@ -36,21 +36,21 @@ export default function Footer() {
         <div className="text-center space-y-3 text-sm border-t border-purple-400 pt-6">
           <div className="flex justify-center gap-6">
             <Link 
-              href="/terms" 
+              href="/legal#terms" 
               className="text-purple-100 hover:text-white transition-colors font-medium"
             >
               Terms & Conditions
             </Link>
             <span className="text-purple-400">|</span>
             <Link 
-              href="/privacy" 
+              href="/legal#privacy" 
               className="text-purple-100 hover:text-white transition-colors font-medium"
             >
               Privacy Policy
             </Link>
             <span className="text-purple-400">|</span>
             <Link 
-              href="/refund-policy" 
+              href="/legal#refund" 
               className="text-purple-100 hover:text-white transition-colors font-medium"
             >
               Refund Policy
