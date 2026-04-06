@@ -26,14 +26,14 @@ async function getTherapistGoogleCredentials(therapistId: string) {
     return data;
   }
 
-  // Fallback: If therapist doesn't have credentials, find an admin user's credentials
+  // Fallback: If therapist doesn't have credentials, find admin user credentials
   console.log('⚠️ Therapist has no Google credentials, looking for admin credentials...');
   
   const { data: adminDataList, error: adminError } = await supabase
     .from('users')
     .select('id, email')
     .eq('role', 'admin')
-    .limit(1);
+    .limit(2); // Get up to 2 admins
 
   console.log('🔍 Admin lookup result:', { 
     adminCount: adminDataList?.length, 
@@ -45,29 +45,59 @@ async function getTherapistGoogleCredentials(therapistId: string) {
     throw new Error('No admin user found to create Google Calendar event.');
   }
 
-  const adminData = adminDataList[0];
-  console.log('✅ Found admin user:', { email: adminData.email, id: adminData.id });
+  // Try to get credentials for the first admin with valid credentials
+  let adminCredentials = null;
+  let selectedAdmin = null;
 
-  // Get the admin's Google credentials
-  const { data: adminCredentials, error: credError } = await supabase
-    .from('google_oauth_credentials')
-    .select('*')
-    .eq('user_id', adminData.id)
-    .maybeSingle();
+  for (const admin of adminDataList) {
+    const { data: creds, error: credError } = await supabase
+      .from('google_oauth_credentials')
+      .select('*')
+      .eq('user_id', admin.id)
+      .maybeSingle();
 
-  console.log('🔍 Admin credential query result:', { 
-    hasCredentials: !!adminCredentials, 
-    credError,
-    adminId: adminData.id,
-    credentialKeys: adminCredentials ? Object.keys(adminCredentials) : null
-  });
+    console.log(`🔍 Checking credentials for admin ${admin.email}:`, { 
+      hasCredentials: !!creds, 
+      error: credError,
+      adminId: admin.id
+    });
 
-  if (credError || !adminCredentials) {
-    throw new Error(`Admin (${adminData.email}) Google account not connected. Query error: ${credError?.message}`);
+    if (creds && !credError) {
+      adminCredentials = creds;
+      selectedAdmin = admin;
+      console.log(`✅ Using credentials from admin: ${admin.email}`);
+      break;
+    }
   }
 
-  console.log('✅ Using admin credentials');
+  if (!adminCredentials) {
+    throw new Error(`No admin has connected their Google account. ${adminDataList.map((a: any) => a.email).join(', ')}`);
+  }
+
   return adminCredentials;
+}
+
+// New function to get all admin emails for attendees
+async function getAllAdminEmails() {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { data: admins, error } = await supabase
+    .from('users')
+    .select('email')
+    .eq('role', 'admin')
+    .limit(2);
+
+  if (error || !admins) {
+    console.log('⚠️ Could not fetch admin emails:', error);
+    return [];
+  }
+
+  const emails = admins.map((a: any) => a.email).filter((e: string) => e);
+  console.log('✅ Found admin emails:', emails);
+  return emails;
 }
 
 async function getOrRefreshAccessToken(credentials: any) {
@@ -139,6 +169,9 @@ export async function createGoogleCalendarEvent(
     const accessToken = await getOrRefreshAccessToken(credentials);
     console.log('✅ Got access token for event creation');
 
+    // Get all admin emails to add as attendees
+    const adminEmails = await getAllAdminEmails();
+
     // Parse dates and times with proper timezone handling
     const slotStartDate = new Date(slotDate);
     const [startHours, startMinutes] = slotTime.split(':').map(Number);
@@ -156,13 +189,17 @@ export async function createGoogleCalendarEvent(
       summary: `Therapy Session - ${sessionType.charAt(0).toUpperCase() + sessionType.slice(1)}`,
       start: startDateTime,
       end: endDateTime,
-      attendees: [clientEmail, credentials.email, ...additionalEmails],
+      attendees: [clientEmail, ...adminEmails, ...additionalEmails],
     });
 
-    // Build attendees list
+    // Build attendees list with client and all admins
     const attendees = [
       { email: clientEmail, displayName: clientName || 'Client' },
-      { email: credentials.email, displayName: 'Therapist' as any, organizer: true },
+      ...adminEmails.map((email: string) => ({ 
+        email, 
+        displayName: 'Therapist',
+        organizer: adminEmails[0] === email // First admin is organizer
+      })),
       ...additionalEmails.map((email: string) => ({ email })),
     ];
 
