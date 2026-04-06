@@ -6,41 +6,67 @@ async function getTherapistGoogleCredentials(therapistId: string) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
+  console.log('🔍 Looking for therapist credentials with ID:', therapistId);
+
   // First try to get credentials for the specified therapist
   const { data, error } = await supabase
     .from('google_oauth_credentials')
     .select('*')
     .eq('user_id', therapistId)
-    .single();
+    .maybeSingle();
 
-  if (data) return data;
+  console.log('🔍 Therapist credential query result:', { 
+    hasData: !!data, 
+    error, 
+    therapistId 
+  });
+
+  if (data) {
+    console.log('✅ Found therapist credentials');
+    return data;
+  }
 
   // Fallback: If therapist doesn't have credentials, find an admin user's credentials
   console.log('⚠️ Therapist has no Google credentials, looking for admin credentials...');
   
   const { data: adminDataList, error: adminError } = await supabase
     .from('users')
-    .select('id')
+    .select('id, email')
     .eq('role', 'admin')
     .limit(1);
+
+  console.log('🔍 Admin lookup result:', { 
+    adminCount: adminDataList?.length, 
+    adminError,
+    admins: adminDataList
+  });
 
   if (adminError || !adminDataList || adminDataList.length === 0) {
     throw new Error('No admin user found to create Google Calendar event.');
   }
 
   const adminData = adminDataList[0];
+  console.log('✅ Found admin user:', { email: adminData.email, id: adminData.id });
 
   // Get the admin's Google credentials
   const { data: adminCredentials, error: credError } = await supabase
     .from('google_oauth_credentials')
     .select('*')
     .eq('user_id', adminData.id)
-    .single();
+    .maybeSingle();
+
+  console.log('🔍 Admin credential query result:', { 
+    hasCredentials: !!adminCredentials, 
+    credError,
+    adminId: adminData.id,
+    credentialKeys: adminCredentials ? Object.keys(adminCredentials) : null
+  });
 
   if (credError || !adminCredentials) {
-    throw new Error('Admin user has not connected their Google account yet.');
+    throw new Error(`Admin (${adminData.email}) Google account not connected. Query error: ${credError?.message}`);
   }
 
+  console.log('✅ Using admin credentials');
   return adminCredentials;
 }
 
@@ -103,7 +129,15 @@ export async function createGoogleCalendarEvent(
   try {
     // Get therapist's Google credentials
     const credentials = await getTherapistGoogleCredentials(therapistId);
+    console.log('✅ Got credentials:', { 
+      email: credentials.email, 
+      userId: credentials.user_id,
+      hasAccessToken: !!credentials.access_token,
+      hasRefreshToken: !!credentials.refresh_token
+    });
+
     const accessToken = await getOrRefreshAccessToken(credentials);
+    console.log('✅ Got access token for event creation');
 
     // Parse dates and times with proper timezone handling
     const slotStartDate = new Date(slotDate);
