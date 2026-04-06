@@ -137,13 +137,16 @@ function PaymentPageContent() {
           .eq('id', slotId)
           .single();
 
+        console.log('Slot fetch response:', { data, fetchError, slotId });
+
         if (fetchError) {
           console.error('Slot fetch error:', fetchError);
-          setError('Failed to load slot information: ' + fetchError.message);
+          setError('Failed to load slot information: ' + JSON.stringify(fetchError));
         } else if (data) {
           console.log('Slot loaded:', data);
           setSlotInfo(data);
         } else {
+          console.warn('No slot data and no error');
           setError('Slot not found');
         }
       } catch (err) {
