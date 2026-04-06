@@ -103,6 +103,28 @@ const LoginPage = () => {
             {loading ? 'Signing in...' : 'Sign in with Google'}
           </motion.button>
 
+          {/* Terms Agreement */}
+          <motion.div variants={itemVariants} className="text-center mb-6 text-xs text-gray-300">
+            <p className="mb-2">By continuing, you agree to our</p>
+            <div className="flex justify-center gap-2">
+              <Link 
+                href="/terms" 
+                target="_blank"
+                className="text-purple-300 hover:text-white font-semibold underline transition"
+              >
+                Terms & Conditions
+              </Link>
+              <span>and</span>
+              <Link 
+                href="/privacy" 
+                target="_blank"
+                className="text-purple-300 hover:text-white font-semibold underline transition"
+              >
+                Privacy Policy
+              </Link>
+            </div>
+          </motion.div>
+
           {/* Google Meet Info Box */}
           <motion.div variants={itemVariants} className="p-4 bg-blue-500/20 border border-blue-400/50 rounded-lg mb-6">
             <div className="flex gap-3">

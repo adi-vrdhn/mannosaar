@@ -6,6 +6,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
+import PaymentAgreement from '@/components/booking/PaymentAgreement';
 
 interface SlotInfo {
   id: string;
@@ -43,6 +44,7 @@ function PaymentPageContent() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  const [agreementChecked, setAgreementChecked] = useState(false);
 
   // Debug logging
   useEffect(() => {
@@ -429,6 +431,12 @@ function PaymentPageContent() {
                 </p>
               </motion.div>
 
+              {/* Payment Agreement */}
+              <PaymentAgreement 
+                isChecked={agreementChecked}
+                onCheck={setAgreementChecked}
+              />
+
               {/* Action Buttons */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -445,7 +453,7 @@ function PaymentPageContent() {
                 </button>
                 <button
                   onClick={handlePayment}
-                  disabled={processing}
+                  disabled={processing || !agreementChecked}
                   className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
                 >
                   {processing ? 'Processing...' : `Pay ₹${sessionPrice}`}
