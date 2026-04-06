@@ -13,6 +13,12 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      "@next/next/no-style-element-with-no-inline-content": "off",
+      "react/no-unknown-property": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

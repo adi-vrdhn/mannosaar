@@ -1,0 +1,255 @@
+'use client';
+
+import { useEffect, useState, Suspense } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { format } from 'date-fns';
+
+interface Booking {
+  id: string;
+  meeting_link?: string;
+  meeting_password?: string;
+  google_calendar_event_id?: string;
+  slot_id?: string;
+  session_type?: string;
+  slot_date?: string;
+  slot_start_time?: string;
+  slot_end_time?: string;
+}
+
+function SuccessPageContent() {
+  const { data: session } = useSession();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const bookingId = searchParams.get('bookingId');
+
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    if (!session) {
+      router.push('/auth/login');
+      return;
+    }
+
+    const fetchBooking = async () => {
+      if (!bookingId) {
+        setError('No booking ID provided');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        console.log('Fetching booking:', bookingId, 'Retry count:', retryCount);
+        
+        // Use API endpoint instead of direct Supabase query
+        const response = await fetch(`/api/bookings/get?bookingId=${bookingId}`);
+        
+        let result;
+        try {
+          result = await response.json();
+        } catch (parseErr) {
+          console.error('Failed to parse JSON response:', parseErr);
+          console.error('Response text:', await response.text());
+          result = { error: 'Invalid response format' };
+        }
+
+        console.log('API response:', { status: response.status, ok: response.ok, result });
+
+        if (!response.ok) {
+          console.error('API error status:', response.status, 'Error:', result);
+          if (retryCount < 3) {
+            console.log('Retrying in 1 second...');
+            setTimeout(() => setRetryCount(retryCount + 1), 1000);
+          } else {
+            setError('Failed to load booking details: ' + (result?.error || 'Unknown error'));
+            setLoading(false);
+          }
+        } else if (result.booking) {
+          console.log('Booking found:', result.booking);
+          setBooking(result.booking);
+          setLoading(false);
+          
+          // If no meeting link yet and we haven't retried too many times, retry
+          if (!result.booking.meeting_link && retryCount < 3) {
+            console.log('No meeting link yet, retrying in 2 seconds...');
+            setTimeout(() => setRetryCount(retryCount + 1), 2000);
+          }
+        } else {
+          console.log('No booking in response:', result);
+          if (retryCount < 3) {
+            console.log('Retrying because booking not found...');
+            setTimeout(() => setRetryCount(retryCount + 1), 1000);
+          } else {
+            setError(`Failed to load booking: Booking ${bookingId} not found`);
+            setLoading(false);
+          }
+        }
+      } catch (err) {
+        console.error('Fetch error:', err);
+        if (retryCount < 3) {
+          console.log('Fetch error, retrying...');
+          setTimeout(() => setRetryCount(retryCount + 1), 1000);
+        } else {
+          setError('Error loading booking details: ' + (err instanceof Error ? err.message : 'Unknown error'));
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchBooking();
+  }, [session, bookingId, router, retryCount]);
+
+  if (!session) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-white via-green-50 to-white pt-24 pb-12">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center">
+          {/* Success Icon */}
+          <div className="mb-8 flex justify-center">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+              <span className="text-4xl font-bold text-green-600">✓</span>
+            </div>
+          </div>
+
+          {/* Heading */}
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            Booking Confirmed!
+          </h1>
+
+          {/* Message */}
+          <p className="text-lg text-gray-600 mb-8">
+            Your therapy session has been successfully booked. You will receive a confirmation email shortly with all the details.
+          </p>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8 text-red-600">
+              {error}
+            </div>
+          )}
+
+          {/* Booking ID */}
+          {bookingId && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 mb-8 inline-block">
+              <p className="text-sm text-gray-600 mb-1">Booking ID</p>
+              <p className="text-lg font-mono text-purple-600 font-semibold">{bookingId}</p>
+            </div>
+          )}
+
+          {/* Google Meet Link */}
+          {loading ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
+              <p className="text-sm text-gray-600">Generating Google Meet link...</p>
+            </div>
+          ) : booking?.meeting_link ? (
+            <div className="bg-blue-50 border border-blue-300 rounded-lg p-6 mb-8">
+              <p className="text-sm text-gray-600 mb-3">Google Meet Link</p>
+              <a
+                href={booking.meeting_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+              >
+                🎥 Join Google Meet (40 mins)
+              </a>
+              <p className="text-xs text-gray-500 mt-3">
+                A confirmation email with the meeting link has been sent to you and your therapist
+              </p>
+            </div>
+          ) : (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
+              <p className="text-sm text-yellow-700">
+                ⚠️ Google Meet link is being prepared. Please refresh the page in a moment.
+              </p>
+            </div>
+          )}
+
+          {/* Booking Summary Table */}
+          {booking && (
+            <div className="mb-8 overflow-x-auto inline-block">
+              <table className="border-collapse">
+                <tbody>
+                  <tr className="border-b-2 border-gray-200">
+                    <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
+                      ID
+                    </td>
+                    <td className="px-6 py-4 text-lg font-bold text-gray-900">{booking.id?.slice(0, 8)}...</td>
+                  </tr>
+                  <tr className="border-b-2 border-gray-200">
+                    <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
+                      Session Date
+                    </td>
+                    <td className="px-6 py-4 text-lg font-bold text-gray-900">
+                      {booking.slot_date ? format(new Date(booking.slot_date), 'MMM dd, yyyy') : 'N/A'}
+                    </td>
+                  </tr>
+                  <tr className="border-b-2 border-gray-200">
+                    <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
+                      Time
+                    </td>
+                    <td className="px-6 py-4 text-lg font-bold text-gray-900">
+                      {booking.slot_start_time && booking.slot_end_time
+                        ? `${booking.slot_start_time} - ${booking.slot_end_time}`
+                        : 'N/A'}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
+                      Type
+                    </td>
+                    <td className="px-6 py-4 text-lg font-bold text-gray-900 capitalize">{booking.session_type || 'N/A'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-4 justify-center">
+            <Link
+              href="/"
+              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
+            >
+              Back to Home
+            </Link>
+            <Link
+              href="/profile"
+              className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 font-semibold rounded-lg transition-colors"
+            >
+              View My Bookings
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SuccessLoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
+      <div className="max-w-2xl mx-auto px-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading your booking details...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={<SuccessLoadingFallback />}>
+      <SuccessPageContent />
+    </Suspense>
+  );
+}
