@@ -179,25 +179,46 @@ export async function createGoogleCalendarEvent(
 
     console.log('📋 Full Google Calendar event response:', JSON.stringify(event, null, 2));
 
+    // If conferenceData is not in initial response, fetch the event again
+    let finalEvent = event;
+    if (!event.conferenceData && event.id) {
+      console.log('⏳ Conference data not in initial response, fetching updated event...');
+      
+      const getEventResponse = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${event.id}?conferenceDataVersion=1`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (getEventResponse.ok) {
+        finalEvent = await getEventResponse.json();
+        console.log('✅ Updated event with conferenceData:', JSON.stringify(finalEvent, null, 2));
+      }
+    }
+
     // Extract the Google Meet link
-    const meetLink = event.conferenceData?.entryPoints?.find(
+    const meetLink = finalEvent.conferenceData?.entryPoints?.find(
       (ep: any) => ep.entryPointType === 'video'
     )?.uri;
 
-    console.log('🔗 Conference data:', event.conferenceData);
-    console.log('📞 Entry points:', event.conferenceData?.entryPoints);
+    console.log('🔗 Conference data:', finalEvent.conferenceData);
+    console.log('📞 Entry points:', finalEvent.conferenceData?.entryPoints);
     console.log('✅ Meet link:', meetLink);
 
     const response = {
       success: true,
-      eventId: event.id,
+      eventId: finalEvent.id,
       meetLink,
-      eventLink: event.htmlLink,
-      summary: event.summary,
+      eventLink: finalEvent.htmlLink,
+      summary: finalEvent.summary,
     };
 
     console.log('✅ Google Calendar event created successfully:', {
-      eventId: event.id,
+      eventId: finalEvent.id,
       meetLink,
     });
 
