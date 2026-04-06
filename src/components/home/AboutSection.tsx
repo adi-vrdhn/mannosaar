@@ -86,7 +86,7 @@ const AboutSection = () => {
             >
               <h3 className="text-lg sm:text-xl font-semibold text-gray-800">Experience</h3>
               <p className="text-gray-600 text-base sm:text-lg leading-relaxed">
-                20+ years of clinical experience in individual and couple's therapy
+                24+ years of clinical experience in individual and couple's therapy
               </p>
               <div className="flex items-center gap-4 pt-2">
                 <div className="flex-1 bg-purple-100 rounded-full h-2">

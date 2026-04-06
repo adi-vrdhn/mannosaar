@@ -5,26 +5,34 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Calendar, Clock, Users, Lock, Settings, BookOpen } from 'lucide-react';
 import { format, addDays, startOfDay } from 'date-fns';
+import SessionCard from './SessionCard';
 
 interface Booking {
   id: string;
   user_name: string;
-  session_type: string;
+  user_email: string;
+  user_phone: string;
+  session_type: 'personal' | 'couple';
   slot_date: string;
   slot_start_time: string;
+  slot_end_time: string;
+  meeting_link?: string;
+  payment_status: string;
 }
 
 interface StatsData {
   todayCount: number;
   upcomingCount: number;
-  bookings: Booking[];
+  todayBookings: Booking[];
+  upcomingBookings: Booking[];
 }
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState<StatsData>({
     todayCount: 0,
     upcomingCount: 0,
-    bookings: [],
+    todayBookings: [],
+    upcomingBookings: [],
   });
   const [loading, setLoading] = useState(true);
 
@@ -33,7 +41,7 @@ const AdminDashboard = () => {
       try {
         const today = startOfDay(new Date());
         const today_string = format(today, 'yyyy-MM-dd');
-        const in3Days = format(addDays(today, 3), 'yyyy-MM-dd');
+        const in7Days = format(addDays(today, 7), 'yyyy-MM-dd');
 
         // Fetch all confirmed bookings using API endpoint (bypasses RLS)
         const response = await fetch('/api/bookings/user-bookings');
@@ -54,25 +62,35 @@ const AdminDashboard = () => {
         // Count today's sessions
         const todayCount = bookings.filter((b: Booking) => b.slot_date === today_string).length || 0;
 
-        // Count upcoming sessions (including today)
-        const upcomingCount = bookings.filter((b: Booking) => b.slot_date >= today_string).length || 0;
+        // Count upcoming sessions (next 7 days)
+        const upcomingCount = bookings.filter((b: Booking) => 
+          b.slot_date > today_string && b.slot_date <= in7Days
+        ).length || 0;
 
-        // Get next 3 days bookings
-        const next3DaysBookings = bookings.filter(
-          (b: Booking) => b.slot_date >= today_string && b.slot_date < in3Days
-        ) || [];
+        // Get today's bookings
+        const todayBookings = bookings
+          .filter((b: Booking) => b.slot_date === today_string)
+          .sort((a: Booking, b: Booking) => {
+            return (a.slot_start_time || '').localeCompare(b.slot_start_time || '');
+          });
+
+        // Get next 7 days bookings
+        const upcomingBookings = bookings
+          .filter((b: Booking) => b.slot_date > today_string && b.slot_date <= in7Days)
+          .sort((a: Booking, b: Booking) => {
+            const dateCompare = a.slot_date.localeCompare(b.slot_date);
+            if (dateCompare !== 0) return dateCompare;
+            return (a.slot_start_time || '').localeCompare(b.slot_start_time || '');
+          });
 
         setStats({
           todayCount,
           upcomingCount,
-          bookings: next3DaysBookings.sort((a: Booking, b: Booking) => {
-            const dateCompare = a.slot_date.localeCompare(b.slot_date);
-            if (dateCompare !== 0) return dateCompare;
-            return (a.slot_start_time || '').localeCompare(b.slot_start_time || '');
-          }),
+          todayBookings,
+          upcomingBookings,
         });
 
-        console.log('📊 Admin stats:', { todayCount, upcomingCount, bookingsCount: next3DaysBookings.length, allBookings: bookings.length });
+        console.log('📊 Admin stats:', { todayCount, upcomingCount, totalBookings: bookings.length });
       } catch (err) {
         console.error('Error in fetchStats:', err);
       } finally {
@@ -209,42 +227,74 @@ const AdminDashboard = () => {
             </motion.div>
           </div>
 
-          {/* RIGHT SIDE - 30% Calendar */}
+          {/* RIGHT SIDE - 30% Sessions */}
           <motion.div variants={itemVariants} className="bg-white rounded-2xl shadow-lg p-6 h-fit">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Next 3 Days</h2>
-            
-            {loading ? (
-              <div className="space-y-3">
-                <div className="h-16 bg-gray-200 rounded-lg animate-pulse"></div>
-                <div className="h-16 bg-gray-200 rounded-lg animate-pulse"></div>
-                <div className="h-16 bg-gray-200 rounded-lg animate-pulse"></div>
-              </div>
-            ) : stats.bookings.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">No sessions in next 3 days</p>
-            ) : (
-              <motion.div variants={containerVariants} className="space-y-3 max-h-96 overflow-y-auto">
-                {stats.bookings.map((booking) => (
-                  <motion.div
-                    key={booking.id}
-                    variants={itemVariants}
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border-l-4 border-purple-500 hover:shadow-md transition-shadow"
-                  >
-                    <p className="font-semibold text-gray-900 text-sm">{booking.user_name}</p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      {format(new Date(booking.slot_date), 'MMM dd')} • {booking.slot_start_time}
-                    </p>
-                    <span className={`inline-block mt-2 px-2 py-1 rounded text-xs font-medium ${
-                      booking.session_type === 'personal'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-pink-100 text-pink-800'
-                    }`}>
-                      {booking.session_type === 'personal' ? 'Personal' : 'Couple'}
-                    </span>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
+            {/* Today's Sessions */}
+            <div className="mb-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Today's Sessions</h2>
+              
+              {loading ? (
+                <div className="space-y-3">
+                  <div className="h-24 bg-gray-200 rounded-lg animate-pulse"></div>
+                  <div className="h-24 bg-gray-200 rounded-lg animate-pulse"></div>
+                </div>
+              ) : stats.todayBookings.length === 0 ? (
+                <p className="text-center text-gray-500 py-6 text-sm">No sessions today</p>
+              ) : (
+                <motion.div variants={containerVariants} className="space-y-3 max-h-96 overflow-y-auto">
+                  {stats.todayBookings.map((booking) => (
+                    <SessionCard
+                      key={booking.id}
+                      id={booking.id}
+                      userName={booking.user_name}
+                      userEmail={booking.user_email}
+                      userPhone={booking.user_phone}
+                      sessionType={booking.session_type}
+                      slotDate={booking.slot_date}
+                      slotStartTime={booking.slot_start_time}
+                      slotEndTime={booking.slot_end_time}
+                      meetingLink={booking.meeting_link}
+                      paymentStatus={booking.payment_status}
+                    />
+                  ))}
+                </motion.div>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-gray-200 my-6"></div>
+
+            {/* Upcoming Sessions (7 days) */}
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Upcoming Sessions (7 days)</h2>
+              
+              {loading ? (
+                <div className="space-y-3">
+                  <div className="h-24 bg-gray-200 rounded-lg animate-pulse"></div>
+                  <div className="h-24 bg-gray-200 rounded-lg animate-pulse"></div>
+                </div>
+              ) : stats.upcomingBookings.length === 0 ? (
+                <p className="text-center text-gray-500 py-6 text-sm">No upcoming sessions</p>
+              ) : (
+                <motion.div variants={containerVariants} className="space-y-3 max-h-96 overflow-y-auto">
+                  {stats.upcomingBookings.map((booking) => (
+                    <SessionCard
+                      key={booking.id}
+                      id={booking.id}
+                      userName={booking.user_name}
+                      userEmail={booking.user_email}
+                      userPhone={booking.user_phone}
+                      sessionType={booking.session_type}
+                      slotDate={booking.slot_date}
+                      slotStartTime={booking.slot_start_time}
+                      slotEndTime={booking.slot_end_time}
+                      meetingLink={booking.meeting_link}
+                      paymentStatus={booking.payment_status}
+                    />
+                  ))}
+                </motion.div>
+              )}
+            </div>
           </motion.div>
         </motion.div>
       </div>

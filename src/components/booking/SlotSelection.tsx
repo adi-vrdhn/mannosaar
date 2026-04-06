@@ -29,6 +29,7 @@ const SlotSelection = () => {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(true);
   const [displayMonth, setDisplayMonth] = useState(new Date());
+  const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -37,6 +38,70 @@ const SlotSelection = () => {
       router.push('/auth/login');
     }
   }, [session, router]);
+
+  // Fetch available dates for the entire month
+  useEffect(() => {
+    const fetchMonthAvailability = async () => {
+      try {
+        const monthStart = startOfMonth(displayMonth);
+        const monthEnd = endOfMonth(displayMonth);
+        
+        // Get all slots for this month
+        const { data: monthSlots, error } = await supabase
+          .from('therapy_slots')
+          .select('date, id')
+          .gte('date', format(monthStart, 'yyyy-MM-dd'))
+          .lte('date', format(monthEnd, 'yyyy-MM-dd'))
+          .eq('is_available', true)
+          .eq('is_blocked', false);
+
+        if (error) {
+          console.error('Error fetching month slots:', error);
+          return;
+        }
+
+        // Get booked slot IDs
+        const { data: bookings } = await supabase
+          .from('bookings')
+          .select('slot_id')
+          .eq('status', 'confirmed');
+
+        const bookedSlotIds = new Set(bookings?.map(b => b.slot_id) || []);
+
+        // Get blocked date ranges
+        const { data: blockedRanges } = await supabase
+          .from('block_schedules')
+          .select('start_date, end_date')
+          .lte('start_date', format(monthEnd, 'yyyy-MM-dd'))
+          .gte('end_date', format(monthStart, 'yyyy-MM-dd'));
+
+        const blockedDates = new Set<string>();
+        blockedRanges?.forEach(range => {
+          let current = new Date(range.start_date);
+          while (current <= new Date(range.end_date)) {
+            blockedDates.add(format(current, 'yyyy-MM-dd'));
+            current = addDays(current, 1);
+          }
+        });
+
+        // Get available dates (excluding booked, blocked, and past dates)
+        const available = new Set<string>();
+        const today = format(new Date(), 'yyyy-MM-dd');
+        
+        monthSlots?.forEach((slot: any) => {
+          if (!bookedSlotIds.has(slot.id) && !blockedDates.has(slot.date) && slot.date >= today) {
+            available.add(slot.date);
+          }
+        });
+
+        setAvailableDates(available);
+      } catch (error) {
+        console.error('Error fetching month availability:', error);
+      }
+    };
+
+    fetchMonthAvailability();
+  }, [displayMonth, supabase]);
 
   // Fetch slots for selected date (excluding booked and blocked slots)
   useEffect(() => {
@@ -194,12 +259,13 @@ const SlotSelection = () => {
               </div>
 
               {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-7 gap-2 mb-6">
                 {allCalendarDays.map((day, idx) => {
                   const dateStr = format(day, 'yyyy-MM-dd');
                   const isCurrentMonth = day.getMonth() === displayMonth.getMonth();
                   const isSelected = dateStr === selectedDate;
                   const isPast = day < new Date() && day.getDate() !== new Date().getDate();
+                  const isAvailable = availableDates.has(dateStr);
 
                   return (
                     <motion.button
@@ -210,15 +276,29 @@ const SlotSelection = () => {
                       className={`p-2 rounded-lg text-sm font-medium transition-all ${
                         isSelected
                           ? 'bg-purple-600 text-white'
-                          : isCurrentMonth
-                            ? 'bg-gray-100 text-gray-900 hover:bg-purple-100'
-                            : 'text-gray-300 cursor-not-allowed'
+                          : isAvailable && isCurrentMonth
+                            ? 'bg-green-100 text-green-900 hover:bg-green-200'
+                            : isCurrentMonth
+                              ? 'bg-gray-100 text-gray-900 hover:bg-purple-100'
+                              : 'text-gray-300 cursor-not-allowed'
                       }`}
                     >
                       {day.getDate()}
                     </motion.button>
                   );
                 })}
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center gap-4 text-sm text-gray-600 p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-green-100 rounded border border-green-300"></div>
+                  <span>Available</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-purple-600 rounded border border-purple-600"></div>
+                  <span>Selected</span>
+                </div>
               </div>
             </div>
           </motion.div>
