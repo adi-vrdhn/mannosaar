@@ -22,8 +22,18 @@ export default function Footer() {
           <p className="text-purple-100 text-sm mt-2">Mental Health & Wellness Platform</p>
         </div>
 
+        {/* Contact Info */}
+        <div className="text-center mb-6 pb-6 border-b border-purple-400">
+          <p className="text-purple-100 text-sm">
+            📧 <a href="mailto:hello@mannosaar.com" className="hover:text-white transition-colors font-medium">hello@mannosaar.com</a>
+          </p>
+          <p className="text-purple-100 text-sm mt-2">
+            📱 <a href="tel:+15551234567" className="hover:text-white transition-colors font-medium">+1 (555) 123-4567</a>
+          </p>
+        </div>
+
         {/* Links */}
-        <div className="text-center space-y-3 text-sm border-t border-purple-400 pt-8">
+        <div className="text-center space-y-3 text-sm border-t border-purple-400 pt-6">
           <div className="flex justify-center gap-6">
             <Link 
               href="/terms" 
@@ -48,7 +58,7 @@ export default function Footer() {
           </div>
 
           {/* Copyright */}
-          <div className="text-purple-200 text-xs mt-6 pt-6 border-t border-purple-400">
+          <div className="text-purple-200 text-xs mt-6">
             <p>&copy; 2026 MANNOSAAR. All rights reserved.</p>
           </div>
         </div>
