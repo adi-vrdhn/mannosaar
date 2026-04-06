@@ -15,18 +15,20 @@ async function getTherapistGoogleCredentials(therapistId: string) {
 
   if (data) return data;
 
-  // Fallback: If therapist doesn't have credentials, find the admin user's credentials
+  // Fallback: If therapist doesn't have credentials, find an admin user's credentials
   console.log('⚠️ Therapist has no Google credentials, looking for admin credentials...');
   
-  const { data: adminData, error: adminError } = await supabase
+  const { data: adminDataList, error: adminError } = await supabase
     .from('users')
     .select('id')
     .eq('role', 'admin')
-    .single();
+    .limit(1);
 
-  if (adminError || !adminData) {
+  if (adminError || !adminDataList || adminDataList.length === 0) {
     throw new Error('No admin user found to create Google Calendar event.');
   }
+
+  const adminData = adminDataList[0];
 
   // Get the admin's Google credentials
   const { data: adminCredentials, error: credError } = await supabase
