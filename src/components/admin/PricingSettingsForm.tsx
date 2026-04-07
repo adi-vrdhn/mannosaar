@@ -286,6 +286,5 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
     </motion.div>
   );
 };
-};
 
 export default PricingSettingsForm;

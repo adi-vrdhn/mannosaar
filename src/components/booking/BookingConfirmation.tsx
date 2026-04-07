@@ -23,6 +23,12 @@ interface UserProfile {
   phone_number?: string;
 }
 
+interface SessionDate {
+  date: string;
+  start_time: string;
+  end_time: string;
+}
+
 const BookingConfirmation = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -32,12 +38,37 @@ const BookingConfirmation = () => {
   const sessionType = searchParams.get('type') || 'personal';
   const slotId = searchParams.get('slotId');
   const selectedDate = searchParams.get('date');
+  const bundle = searchParams.get('bundle') ? parseInt(searchParams.get('bundle')!) : null;
+  const sessionDatesParam = searchParams.get('sessionDates');
+  
+  // Parse sessionDates if present (for bundle bookings)
+  let sessionDates: SessionDate[] = [];
+  if (sessionDatesParam) {
+    try {
+      sessionDates = JSON.parse(decodeURIComponent(sessionDatesParam));
+    } catch (err) {
+      console.error('Failed to parse sessionDates:', err);
+    }
+  }
 
-  // Price state
-  const [prices, setPrices] = useState({ personal: 1200, couple: 1500 });
-  const sessionPrice = prices[sessionType as keyof typeof prices] || 1200;
+  // Price state - now supports bundle pricing
+  const [prices, setPrices] = useState({
+    personal_1: 2500,
+    personal_2: 4500,
+    personal_3: 6000,
+    couple_1: 3500,
+    couple_2: 6500,
+    couple_3: 9000,
+  });
+
+  // Calculate price based on bundle size
+  const bundleSize = sessionDates.length > 0 ? sessionDates.length : 1;
+  const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
+  const sessionPrice = prices[priceKey] || 0;
+  const totalPrice = sessionPrice * bundleSize; // Still price per session, shown as total
 
   const [slotInfo, setSlotInfo] = useState<SlotInfo | null>(null);
+  const [sessionSlots, setSessionSlots] = useState<SessionDate[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
@@ -54,7 +85,8 @@ const BookingConfirmation = () => {
         const response = await fetch('/api/admin/pricing');
         if (response.ok) {
           const data = await response.json();
-          setPrices(data.prices);
+          // New pricing_config table returns keys like personal_1, personal_2, etc.
+          setPrices(data);
         }
       } catch (err) {
         console.error('Error fetching prices:', err);
@@ -64,6 +96,35 @@ const BookingConfirmation = () => {
 
     fetchPrices();
   }, []);
+
+  // Fetch slot details (for single bookings)
+  useEffect(() => {
+    const fetchSlotInfo = async () => {
+      if (!slotId) return;
+
+      setLoading(true);
+      const { data, error: fetchError } = await supabase
+        .from('therapy_slots')
+        .select('*')
+        .eq('id', slotId)
+        .single();
+
+      if (fetchError) {
+        setError('Failed to load slot information');
+      } else if (data) {
+        setSlotInfo(data);
+      }
+      setLoading(false);
+    };
+
+    if (!sessionDates || sessionDates.length === 0) {
+      fetchSlotInfo();
+    } else {
+      // For bundles, use sessionDates directly
+      setSessionSlots(sessionDates);
+      setLoading(false);
+    }
+  }, [slotId, sessionDates, supabase]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -100,29 +161,6 @@ const BookingConfirmation = () => {
       fetchUserProfile();
     }
   }, [session]);
-
-  // Fetch slot details
-  useEffect(() => {
-    const fetchSlotInfo = async () => {
-      if (!slotId) return;
-
-      setLoading(true);
-      const { data, error: fetchError } = await supabase
-        .from('therapy_slots')
-        .select('*')
-        .eq('id', slotId)
-        .single();
-
-      if (fetchError) {
-        setError('Failed to load slot information');
-      } else if (data) {
-        setSlotInfo(data);
-      }
-      setLoading(false);
-    };
-
-    fetchSlotInfo();
-  }, [slotId, supabase]);
 
   const handleSavePhoneNumber = async () => {
     if (!phoneInput.trim()) {
@@ -167,9 +205,26 @@ const BookingConfirmation = () => {
   };
 
   const handleConfirmBooking = async () => {
-    if (!session?.user?.email || !slotId || !slotInfo) {
-      setError('Missing required information');
+    // For bundles: need sessionDates. For single: need slotId and slotInfo
+    const isBundleBooking = sessionDates && sessionDates.length > 0;
+    
+    if (!session?.user?.email) {
+      setError('Missing email information');
       return;
+    }
+
+    if (isBundleBooking) {
+      // Bundle booking validation
+      if (!bundle || bundle < 1 || bundle > 3) {
+        setError('Invalid bundle size');
+        return;
+      }
+    } else {
+      // Single booking validation
+      if (!slotId || !slotInfo) {
+        setError('Missing slot information');
+        return;
+      }
     }
 
     // Check if phone number is set
@@ -182,13 +237,23 @@ const BookingConfirmation = () => {
     setError('');
 
     try {
-      // Redirect to payment page instead of creating booking directly
-      const params = new URLSearchParams({
-        type: sessionType,
-        slotId: slotId,
-        date: slotInfo.date,
-      });
-      router.push(`/appointment/payment?${params.toString()}`);
+      if (isBundleBooking) {
+        // Bundle booking - pass sessionDates to payment
+        const params = new URLSearchParams({
+          type: sessionType,
+          bundle: bundle!.toString(),
+          sessionDates: encodeURIComponent(JSON.stringify(sessionDates)),
+        });
+        router.push(`/appointment/payment?${params.toString()}`);
+      } else {
+        // Single booking - pass slotId to payment
+        const params = new URLSearchParams({
+          type: sessionType,
+          slotId: slotId!,
+          date: slotInfo!.date,
+        });
+        router.push(`/appointment/payment?${params.toString()}`);
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'An error occurred';
       console.error('Navigation error:', errorMsg);
@@ -234,7 +299,7 @@ const BookingConfirmation = () => {
             <div className="text-center py-12">Loading booking details...</div>
           ) : (
             <>
-              {/* Booking Details - Horizontal Layout */}
+              {/* Single Booking Details */}
               {slotInfo && (
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 mb-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
@@ -288,6 +353,76 @@ const BookingConfirmation = () => {
                         Price
                       </p>
                       <p className="text-lg font-bold text-purple-600">₹{sessionPrice}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Bundle Booking Details */}
+              {sessionDates && sessionDates.length > 0 && (
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 mb-8">
+                  {/* Bundle Summary */}
+                  <div className="mb-6 pb-6 border-b border-gray-300">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="flex flex-col">
+                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                          Session Type
+                        </p>
+                        <p className="text-lg font-bold text-gray-900 capitalize">{sessionType}</p>
+                      </div>
+                      <div className="flex flex-col">
+                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                          Bundle Size
+                        </p>
+                        <p className="text-lg font-bold text-gray-900">{bundleSize} Sessions</p>
+                      </div>
+                      <div className="flex flex-col">
+                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                          Total Price
+                        </p>
+                        <p className="text-lg font-bold text-purple-600">₹{totalPrice}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Individual Sessions */}
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-4">
+                    Scheduled Sessions
+                  </p>
+                  <div className="space-y-3">
+                    {sessionDates.map((session, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg"
+                      >
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900">
+                            Session {idx + 1} of {bundleSize}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {format(new Date(session.date), 'MMM dd, yyyy')} at {session.start_time}
+                          </p>
+                        </div>
+                        <div className="text-sm font-semibold text-purple-600">
+                          ₹{sessionPrice}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Therapist and Duration info */}
+                  <div className="mt-6 pt-6 border-t border-gray-300 grid grid-cols-2 gap-4">
+                    <div className="flex flex-col">
+                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                        Therapist
+                      </p>
+                      <p className="text-lg font-bold text-gray-900">Neetu Rathore</p>
+                    </div>
+                    <div className="flex flex-col">
+                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                        Duration per Session
+                      </p>
+                      <p className="text-lg font-bold text-gray-900">40 mins</p>
                     </div>
                   </div>
                 </div>
