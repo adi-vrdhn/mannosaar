@@ -452,6 +452,51 @@ const ProfilePage = () => {
     }
   };
 
+  // Expand bundle bookings into separate rows
+  const getExpandedBookings = () => {
+    const expanded: any[] = [];
+    const sorted = getSortedUpcomingBookings();
+    
+    for (const booking of sorted) {
+      if (
+        booking.number_of_sessions &&
+        booking.number_of_sessions > 1 &&
+        booking.session_dates &&
+        booking.session_dates.length > 0
+      ) {
+        // Bundle booking - create a row for each session
+        for (let i = 0; i < booking.session_dates.length; i++) {
+          const session = booking.session_dates[i];
+          expanded.push({
+            ...booking,
+            // Override the slot details with the specific session's details
+            slot_date: session.date,
+            slot_start_time: session.start_time,
+            slot_end_time: session.end_time,
+            // Use the corresponding meeting link for this session
+            meeting_link: booking.meeting_links?.[i] || booking.meeting_link || null,
+            // Track which session this is in the bundle
+            sessionNumber: i + 1,
+            totalSessions: booking.number_of_sessions,
+            isBundle: true,
+            bundleBookingId: booking.id,
+          });
+        }
+      } else {
+        // Single booking - add as is
+        expanded.push({
+          ...booking,
+          sessionNumber: undefined,
+          totalSessions: undefined,
+          isBundle: false,
+          bundleBookingId: undefined,
+        });
+      }
+    }
+    
+    return expanded;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -896,17 +941,20 @@ const ProfilePage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {getSortedUpcomingBookings().map((booking, idx) => {
-                          // Check if this is part of a bundle
-                          const isBundle = booking.number_of_sessions && booking.number_of_sessions > 1;
-                          const sessionIndex = isBundle ? idx : undefined;
-                          
+                        {getExpandedBookings().map((booking, idx) => {
                           return (
                             <tr 
-                              key={booking.id} 
+                              key={`${booking.bundleBookingId || booking.id}-${booking.sessionNumber || 0}`}
                               className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
                             >
-                              <td className="px-4 py-3 text-gray-800">{booking.user_name || 'N/A'}</td>
+                              <td className="px-4 py-3 text-gray-800">
+                                {booking.user_name || 'N/A'}
+                                {booking.isBundle && (
+                                  <div className="text-xs text-purple-600 font-medium mt-1">
+                                    Session {booking.sessionNumber} of {booking.totalSessions}
+                                  </div>
+                                )}
+                              </td>
                               <td className="px-4 py-3 text-gray-800">
                                 {booking.slot_date ? format(new Date(booking.slot_date), 'MMM dd, yyyy') : 'N/A'}
                               </td>
@@ -938,7 +986,10 @@ const ProfilePage = () => {
                               </td>
                               <td className="px-4 py-3">
                                 <button
-                                  onClick={() => setRescheduleModal({ bookingId: booking.id, sessionIndex })}
+                                  onClick={() => setRescheduleModal({ 
+                                    bookingId: booking.bundleBookingId || booking.id, 
+                                    sessionIndex: booking.sessionNumber ? booking.sessionNumber - 1 : undefined 
+                                  })}
                                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all"
                                 >
                                   Reschedule
