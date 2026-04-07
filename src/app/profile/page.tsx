@@ -31,6 +31,8 @@ interface Booking {
     end_time: string;
     slotId?: string;
   }>;
+  sessionNumber?: number;
+  totalSessions?: number;
   user?: {
     name: string;
     email: string;
@@ -318,22 +320,50 @@ const ProfilePage = () => {
           return;
         }
 
-        // Map all bookings
-        const processedBookings: Booking[] = bookings.map((b: any) => ({
-          id: b.id,
-          session_type: b.session_type,
-          status: b.status,
-          meeting_link: b.meeting_link,
-          meeting_password: b.meeting_password,
-          user_id: b.user_id,
-          user_name: b.user_name,
-          user_email: b.user_email,
-          user_phone: b.user_phone,
-          slot_date: b.slot_date,
-          slot_start_time: b.slot_start_time,
-          slot_end_time: b.slot_end_time,
-          created_at: b.created_at,
-        }));
+        // Map all bookings and expand bundle sessions
+        const processedBookings: Booking[] = [];
+        
+        bookings.forEach((b: any) => {
+          const baseBooking = {
+            id: b.id,
+            session_type: b.session_type,
+            status: b.status,
+            meeting_link: b.meeting_link,
+            meeting_password: b.meeting_password,
+            user_id: b.user_id,
+            user_name: b.user_name,
+            user_email: b.user_email,
+            user_phone: b.user_phone,
+            created_at: b.created_at,
+            number_of_sessions: b.number_of_sessions,
+            session_dates: b.session_dates,
+            meeting_links: b.meeting_links,
+          };
+
+          // If this is a bundle booking, expand each session into a separate row
+          if (b.session_dates && Array.isArray(b.session_dates) && b.session_dates.length > 0) {
+            b.session_dates.forEach((sessionDate: any, index: number) => {
+              processedBookings.push({
+                ...baseBooking,
+                slot_date: sessionDate.date,
+                slot_start_time: sessionDate.start_time,
+                slot_end_time: sessionDate.end_time,
+                meeting_link: b.meeting_links && b.meeting_links[index] ? b.meeting_links[index] : b.meeting_link,
+                // Add session number info for display
+                sessionNumber: index + 1,
+                totalSessions: b.session_dates.length,
+              });
+            });
+          } else {
+            // Single session booking
+            processedBookings.push({
+              ...baseBooking,
+              slot_date: b.slot_date,
+              slot_start_time: b.slot_start_time,
+              slot_end_time: b.slot_end_time,
+            });
+          }
+        });
 
         // For admin/therapist, show all bookings in one view
         if (role === 'admin' || role === 'therapist') {
@@ -450,51 +480,6 @@ const ProfilePage = () => {
       default:
         return sorted;
     }
-  };
-
-  // Expand bundle bookings into separate rows
-  const getExpandedBookings = () => {
-    const expanded: any[] = [];
-    const sorted = getSortedUpcomingBookings();
-    
-    for (const booking of sorted) {
-      if (
-        booking.number_of_sessions &&
-        booking.number_of_sessions > 1 &&
-        booking.session_dates &&
-        booking.session_dates.length > 0
-      ) {
-        // Bundle booking - create a row for each session
-        for (let i = 0; i < booking.session_dates.length; i++) {
-          const session = booking.session_dates[i];
-          expanded.push({
-            ...booking,
-            // Override the slot details with the specific session's details
-            slot_date: session.date,
-            slot_start_time: session.start_time,
-            slot_end_time: session.end_time,
-            // Use the corresponding meeting link for this session
-            meeting_link: booking.meeting_links?.[i] || booking.meeting_link || null,
-            // Track which session this is in the bundle
-            sessionNumber: i + 1,
-            totalSessions: booking.number_of_sessions,
-            isBundle: true,
-            bundleBookingId: booking.id,
-          });
-        }
-      } else {
-        // Single booking - add as is
-        expanded.push({
-          ...booking,
-          sessionNumber: undefined,
-          totalSessions: undefined,
-          isBundle: false,
-          bundleBookingId: undefined,
-        });
-      }
-    }
-    
-    return expanded;
   };
 
   return (
@@ -941,19 +926,25 @@ const ProfilePage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {getExpandedBookings().map((booking, idx) => {
+                        {getSortedUpcomingBookings().map((booking, idx) => {
+                          // Check if this is part of a bundle
+                          const isBundle = booking.totalSessions && booking.totalSessions > 1;
+                          const sessionIndex = isBundle ? (booking.sessionNumber ? booking.sessionNumber - 1 : 0) : undefined;
+                          
                           return (
                             <tr 
-                              key={`${booking.bundleBookingId || booking.id}-${booking.sessionNumber || 0}`}
+                              key={`${booking.id}-${booking.sessionNumber || 0}`}
                               className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
                             >
                               <td className="px-4 py-3 text-gray-800">
-                                {booking.user_name || 'N/A'}
-                                {booking.isBundle && (
-                                  <div className="text-xs text-purple-600 font-medium mt-1">
-                                    Session {booking.sessionNumber} of {booking.totalSessions}
-                                  </div>
-                                )}
+                                <div className="flex flex-col">
+                                  <span>{booking.user_name || 'N/A'}</span>
+                                  {isBundle && (
+                                    <span className="text-xs font-semibold text-purple-600 mt-1">
+                                      Session {booking.sessionNumber} of {booking.totalSessions}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-4 py-3 text-gray-800">
                                 {booking.slot_date ? format(new Date(booking.slot_date), 'MMM dd, yyyy') : 'N/A'}
@@ -986,10 +977,7 @@ const ProfilePage = () => {
                               </td>
                               <td className="px-4 py-3">
                                 <button
-                                  onClick={() => setRescheduleModal({ 
-                                    bookingId: booking.bundleBookingId || booking.id, 
-                                    sessionIndex: booking.sessionNumber ? booking.sessionNumber - 1 : undefined 
-                                  })}
+                                  onClick={() => setRescheduleModal({ bookingId: booking.id, sessionIndex })}
                                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all"
                                 >
                                   Reschedule
@@ -1021,10 +1009,19 @@ const ProfilePage = () => {
                     <tbody>
                       {pastBookings.map((booking) => (
                         <tr 
-                          key={booking.id} 
+                          key={`${booking.id}-past-${booking.sessionNumber || 0}`}
                           className="border-b border-gray-200 hover:bg-gray-50 transition-colors opacity-75"
                         >
-                          <td className="px-4 py-3 text-gray-800">{booking.user_name || 'N/A'}</td>
+                          <td className="px-4 py-3 text-gray-800">
+                            <div className="flex flex-col">
+                              <span>{booking.user_name || 'N/A'}</span>
+                              {booking.totalSessions && booking.totalSessions > 1 && (
+                                <span className="text-xs font-semibold text-purple-600 mt-1">
+                                  Session {booking.sessionNumber} of {booking.totalSessions}
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-gray-800">
                             {booking.slot_date ? format(new Date(booking.slot_date), 'MMM dd, yyyy') : 'N/A'}
                           </td>
