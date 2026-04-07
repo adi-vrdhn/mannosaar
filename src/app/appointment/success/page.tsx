@@ -51,56 +51,50 @@ function SuccessPageContent() {
       }
 
       try {
-        console.log('Fetching booking:', bookingId, 'Retry count:', retryCount);
+        console.log('🔄 Fetching booking:', bookingId, 'Attempt:', retryCount + 1);
         
         // Use API endpoint instead of direct Supabase query
-        const response = await fetch(`/api/bookings/get?bookingId=${bookingId}`);
+        const response = await fetch(`/api/bookings/get?bookingId=${bookingId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          cache: 'no-store', // Don't cache on mobile
+        });
         
         let result;
         try {
           result = await response.json();
         } catch (parseErr) {
           console.error('Failed to parse JSON response:', parseErr);
-          console.error('Response text:', await response.text());
-          result = { error: 'Invalid response format' };
+          setError('Invalid response from server');
+          setLoading(false);
+          return;
         }
 
-        console.log('API response:', { status: response.status, ok: response.ok, result });
+        console.log('✅ API response status:', response.status, 'Data:', result);
 
-        if (!response.ok) {
-          console.error('API error status:', response.status, 'Error:', result);
-          if (retryCount < 3) {
-            console.log('Retrying in 1 second...');
-            setTimeout(() => setRetryCount(retryCount + 1), 1000);
-          } else {
-            setError('Failed to load booking details: ' + (result?.error || 'Unknown error'));
-            setLoading(false);
-          }
-        } else if (result.booking) {
-          console.log('Booking found:', result.booking);
+        if (response.ok && result.booking) {
+          console.log('✅ Booking loaded successfully:', result.booking.id);
           setBooking(result.booking);
           setLoading(false);
-          
-          // If no meeting link yet and we haven't retried too many times, retry
-          if (!result.booking.meeting_link && retryCount < 3) {
-            console.log('No meeting link yet, retrying in 2 seconds...');
-            setTimeout(() => setRetryCount(retryCount + 1), 2000);
-          }
         } else {
-          console.log('No booking in response:', result);
-          if (retryCount < 3) {
-            console.log('Retrying because booking not found...');
-            setTimeout(() => setRetryCount(retryCount + 1), 1000);
+          // If not ok or no booking, retry
+          if (retryCount < 5) {
+            console.log(`⏳ Booking not ready yet or error (${response.status}), retrying in 1.5 seconds...`);
+            setTimeout(() => setRetryCount(retryCount + 1), 1500);
           } else {
-            setError(`Failed to load booking: Booking ${bookingId} not found`);
+            const errorMsg = result?.error || `Failed to load booking (Status: ${response.status})`;
+            console.error('❌ Max retries reached:', errorMsg);
+            setError(errorMsg);
             setLoading(false);
           }
         }
       } catch (err) {
-        console.error('Fetch error:', err);
-        if (retryCount < 3) {
-          console.log('Fetch error, retrying...');
-          setTimeout(() => setRetryCount(retryCount + 1), 1000);
+        console.error('🔥 Fetch error:', err);
+        if (retryCount < 5) {
+          console.log(`⏳ Fetch error, retrying in 1.5 seconds... (Attempt ${retryCount + 2}/6)`);
+          setTimeout(() => setRetryCount(retryCount + 1), 1500);
         } else {
           setError('Error loading booking details: ' + (err instanceof Error ? err.message : 'Unknown error'));
           setLoading(false);
@@ -136,9 +130,20 @@ function SuccessPageContent() {
             Your therapy session has been successfully booked. You will receive a confirmation email shortly with all the details.
           </p>
 
+          {/* Loading State */}
+          {loading && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8 inline-block max-w-md">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                <p className="text-sm text-blue-700 font-medium">Loading booking details...</p>
+              </div>
+              <p className="text-xs text-blue-600">Attempt {retryCount + 1} of 6</p>
+            </div>
+          )}
+
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8 text-red-600">
-              {error}
+              ❌ {error}
             </div>
           )}
 

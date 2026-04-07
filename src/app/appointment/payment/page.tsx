@@ -381,7 +381,10 @@ function PaymentPageContent() {
             if (verifyData.success) {
               // Redirect to success page
               console.log('✅ Payment verified, redirecting to success...');
-              router.push(`/appointment/success?bookingId=${verifyData.booking.id}`);
+              // Add a small delay to ensure modal closes before redirecting
+              await new Promise(resolve => setTimeout(resolve, 500));
+              // Use replace instead of push to avoid going back to payment page
+              router.replace(`/appointment/success?bookingId=${verifyData.booking.id}`);
             } else {
               throw new Error(verifyData.error || 'Payment verification failed');
             }
