@@ -4,9 +4,28 @@ import { createClient } from '@supabase/supabase-js';
 import { createGoogleCalendarEvent } from '@/lib/google-calendar';
 import { sendBookingConfirmationEmail } from '@/lib/email';
 
+interface SessionDateWithSlot {
+  date: string;
+  slotId: string;
+  startTime: string;
+  endTime: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { orderId, paymentId, signature, userId, userEmail, slotId, sessionType, userName, userPhone } = await request.json();
+    const {
+      orderId,
+      paymentId,
+      signature,
+      userId,
+      userEmail,
+      slotId, // for single bookings
+      sessionType,
+      userName,
+      userPhone,
+      bundle, // for bundle bookings
+      sessionDates, // for bundle bookings
+    } = await request.json();
 
     console.log('Verify payment request:', {
       orderId,
@@ -15,19 +34,17 @@ export async function POST(request: NextRequest) {
       userId,
       userEmail,
       slotId,
+      bundle,
+      isBundleBooking: !!sessionDates && sessionDates.length > 0,
       sessionType,
     });
 
     if (!orderId || !paymentId || !signature) {
       console.error('Missing payment details:', { orderId, paymentId, signature });
-      return NextResponse.json(
-        { error: 'Missing payment details' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing payment details' }, { status: 400 });
     }
 
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
     if (!keySecret) {
       console.error('Razorpay key secret not configured');
       return NextResponse.json(
@@ -60,7 +77,7 @@ export async function POST(request: NextRequest) {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !serviceRoleKey) {
-      console.error('Supabase credentials missing:', { url: !!supabaseUrl, key: !!serviceRoleKey });
+      console.error('Supabase credentials missing');
       return NextResponse.json(
         { error: 'Database service not configured' },
         { status: 500 }
@@ -69,58 +86,57 @@ export async function POST(request: NextRequest) {
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Fetch slot details
-    console.log('Fetching slot with ID:', slotId);
-    const { data: slotData, error: slotError } = await supabase
-      .from('therapy_slots')
-      .select('*')
-      .eq('id', slotId)
-      .single();
-
-    if (slotError || !slotData) {
-      console.error('Slot not found:', JSON.stringify(slotError, null, 2));
-      return NextResponse.json(
-        { error: `Slot not found: ${slotError?.message || 'Unknown error'}` },
-        { status: 404 }
-      );
-    }
-
-    console.log('Slot found:', slotData.id);
-
-    // Create booking
-    console.log('Creating booking with:', {
+    // Determine if this is a bundle or single booking
+    const isBundleBooking = sessionDates && sessionDates.length > 0;
+    let slotDataForCalendar: any = null;
+    let bookingPayload: any = {
       user_id: userId,
-      slot_id: slotId,
       session_type: sessionType,
       status: 'confirmed',
       payment_id: paymentId,
       payment_status: 'completed',
-      slot_date: slotData.date,
-      slot_start_time: slotData.start_time,
-      slot_end_time: slotData.end_time,
       user_name: userName,
       user_email: userEmail,
       user_phone: userPhone,
-    });
+    };
 
+    if (isBundleBooking) {
+      // Bundle booking
+      console.log('🔵 Processing bundle booking with', sessionDates.length, 'sessions');
+      bookingPayload.number_of_sessions = sessionDates.length;
+      bookingPayload.session_dates = sessionDates;
+      // Don't store single slot_id for bundles
+    } else {
+      // Single booking
+      console.log('🔵 Fetching slot with ID:', slotId);
+      const { data: slotData, error: slotError } = await supabase
+        .from('therapy_slots')
+        .select('*')
+        .eq('id', slotId)
+        .single();
+
+      if (slotError || !slotData) {
+        console.error('Slot not found:', JSON.stringify(slotError, null, 2));
+        return NextResponse.json(
+          { error: `Slot not found: ${slotError?.message || 'Unknown error'}` },
+          { status: 404 }
+        );
+      }
+
+      console.log('✅ Slot found:', slotData.id);
+      slotDataForCalendar = slotData;
+
+      bookingPayload.slot_id = slotId;
+      bookingPayload.slot_date = slotData.date;
+      bookingPayload.slot_start_time = slotData.start_time;
+      bookingPayload.slot_end_time = slotData.end_time;
+    }
+
+    // Create booking
+    console.log('🔵 Creating booking...');
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
-      .insert([
-        {
-          user_id: userId,
-          slot_id: slotId,
-          session_type: sessionType,
-          status: 'confirmed',
-          payment_id: paymentId,
-          payment_status: 'completed',
-          slot_date: slotData.date,
-          slot_start_time: slotData.start_time,
-          slot_end_time: slotData.end_time,
-          user_name: userName,
-          user_email: userEmail,
-          user_phone: userPhone,
-        },
-      ])
+      .insert([bookingPayload])
       .select()
       .single();
 
@@ -132,53 +148,73 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Booking created:', booking.id);
+    console.log('✅ Booking created:', booking.id);
 
-    // Generate Google Meet link and create calendar event
-    console.log('🔵 Creating Google Calendar event...');
-    let meetingLink = '';
-    let calendarEventId = '';
-    
+    // Generate Google Meet links and create calendar events
+    console.log('🔵 Creating Google Calendar events...');
+    const meetingLinks: string[] = [];
+    const therapistId = 'default-therapist'; // Uses admin credentials as fallback
+
     try {
-      // For payments, we need to find the therapist. For now using a default therapist ID or admin
-      const therapistId = 'default-therapist'; // This will use admin credentials as fallback
-      
-      console.log('🔵 Creating calendar event with:', {
-        therapistId,
-        clientEmail: userEmail,
-        clientName: userName,
-        slotDate: slotData.date,
-        slotTime: slotData.start_time,
-        slotEndTime: slotData.end_time,
-        sessionType,
-      });
+      if (isBundleBooking) {
+        // Create calendar event for each session in bundle
+        for (const [index, session] of sessionDates.entries()) {
+          try {
+            console.log(`🔵 Creating calendar event for session ${index + 1}/${sessionDates.length}...`);
+            const calendarResult = await createGoogleCalendarEvent(
+              therapistId,
+              userEmail,
+              userName,
+              session.date,
+              session.startTime,
+              session.endTime,
+              sessionType
+            );
 
-      const calendarResult = await createGoogleCalendarEvent(
-        therapistId,
-        userEmail,
-        userName,
-        slotData.date,
-        slotData.start_time,
-        slotData.end_time,
-        sessionType
-      );
-
-      console.log('✅ Calendar result:', calendarResult);
-
-      if (calendarResult?.meetLink) {
-        meetingLink = calendarResult.meetLink;
-        calendarEventId = calendarResult.eventId || '';
-        console.log('✅ Meeting link generated:', meetingLink);
+            if (calendarResult?.meetLink) {
+              meetingLinks.push(calendarResult.meetLink);
+              console.log(`✅ Meeting link ${index + 1} generated:`, calendarResult.meetLink);
+            }
+          } catch (sessionError) {
+            console.warn(`❌ Failed to create calendar event for session ${index + 1}:`, sessionError);
+            // Continue with next session even if this one fails
+          }
+        }
       } else {
-        console.warn('⚠️ No meeting link returned from calendar event creation');
+        // Single booking - create one calendar event
+        const calendarResult = await createGoogleCalendarEvent(
+          therapistId,
+          userEmail,
+          userName,
+          slotDataForCalendar.date,
+          slotDataForCalendar.start_time,
+          slotDataForCalendar.end_time,
+          sessionType
+        );
+
+        console.log('✅ Calendar result:', calendarResult);
+
+        if (calendarResult?.meetLink) {
+          meetingLinks.push(calendarResult.meetLink);
+          console.log('✅ Meeting link generated:', calendarResult.meetLink);
+        } else {
+          console.warn('⚠️ No meeting link returned from calendar event creation');
+        }
       }
 
-      // Update booking with meeting link and calendar event ID
-      if (meetingLink || calendarEventId) {
-        console.log('🔵 Updating booking with meeting link and event ID...');
+      // Update booking with meeting links
+      if (meetingLinks.length > 0) {
+        console.log('🔵 Updating booking with meeting links...');
         const updatePayload: any = {};
-        if (meetingLink) updatePayload.meeting_link = meetingLink;
-        if (calendarEventId) updatePayload.google_calendar_event_id = calendarEventId;
+
+        if (isBundleBooking && meetingLinks.length > 1) {
+          // Store all meeting links as JSON array for bundle
+          updatePayload.meeting_links = meetingLinks;
+          updatePayload.meeting_link = meetingLinks[0]; // Also store first link in meeting_link for backward compatibility
+        } else {
+          // Single booking or bundle with only one link
+          updatePayload.meeting_link = meetingLinks[0];
+        }
 
         const { error: updateError } = await supabase
           .from('bookings')
@@ -186,45 +222,67 @@ export async function POST(request: NextRequest) {
           .eq('id', booking.id);
 
         if (updateError) {
-          console.error('❌ Error updating meeting link:', JSON.stringify(updateError, null, 2));
+          console.error('❌ Error updating meeting links:', JSON.stringify(updateError, null, 2));
         } else {
-          console.log('✅ Booking updated with meeting link:', meetingLink);
+          console.log('✅ Booking updated with meeting links');
         }
       }
 
-      // Send confirmation email
+      // Send confirmation email (single email for all sessions)
       console.log('🔵 Sending confirmation email...');
+      const emailDate = isBundleBooking
+        ? `${sessionDates.length} sessions scheduled`
+        : slotDataForCalendar.date;
+      const emailStartTime = isBundleBooking ? 'Varies' : slotDataForCalendar.start_time;
+      const emailEndTime = isBundleBooking ? 'Varies' : slotDataForCalendar.end_time;
+
       await sendBookingConfirmationEmail({
         clientEmail: userEmail,
         clientName: userName,
         therapistEmail: process.env.EMAIL_USER || '',
         therapistName: 'Neetu Rathore',
         sessionType,
-        date: slotData.date,
-        startTime: slotData.start_time,
-        endTime: slotData.end_time,
-        meetingLink: meetingLink || '',
+        date: emailDate,
+        startTime: emailStartTime,
+        endTime: emailEndTime,
+        meetingLink: meetingLinks[0] || '',
       });
       console.log('✅ Confirmation email sent');
     } catch (calendarError) {
-      console.error('❌ Error creating calendar event:', calendarError instanceof Error ? calendarError.message : calendarError);
-      console.log('⚠️ Booking created successfully even though calendar event failed. Continuing with payment completion...');
-      // Don't fail the entire booking if calendar fails, just log it
+      console.error('❌ Error in calendar/email processing:', calendarError instanceof Error ? calendarError.message : calendarError);
+      // Don't fail the booking if calendar/email fails
     }
 
-    // Mark slot as unavailable
-    const { error: updateError } = await supabase
-      .from('therapy_slots')
-      .update({ is_available: false })
-      .eq('id', slotId);
+    // Mark slots as unavailable
+    if (isBundleBooking) {
+      // Mark each slot in the bundle as unavailable
+      for (const session of sessionDates) {
+        const { error: slotUpdateError } = await supabase
+          .from('therapy_slots')
+          .update({ is_available: false })
+          .eq('id', session.slotId);
 
-    if (updateError) {
-      console.error('Error marking slot unavailable:', updateError);
+        if (slotUpdateError) {
+          console.warn(`⚠️ Failed to mark slot ${session.slotId} unavailable:`, slotUpdateError);
+        } else {
+          console.log(`✅ Slot ${session.slotId} marked as unavailable`);
+        }
+      }
     } else {
-      console.log('Slot marked as unavailable');
+      // Single booking - mark single slot
+      const { error: updateError } = await supabase
+        .from('therapy_slots')
+        .update({ is_available: false })
+        .eq('id', slotId);
+
+      if (updateError) {
+        console.error('Error marking slot unavailable:', updateError);
+      } else {
+        console.log('Slot marked as unavailable');
+      }
     }
 
-    // Fetch the updated booking to include meeting link
+    // Fetch the updated booking
     const { data: finalBooking, error: finalError } = await supabase
       .from('bookings')
       .select('*')
@@ -237,7 +295,9 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Payment verification complete. Final booking:', {
       id: finalBooking?.id || booking.id,
-      meeting_link: finalBooking?.meeting_link || meetingLink,
+      isBundleBooking,
+      sessions: isBundleBooking ? sessionDates.length : 1,
+      meetingLinks: meetingLinks,
     });
 
     return NextResponse.json({
@@ -247,8 +307,10 @@ export async function POST(request: NextRequest) {
         orderId,
         paymentId,
         sessionType,
-        meeting_link: finalBooking?.meeting_link || meetingLink || null,
-        google_calendar_event_id: finalBooking?.google_calendar_event_id || calendarEventId || null,
+        isBundleBooking,
+        number_of_sessions: isBundleBooking ? bundle : 1,
+        meeting_link: meetingLinks[0] || null,
+        meeting_links: meetingLinks.length > 1 ? meetingLinks : undefined,
       },
     });
   } catch (error) {

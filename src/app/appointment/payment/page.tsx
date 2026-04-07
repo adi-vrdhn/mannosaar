@@ -15,6 +15,12 @@ interface SlotInfo {
   end_time: string;
 }
 
+interface SessionDate {
+  date: string;
+  start_time: string;
+  end_time: string;
+}
+
 interface UserProfile {
   id: string;
   name: string;
@@ -37,14 +43,40 @@ function PaymentPageContent() {
   const sessionType = searchParams.get('type') || 'personal';
   const slotId = searchParams.get('slotId');
   const selectedDate = searchParams.get('date');
+  const bundle = searchParams.get('bundle') ? parseInt(searchParams.get('bundle')!) : null;
+  const sessionDatesParam = searchParams.get('sessionDates');
+
+  // Parse sessionDates if present (for bundle bookings)
+  let sessionDates: SessionDate[] = [];
+  if (sessionDatesParam) {
+    try {
+      sessionDates = JSON.parse(decodeURIComponent(sessionDatesParam));
+    } catch (err) {
+      console.error('Failed to parse sessionDates:', err);
+    }
+  }
+
+  const isBundleBooking = sessionDates.length > 0;
+  const bundleSize = isBundleBooking ? sessionDates.length : 1;
 
   const [slotInfo, setSlotInfo] = useState<SlotInfo | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [prices, setPrices] = useState({ personal: 1200, couple: 1500 });
+  const [prices, setPrices] = useState({
+    personal_1: 2500,
+    personal_2: 4500,
+    personal_3: 6000,
+    couple_1: 3500,
+    couple_2: 6500,
+    couple_3: 9000,
+  });
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [agreementChecked, setAgreementChecked] = useState(false);
+
+  // Calculate price based on bundle size
+  const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
+  const sessionPrice = prices[priceKey] || 0;
 
   // Debug logging
   useEffect(() => {
@@ -52,12 +84,14 @@ function PaymentPageContent() {
       sessionType,
       slotId,
       selectedDate,
+      isBundleBooking,
+      bundleSize,
       slotInfoLoaded: !!slotInfo,
       userProfileLoaded: !!userProfile,
       loading,
       error,
     });
-  }, [sessionType, slotId, selectedDate, slotInfo, userProfile, loading, error]);
+  }, [sessionType, slotId, selectedDate, isBundleBooking, bundleSize, slotInfo, userProfile, loading, error]);
 
   // Fetch pricing settings
   useEffect(() => {
@@ -66,7 +100,8 @@ function PaymentPageContent() {
         const response = await fetch('/api/admin/pricing');
         if (response.ok) {
           const data = await response.json();
-          setPrices(data.prices);
+          // New pricing_config table returns keys like personal_1, personal_2, etc.
+          setPrices(data);
         }
       } catch (err) {
         console.error('Error fetching prices:', err);
@@ -76,8 +111,6 @@ function PaymentPageContent() {
 
     fetchPrices();
   }, []);
-
-  const sessionPrice = prices[sessionType as keyof typeof prices] || 1200;
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -120,8 +153,14 @@ function PaymentPageContent() {
     }
   }, [session]);
 
-  // Fetch slot details
+  // Fetch slot details (for single bookings only)
   useEffect(() => {
+    if (isBundleBooking) {
+      // For bundles, we don't fetch a single slot - just mark as loaded
+      setLoading(false);
+      return;
+    }
+
     const fetchSlotInfo = async () => {
       if (!slotId) {
         setError('No slot ID provided');
@@ -158,7 +197,7 @@ function PaymentPageContent() {
     };
 
     fetchSlotInfo();
-  }, [slotId, supabase]);
+  }, [slotId, isBundleBooking, supabase]);
 
   // Load Razorpay script
   useEffect(() => {
@@ -182,12 +221,16 @@ function PaymentPageContent() {
       return;
     }
 
-    if (!slotId) {
-      setError('No slot ID provided');
+    // Validate we have either slotId (single) or sessionDates (bundle)
+    if (!isBundleBooking && !slotId) {
+      setError('No booking information provided');
       return;
     }
 
-    if (!slotInfo) {
+    if (isBundleBooking && !slotInfo) {
+      console.warn('Slot info not loaded for bundle booking, but continuing...');
+      // For bundles, slotInfo is not needed
+    } else if (!isBundleBooking && !slotInfo) {
       setError('Slot information not loaded');
       return;
     }
@@ -223,20 +266,30 @@ function PaymentPageContent() {
         sessionType,
         userEmail: session.user.email,
         userId,
+        isBundleBooking,
+        bundleSize,
         slotId,
-        date: slotInfo.date,
       });
+
+      const orderPayload: any = {
+        amount: sessionPrice,
+        sessionType,
+        userEmail: session.user.email,
+        userId,
+      };
+
+      if (isBundleBooking) {
+        orderPayload.bundle = bundle;
+        orderPayload.sessionDates = sessionDates;
+      } else {
+        orderPayload.slotId = slotId;
+        orderPayload.date = slotInfo?.date;
+      }
+
       const orderResponse = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: sessionPrice,
-          sessionType,
-          userEmail: session.user.email,
-          userId,
-          slotId,
-          date: slotInfo.date,
-        }),
+        body: JSON.stringify(orderPayload),
       });
 
       const orderText = await orderResponse.text();
@@ -267,7 +320,7 @@ function PaymentPageContent() {
         currency: orderData.currency,
         order_id: orderData.orderId,
         name: 'Mental Health Platform',
-        description: `${sessionType === 'couple' ? 'Couple' : 'Personal'} Therapy Session`,
+        description: `${sessionType === 'couple' ? 'Couple' : 'Personal'} Therapy ${bundleSize > 1 ? `Bundle (${bundleSize} sessions)` : 'Session'}`,
         prefill: {
           name: userProfile?.name || session.user?.name || 'User',
           email: userProfile?.email || session.user?.email || '',
@@ -276,20 +329,28 @@ function PaymentPageContent() {
         handler: async (response: any) => {
           try {
             // Step 4: Verify payment
+            const verifyPayload: any = {
+              orderId: orderData.orderId,
+              paymentId: response.razorpay_payment_id,
+              signature: response.razorpay_signature,
+              userId,
+              userEmail: session.user.email,
+              sessionType,
+              userName: userProfile?.name || session.user?.name || 'User',
+              userPhone: userProfile?.phone_number || '',
+            };
+
+            if (isBundleBooking) {
+              verifyPayload.bundle = bundle;
+              verifyPayload.sessionDates = sessionDates;
+            } else {
+              verifyPayload.slotId = slotId;
+            }
+
             const verifyResponse = await fetch('/api/payments/verify-payment', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                orderId: orderData.orderId,
-                paymentId: response.razorpay_payment_id,
-                signature: response.razorpay_signature,
-                userId,
-                userEmail: session.user.email,
-                slotId,
-                sessionType,
-                userName: userProfile?.name || session.user?.name || 'User',
-                userPhone: userProfile?.phone_number || '',
-              }),
+              body: JSON.stringify(verifyPayload),
             });
 
             const verifyText = await verifyResponse.text();
