@@ -443,14 +443,14 @@ function PaymentPageContent() {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
               <p className="text-gray-600">Loading booking details...</p>
             </div>
-          ) : !slotInfo ? (
+          ) : !isBundleBooking && !slotInfo ? (
             <div className="text-center py-12">
               <p className="text-red-600 font-semibold">Failed to load booking details</p>
               <p className="text-gray-500 text-sm mt-2">{error || 'Slot not found'}</p>
             </div>
           ) : (
             <>
-              {/* Order Summary */}
+              {/* Order Summary - Single Booking */}
               {slotInfo && (
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 mb-8">
                   <h2 className="text-lg font-bold text-gray-900 mb-6">Order Summary</h2>
@@ -475,6 +475,42 @@ function PaymentPageContent() {
                       <span className="text-gray-600">Duration</span>
                       <span className="font-semibold text-gray-900">40 mins</span>
                     </div>
+                    <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
+                      <span className="text-lg font-bold text-gray-900">Total Amount</span>
+                      <span className="text-2xl font-bold text-purple-600">₹{sessionPrice}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Order Summary - Bundle Booking */}
+              {isBundleBooking && (
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 mb-8">
+                  <h2 className="text-lg font-bold text-gray-900 mb-6">Bundle Order Summary</h2>
+                  <div className="space-y-4 mb-6">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Session Type</span>
+                      <span className="font-semibold text-gray-900 capitalize">{sessionType}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Bundle Size</span>
+                      <span className="font-semibold text-gray-900">{bundleSize} Sessions</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Price per Session</span>
+                      <span className="font-semibold text-gray-900">₹{sessionPrice / bundleSize}</span>
+                    </div>
+
+                    {/* Sessions List */}
+                    <div className="border-t border-gray-300 pt-4 space-y-2">
+                      <p className="font-semibold text-gray-900">Sessions:</p>
+                      {sessionDates.map((session, idx) => (
+                        <div key={idx} className="text-sm text-gray-600 ml-4">
+                          <span className="font-medium">Session {idx + 1}:</span> {format(new Date(session.date), 'MMM dd')} at {session.start_time}
+                        </div>
+                      ))}
+                    </div>
+
                     <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
                       <span className="text-lg font-bold text-gray-900">Total Amount</span>
                       <span className="text-2xl font-bold text-purple-600">₹{sessionPrice}</span>
