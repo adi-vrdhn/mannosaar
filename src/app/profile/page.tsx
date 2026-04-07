@@ -777,10 +777,19 @@ const ProfilePage = () => {
                     <tbody>
                       {allBookings.map((booking) => (
                         <tr 
-                          key={booking.id} 
+                          key={`${booking.id}-admin-${booking.sessionNumber || 0}`}
                           className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
                         >
-                          <td className="px-4 py-3 text-gray-800 font-medium">{booking.user_name || 'N/A'}</td>
+                          <td className="px-4 py-3 text-gray-800 font-medium">
+                            <div className="flex flex-col">
+                              <span>{booking.user_name || 'N/A'}</span>
+                              {booking.totalSessions && booking.totalSessions > 1 && (
+                                <span className="text-xs font-semibold text-purple-600 mt-1">
+                                  Session {booking.sessionNumber} of {booking.totalSessions}
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-gray-700">{booking.user_email || 'N/A'}</td>
                           <td className="px-4 py-3 text-gray-700">{booking.user_phone || 'N/A'}</td>
                           <td className="px-4 py-3 text-gray-800">
