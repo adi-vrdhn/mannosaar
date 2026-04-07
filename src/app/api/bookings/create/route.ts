@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { createGoogleCalendarEvent } from '@/lib/google-calendar';
 import { sendBookingConfirmationEmail } from '@/lib/email';
+import { sendBookingConfirmationWhatsApp } from '@/lib/whatsapp';
 
 // Generate a random 6-digit meeting password
 function generateMeetingPassword(): string {
@@ -199,6 +200,42 @@ export async function POST(request: Request) {
     } catch (emailError) {
       console.warn('⚠️ Email sending error (non-blocking):', emailError);
       // Don't fail the booking if email fails
+    }
+
+    // Send WhatsApp confirmation if user has WhatsApp number linked
+    try {
+      // Fetch user profile to get WhatsApp number
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('whatsapp_number')
+        .eq('id', userData.id)
+        .maybeSingle();
+
+      if (profileData?.whatsapp_number) {
+        const { data: therapistData } = await supabase
+          .from('users')
+          .select('name')
+          .eq('id', slotData.therapist_id)
+          .single();
+
+        await sendBookingConfirmationWhatsApp({
+          toPhoneNumber: profileData.whatsapp_number,
+          clientName: userData.name || 'Client',
+          therapistName: therapistData?.name || 'Therapist',
+          date: slotData.date,
+          startTime: slotData.start_time,
+          endTime: slotData.end_time,
+          meetingLink: meetLink,
+          sessionType,
+        });
+        
+        console.log('✅ WhatsApp confirmation sent to:', profileData.whatsapp_number);
+      } else {
+        console.log('ℹ️ User has no WhatsApp number linked, skipping WhatsApp notification');
+      }
+    } catch (whatsappError) {
+      console.warn('⚠️ WhatsApp sending error (non-blocking):', whatsappError);
+      // Don't fail the booking if WhatsApp fails
     }
 
     console.log('✅ Booking API returning:', { booking });

@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
+import { sendRescheduleNotificationWhatsApp } from '@/lib/whatsapp';
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -254,6 +255,44 @@ export async function POST(request: Request) {
       oldTime: booking.slot_start_time,
       newTime: newStartTime,
     });
+
+    // Send WhatsApp reschedule notification if user has WhatsApp number linked
+    try {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('whatsapp_number')
+        .eq('id', booking.user_id)
+        .maybeSingle();
+
+      if (profileData?.whatsapp_number) {
+        const { data: therapistData } = await supabase
+          .from('users')
+          .select('name')
+          .eq('id', booking.therapist_id)
+          .single();
+
+        await sendRescheduleNotificationWhatsApp({
+          toPhoneNumber: profileData.whatsapp_number,
+          clientName: booking.user_name || 'Client',
+          therapistName: therapistData?.name || 'Therapist',
+          oldDate: booking.slot_date,
+          oldStartTime: booking.slot_start_time,
+          oldEndTime: booking.slot_end_time,
+          date: newDate,
+          startTime: newStartTime,
+          endTime: newEndTime,
+          meetingLink: newMeetingLink,
+          sessionType: booking.session_type,
+        });
+
+        console.log('✅ WhatsApp reschedule notification sent to:', profileData.whatsapp_number);
+      } else {
+        console.log('ℹ️ User has no WhatsApp number linked, skipping WhatsApp notification');
+      }
+    } catch (whatsappError) {
+      console.warn('⚠️ WhatsApp sending error (non-blocking):', whatsappError);
+      // Don't fail the reschedule if WhatsApp fails
+    }
 
     return NextResponse.json({
       success: true,
