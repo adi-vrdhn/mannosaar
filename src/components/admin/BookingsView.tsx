@@ -50,6 +50,7 @@ const BookingsView = () => {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'all' | 'today' | 'upcoming'>('all');
 
   const supabase = createClient();
 
@@ -123,8 +124,35 @@ const BookingsView = () => {
     };
   }, [supabase]);
 
+  // Calculate today's sessions and upcoming sessions
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const todaySessions = bookings.filter((b) => {
+    if (!b.slot_date) return false;
+    const bookingDate = new Date(b.slot_date);
+    bookingDate.setHours(0, 0, 0, 0);
+    return bookingDate.getTime() === today.getTime();
+  });
+
+  const upcomingSessions = bookings.filter((b) => {
+    if (!b.slot_date) return false;
+    const bookingDate = new Date(b.slot_date);
+    bookingDate.setHours(0, 0, 0, 0);
+    return bookingDate.getTime() >= today.getTime();
+  });
+
+  let displayBookings = bookings;
+  if (viewMode === 'today') {
+    displayBookings = todaySessions;
+  } else if (viewMode === 'upcoming') {
+    displayBookings = upcomingSessions;
+  }
+
   const filteredBookings =
-    filterStatus === 'all' ? bookings : bookings.filter((b) => b.status === filterStatus);
+    filterStatus === 'all' ? displayBookings : displayBookings.filter((b) => b.status === filterStatus);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -174,6 +202,82 @@ const BookingsView = () => {
             {' '}Filtered: <span className="font-semibold text-purple-600">{filteredBookings.length}</span>
           </p>
         </motion.div>
+
+        {/* Today's & Upcoming Sessions Cards */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Today's Sessions Card */}
+          <motion.button
+            onClick={() => setViewMode('today')}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`p-8 rounded-2xl shadow-lg transition-all ${
+              viewMode === 'today'
+                ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white'
+                : 'bg-white text-gray-900 border-2 border-gray-200 hover:border-blue-500'
+            }`}
+          >
+            <div className="flex items-start justify-between">
+              <div className="text-left flex-1">
+                <p className={`text-sm font-semibold uppercase tracking-wider ${
+                  viewMode === 'today' ? 'text-blue-100' : 'text-gray-600'
+                }`}>
+                  Today's Sessions
+                </p>
+                <p className="text-5xl font-bold mt-4">{todaySessions.length}</p>
+              </div>
+              <div className={`text-4xl ${
+                viewMode === 'today' ? 'text-blue-100' : 'text-blue-200'
+              }`}>
+                🕐
+              </div>
+            </div>
+          </motion.button>
+
+          {/* Upcoming Sessions Card */}
+          <motion.button
+            onClick={() => setViewMode('upcoming')}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`p-8 rounded-2xl shadow-lg transition-all ${
+              viewMode === 'upcoming'
+                ? 'bg-gradient-to-br from-green-500 to-green-600 text-white'
+                : 'bg-white text-gray-900 border-2 border-gray-200 hover:border-green-500'
+            }`}
+          >
+            <div className="flex items-start justify-between">
+              <div className="text-left flex-1">
+                <p className={`text-sm font-semibold uppercase tracking-wider ${
+                  viewMode === 'upcoming' ? 'text-green-100' : 'text-gray-600'
+                }`}>
+                  Upcoming Sessions
+                </p>
+                <p className="text-5xl font-bold mt-4">{upcomingSessions.length}</p>
+              </div>
+              <div className={`text-4xl ${
+                viewMode === 'upcoming' ? 'text-green-100' : 'text-green-200'
+              }`}>
+                📅
+              </div>
+            </div>
+          </motion.button>
+        </motion.div>
+
+        {/* View Mode Info */}
+        {viewMode !== 'all' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 flex gap-3">
+            <motion.button
+              onClick={() => setViewMode('all')}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              ← Show All Bookings
+            </motion.button>
+            <div className="flex items-center">
+              <p className="text-gray-700 font-semibold">
+                {viewMode === 'today' ? 'Today\'s Sessions' : 'Upcoming Sessions'}
+              </p>
+            </div>
+          </motion.div>
+        )}
 
         {/* Filter Tabs */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-8 flex flex-wrap gap-2">
@@ -257,7 +361,7 @@ const BookingsView = () => {
                                   <span className="inline-block bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-semibold mr-2">
                                     Session {sessionIdx + 1}/{sessionCount}
                                   </span>
-                                  {format(new Date(session.date), 'MMM dd')} {session.start_time.substring(0, 5)}
+                                  {format(new Date(session.date), 'MMM dd')} {session.start_time.substring(0, 5)} IST
                                 </p>
                               ))}
                               {!booking.session_dates && (
@@ -270,7 +374,8 @@ const BookingsView = () => {
                               {booking.slot
                                 ? format(new Date(booking.slot.date), 'MMM dd, yyyy') +
                                   ' ' +
-                                  booking.slot.start_time.substring(0, 5)
+                                  booking.slot.start_time.substring(0, 5) +
+                                  ' IST'
                                 : 'N/A'}
                             </p>
                           )}
