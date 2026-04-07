@@ -48,6 +48,7 @@ interface UserProfile {
   name: string;
   email: string;
   phone_number?: string;
+  whatsapp_number?: string;
 }
 
 const ProfilePage = () => {
@@ -63,7 +64,7 @@ const ProfilePage = () => {
   const [error, setError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', phone_number: '' });
+  const [editForm, setEditForm] = useState({ name: '', phone_number: '', whatsapp_number: '' });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSuccess, setEditSuccess] = useState(false);
@@ -108,7 +109,7 @@ const ProfilePage = () => {
         if (response.ok) {
           const profile = await response.json();
           setUserProfile(profile);
-          setEditForm({ name: profile.name, phone_number: profile.phone_number || '' });
+          setEditForm({ name: profile.name, phone_number: profile.phone_number || '', whatsapp_number: profile.whatsapp_number || '' });
         }
       } catch (err) {
         console.error('Error fetching profile:', err);
@@ -149,6 +150,7 @@ const ProfilePage = () => {
         body: JSON.stringify({
           name: editForm.name.trim(),
           phone_number: editForm.phone_number.trim(),
+          whatsapp_number: editForm.whatsapp_number.trim() || null,
         }),
       });
 
@@ -608,6 +610,23 @@ const ProfilePage = () => {
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Include area code, minimum 10 digits
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      WhatsApp Number (Optional)
+                    </label>
+                    <input
+                      type="tel"
+                      value={editForm.whatsapp_number}
+                      onChange={(e) => setEditForm({ ...editForm, whatsapp_number: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                      placeholder="e.g., +1234567890"
+                      disabled={editLoading}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Include country code (e.g., +1 for USA). We'll send session reminders and updates via WhatsApp.
                     </p>
                   </div>
                 </div>

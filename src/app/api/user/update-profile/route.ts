@@ -19,11 +19,19 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, phone_number } = body;
+    const { name, phone_number, whatsapp_number } = body;
 
     if (!phone_number || !name) {
       return NextResponse.json(
         { error: 'Name and phone number are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate WhatsApp number format if provided (basic validation)
+    if (whatsapp_number && !/^\+?[1-9]\d{1,14}$/.test(whatsapp_number.replace(/\D/g, ''))) {
+      return NextResponse.json(
+        { error: 'Invalid WhatsApp number format. Use E.164 format (e.g., +1234567890)' },
         { status: 400 }
       );
     }
@@ -48,6 +56,25 @@ export async function POST(request: NextRequest) {
       .select('id, name, email, phone_number')
       .single();
 
+    // Update profile table with whatsapp_number if provided
+    let whatsappError = null;
+    if (whatsapp_number) {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert(
+          {
+            id: data?.id || session.user.email,
+            whatsapp_number,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' }
+        );
+      if (profileError) {
+        console.log('Note: WhatsApp number could not be saved to profiles table');
+        whatsappError = profileError;
+      }
+    }
+
     // If phone_number column doesn't exist, retry without it
     if (error?.code === '42703' || error?.message?.includes('phone_number')) {
       console.log('Retrying without phone_number column...');
@@ -71,7 +98,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        user: updatedUser ? { ...updatedUser, phone_number } : { email: session.user.email, name, phone_number },
+        user: updatedUser ? { ...updatedUser, phone_number, whatsapp_number: whatsapp_number || null } : { email: session.user.email, name, phone_number, whatsapp_number: whatsapp_number || null },
       });
     }
 
@@ -85,7 +112,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      user: data || { email: session.user.email, name, phone_number },
+      user: data ? { ...data, whatsapp_number: whatsapp_number || null } : { email: session.user.email, name, phone_number, whatsapp_number: whatsapp_number || null },
     });
   } catch (error) {
     console.error('Update profile error:', error);
@@ -194,7 +221,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(data);
+    // Fetch WhatsApp number from profiles table if user exists
+    let whatsappNumber = null;
+    if (data?.id) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('whatsapp_number')
+        .eq('id', data.id)
+        .maybeSingle();
+      
+      whatsappNumber = profileData?.whatsapp_number || null;
+    }
+
+    return NextResponse.json({ ...data, whatsapp_number: whatsappNumber });
   } catch (error) {
     console.error('Get profile error:', error);
     return NextResponse.json(

@@ -34,6 +34,7 @@
     "react": "19.2.4",
     "react-calendar": "^4.8.0",
     "react-dom": "19.2.4",
+    "twilio": "^5.13.1",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
