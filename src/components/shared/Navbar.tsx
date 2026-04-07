@@ -145,13 +145,6 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
                     >
                       Profile
                     </Link>
-                    <Link
-                      href="/bookings"
-                      onClick={() => setIsDropdownOpen(false)}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 transition-colors border-t border-gray-200"
-                    >
-                      My Bookings
-                    </Link>
                     {session.user.role === 'admin' && (
                       <Link
                         href="/admin"

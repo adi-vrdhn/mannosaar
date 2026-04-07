@@ -35,6 +35,11 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   const { data: session } = useSession();
   const supabase = createClient();
 
+  // Reschedule mode detection
+  const rescheduleId = searchParams.get('reschedule');
+  const rescheduleSessionIndex = searchParams.get('sessionIndex') ? parseInt(searchParams.get('sessionIndex')!) : undefined;
+  const isReschedule = !!rescheduleId;
+
   // Override with URL params if provided
   const typeParam = searchParams.get('type') || sessionType;
   const bundleParam = searchParams.get('bundle') ? parseInt(searchParams.get('bundle')!) : bundleSize;
@@ -47,6 +52,11 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [oldBooking, setOldBooking] = useState<any>(null);
+  const [confirmReschedule, setConfirmReschedule] = useState(false);
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rescheduleSuccess, setRescheduleSuccess] = useState(false);
+  const [updatedBooking, setUpdatedBooking] = useState<any>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -55,6 +65,32 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
       router.push('/auth/login');
     }
   }, [session, router]);
+
+  // Load old booking if reschedule mode
+  useEffect(() => {
+    if (!isReschedule || !rescheduleId) return;
+
+    const fetchOldBooking = async () => {
+      try {
+        console.log('📋 Fetching old booking:', rescheduleId);
+        const response = await fetch(`/api/bookings/${rescheduleId}`);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('❌ Error fetching booking:', response.status, errorData);
+          return;
+        }
+        
+        const booking = await response.json();
+        setOldBooking(booking);
+        console.log('✅ Old booking loaded:', booking);
+      } catch (error) {
+        console.error('❌ Error fetching old booking:', error);
+      }
+    };
+
+    fetchOldBooking();
+  }, [isReschedule, rescheduleId]);
 
   // Fetch available dates for the entire month
   useEffect(() => {
@@ -180,34 +216,84 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
     const slot = slots.find(s => s.id === selectedSlot);
     if (!slot) return;
 
-    const newSelection: SessionSelection = {
-      date: selectedDate,
-      slotId: selectedSlot,
-      startTime: slot.start_time,
-      endTime: slot.end_time,
-    };
-
-    const newSessions = [...selectedSessions, newSelection];
-    setSelectedSessions(newSessions);
-
-    // If all sessions selected, proceed to confirmation
-    if (newSessions.length === bundleParam) {
-      proceedToConfirmation(newSessions);
+    if (isReschedule) {
+      // For reschedule, just confirm and show modal
+      setConfirmReschedule(true);
     } else {
-      // Move to next session selection
-      setCurrentSessionIndex(newSessions.length);
-      setSelectedDate(format(addDays(new Date(selectedDate), 1), 'yyyy-MM-dd'));
-      setSelectedSlot(null);
+      // For normal booking, add to sessions
+      const newSelection: SessionSelection = {
+        date: selectedDate,
+        slotId: selectedSlot,
+        startTime: slot.start_time,
+        endTime: slot.end_time,
+      };
+
+      const newSessions = [...selectedSessions, newSelection];
+      setSelectedSessions(newSessions);
+
+      // If all sessions selected, proceed to confirmation
+      if (newSessions.length === bundleParam) {
+        proceedToConfirmation(newSessions);
+      } else {
+        // Move to next session selection
+        setCurrentSessionIndex(newSessions.length);
+        setSelectedDate(format(addDays(new Date(selectedDate), 1), 'yyyy-MM-dd'));
+        setSelectedSlot(null);
+      }
     }
   };
 
   const proceedToConfirmation = (sessions: SessionSelection[]) => {
-    const params = new URLSearchParams({
-      type: typeParam,
-      bundle: bundleParam.toString(),
-      sessionDates: JSON.stringify(sessions),
+    // Pass data via router.push with state instead of URL params
+    router.push(`/appointment/confirm?type=${typeParam}&bundle=${bundleParam}`, {
+      scroll: false,
     });
-    router.push(`/appointment/confirm?${params.toString()}`);
+    
+    // Store sessions in sessionStorage for retrieval on confirm page
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('pendingSessionDates', JSON.stringify(sessions));
+    }
+  };
+
+  const handleConfirmReschedule = async () => {
+    if (!selectedSlot || !rescheduleId) return;
+
+    setRescheduling(true);
+    try {
+      const slot = slots.find(s => s.id === selectedSlot);
+      if (!slot) throw new Error('Slot not found');
+
+      const response = await fetch('/api/bookings/reschedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: rescheduleId,
+          newSlotId: selectedSlot,
+          newDate: selectedDate,
+          newStartTime: slot.start_time,
+          newEndTime: slot.end_time,
+          sessionIndex: rescheduleSessionIndex,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('Reschedule error:', data);
+        alert(data.error || 'Failed to reschedule');
+        return;
+      }
+
+      console.log('✅ Session rescheduled:', data);
+      setUpdatedBooking(data.booking);
+      setConfirmReschedule(false);
+      setRescheduleSuccess(true);
+    } catch (error) {
+      console.error('Reschedule error:', error);
+      alert('Failed to reschedule session');
+    } finally {
+      setRescheduling(false);
+    }
   };
 
   const handleBack = () => {
@@ -262,11 +348,13 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
         >
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-5xl font-bold text-gray-900">
-              {bundleParam === 1 
+              {isReschedule
+                ? 'Reschedule Your Session'
+                : bundleParam === 1 
                 ? 'Select Date & Time'
                 : `Select Session ${currentSessionIndex + 1} of ${bundleParam}`}
             </h1>
-            {bundleParam > 1 && (
+            {bundleParam > 1 && !isReschedule && (
               <div className="text-right">
                 <p className="text-sm text-gray-600">Progress</p>
                 <p className="text-2xl font-bold text-purple-600">{currentSessionIndex + 1} / {bundleParam}</p>
@@ -280,7 +368,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
         </motion.div>
 
         {/* Show previously selected sessions if bundle */}
-        {bundleParam > 1 && selectedSessions.length > 0 && (
+        {bundleParam > 1 && selectedSessions.length > 0 && !isReschedule && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -439,7 +527,9 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       }`}
                     >
-                      {currentSessionIndex < bundleParam - 1 
+                      {isReschedule
+                        ? 'Review Reschedule'
+                        : currentSessionIndex < bundleParam - 1 
                         ? `Continue (${currentSessionIndex + 1}/${bundleParam})`
                         : 'Confirm & Continue'}
                     </motion.button>
@@ -449,6 +539,167 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
             </div>
           </motion.div>
         </div>
+
+        {/* Reschedule Confirmation Modal */}
+        <AnimatePresence>
+          {confirmReschedule && oldBooking && selectedSlot && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setConfirmReschedule(false)}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full"
+              >
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Confirm Reschedule</h2>
+
+                <div className="space-y-4 mb-6">
+                  <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                    <p className="text-sm text-gray-600 mb-1">Current Session</p>
+                    <p className="font-semibold text-gray-900">
+                      {format(new Date(oldBooking.slot.date), 'MMM dd, yyyy')} • {oldBooking.slot.start_time.substring(0, 5)}
+                    </p>
+                  </div>
+
+                  <div className="text-center text-gray-600">↓</div>
+
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                    <p className="text-sm text-gray-600 mb-1">New Session</p>
+                    <p className="font-semibold text-gray-900">
+                      {format(new Date(selectedDate), 'MMM dd, yyyy')} • {slots.find(s => s.id === selectedSlot)?.start_time.substring(0, 5)}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600 mb-6">
+                  No charges will be applied. The old slot will be freed up.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setConfirmReschedule(false)}
+                    disabled={rescheduling}
+                    className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-semibold transition-all disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmReschedule}
+                    disabled={rescheduling}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {rescheduling ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Confirming...
+                      </>
+                    ) : (
+                      'Confirm Reschedule'
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Reschedule Success Modal */}
+        <AnimatePresence>
+          {rescheduleSuccess && updatedBooking && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setRescheduleSuccess(false);
+                router.push('/profile');
+              }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full"
+              >
+                {/* Success Icon */}
+                <div className="flex justify-center mb-6">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+                    className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center"
+                  >
+                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </motion.div>
+                </div>
+
+                <h2 className="text-2xl font-bold text-center text-gray-900 mb-2">Session Rescheduled!</h2>
+                <p className="text-center text-gray-600 mb-6">Your therapy session has been successfully rescheduled.</p>
+
+                {/* New Session Details */}
+                <div className="space-y-4 mb-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase mb-1">New Date & Time</p>
+                    <p className="font-semibold text-gray-900">
+                      {format(new Date(updatedBooking.slot_date), 'MMM dd, yyyy')} • {updatedBooking.slot_start_time.substring(0, 5)} - {updatedBooking.slot_end_time.substring(0, 5)}
+                    </p>
+                  </div>
+
+                  {/* Meeting Link */}
+                  {updatedBooking.meeting_link && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Meeting Link</p>
+                      <a
+                        href={updatedBooking.meeting_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-purple-600 hover:text-purple-700 text-sm font-medium break-all"
+                      >
+                        {updatedBooking.meeting_link}
+                      </a>
+                    </div>
+                  )}
+
+                  {/* For bundle bookings */}
+                  {updatedBooking.number_of_sessions && updatedBooking.number_of_sessions > 1 && updatedBooking.meeting_links && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Meeting Link (Session {rescheduleSessionIndex ? rescheduleSessionIndex + 1 : 1})</p>
+                      <a
+                        href={updatedBooking.meeting_links[rescheduleSessionIndex || 0]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-purple-600 hover:text-purple-700 text-sm font-medium break-all"
+                      >
+                        {updatedBooking.meeting_links[rescheduleSessionIndex || 0]}
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  onClick={() => {
+                    setRescheduleSuccess(false);
+                    router.push('/profile');
+                  }}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
+                >
+                  Back to Profile
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

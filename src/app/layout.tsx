@@ -25,6 +25,11 @@ const playfairDisplay = Playfair_Display({
 export const metadata: Metadata = {
   title: "Mannosaar - Mental Health Therapy",
   description: "Professional mental health therapy and counseling services",
+  icons: {
+    icon: "/mannosaar_logog_only.png",
+    shortcut: "/mannosaar_logog_only.png",
+    apple: "/mannosaar_logog_only.png",
+  },
 };
 
 export default function RootLayout({

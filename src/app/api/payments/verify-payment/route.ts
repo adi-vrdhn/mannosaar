@@ -104,8 +104,20 @@ export async function POST(request: NextRequest) {
       // Bundle booking
       console.log('🔵 Processing bundle booking with', sessionDates.length, 'sessions');
       bookingPayload.number_of_sessions = sessionDates.length;
-      bookingPayload.session_dates = sessionDates;
-      // Don't store single slot_id for bundles
+      // Convert camelCase to snake_case for database storage
+      bookingPayload.session_dates = sessionDates.map((session: any) => ({
+        date: session.date,
+        slot_id: session.slotId,
+        start_time: session.startTime,
+        end_time: session.endTime,
+      }));
+      // Use first session's date/time for slot_date fields (for backward compatibility)
+      if (sessionDates[0]) {
+        bookingPayload.slot_id = sessionDates[0].slotId;
+        bookingPayload.slot_date = sessionDates[0].date;
+        bookingPayload.slot_start_time = sessionDates[0].startTime;
+        bookingPayload.slot_end_time = sessionDates[0].endTime;
+      }
     } else {
       // Single booking
       console.log('🔵 Fetching slot with ID:', slotId);
@@ -216,15 +228,19 @@ export async function POST(request: NextRequest) {
           updatePayload.meeting_link = meetingLinks[0];
         }
 
-        const { error: updateError } = await supabase
+        const { data: updatedBooking, error: updateError } = await supabase
           .from('bookings')
           .update(updatePayload)
-          .eq('id', booking.id);
+          .eq('id', booking.id)
+          .select()
+          .single();
 
         if (updateError) {
           console.error('❌ Error updating meeting links:', JSON.stringify(updateError, null, 2));
         } else {
-          console.log('✅ Booking updated with meeting links');
+          console.log('✅ Booking updated with meeting links:', updatedBooking);
+          // Update the booking with the returned updated data
+          Object.assign(booking, updatedBooking);
         }
       }
 
@@ -289,6 +305,14 @@ export async function POST(request: NextRequest) {
       .eq('id', booking.id)
       .single();
 
+    console.log('✅ Final booking fetched from DB:', {
+      id: finalBooking?.id || booking.id,
+      meeting_link: finalBooking?.meeting_link,
+      meeting_links: finalBooking?.meeting_links,
+      isBundleBooking,
+      sessions: isBundleBooking ? sessionDates.length : 1,
+    });
+
     if (finalError) {
       console.error('Error fetching final booking:', finalError);
     }
@@ -309,8 +333,8 @@ export async function POST(request: NextRequest) {
         sessionType,
         isBundleBooking,
         number_of_sessions: isBundleBooking ? bundle : 1,
-        meeting_link: meetingLinks[0] || null,
-        meeting_links: meetingLinks.length > 1 ? meetingLinks : undefined,
+        meeting_link: finalBooking?.meeting_link || meetingLinks[0] || null,
+        meeting_links: finalBooking?.meeting_links || (meetingLinks.length > 1 ? meetingLinks : undefined),
       },
     });
   } catch (error) {

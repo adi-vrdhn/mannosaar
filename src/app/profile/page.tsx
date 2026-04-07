@@ -22,6 +22,7 @@ interface Booking {
   slot_date?: string;
   slot_start_time?: string;
   slot_end_time?: string;
+  created_at?: string;
   user?: {
     name: string;
     email: string;
@@ -60,6 +61,9 @@ const ProfilePage = () => {
   const [editSuccess, setEditSuccess] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [sortOption, setSortOption] = useState<'recent' | 'oldest' | 'created'>('recent');
+  const [rescheduleModal, setRescheduleModal] = useState<{ bookingId: string; sessionIndex?: number } | null>(null);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -318,6 +322,7 @@ const ProfilePage = () => {
           slot_date: b.slot_date,
           slot_start_time: b.slot_start_time,
           slot_end_time: b.slot_end_time,
+          created_at: b.created_at,
         }));
 
         // For admin/therapist, show all bookings in one view
@@ -405,6 +410,37 @@ const ProfilePage = () => {
   if (status === 'unauthenticated') {
     return null;
   }
+
+  // Sort upcoming bookings based on selected option
+  const getSortedUpcomingBookings = () => {
+    const sorted = [...upcomingBookings];
+    
+    switch (sortOption) {
+      case 'recent':
+        // Most recent first (newer dates first)
+        return sorted.sort((a, b) => {
+          const dateA = new Date(a.slot_date || '');
+          const dateB = new Date(b.slot_date || '');
+          return dateB.getTime() - dateA.getTime();
+        });
+      case 'oldest':
+        // Oldest first (older dates first)
+        return sorted.sort((a, b) => {
+          const dateA = new Date(a.slot_date || '');
+          const dateB = new Date(b.slot_date || '');
+          return dateA.getTime() - dateB.getTime();
+        });
+      case 'created':
+        // By creation date (oldest bookings first)
+        return sorted.sort((a, b) => {
+          const createdA = new Date(a.created_at || '');
+          const createdB = new Date(b.created_at || '');
+          return createdA.getTime() - createdB.getTime();
+        });
+      default:
+        return sorted;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
@@ -757,6 +793,43 @@ const ProfilePage = () => {
               </button>
             </motion.div>
 
+            {/* Sort Options - Only show for upcoming sessions */}
+            {activeTab === 'upcoming' && upcomingBookings.length > 0 && (
+              <motion.div variants={itemVariants} className="mb-6 flex gap-3 flex-wrap">
+                <span className="text-gray-700 font-semibold flex items-center">Sort by:</span>
+                <button
+                  onClick={() => setSortOption('recent')}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                    sortOption === 'recent'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-600'
+                  }`}
+                >
+                  Most Recent
+                </button>
+                <button
+                  onClick={() => setSortOption('oldest')}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                    sortOption === 'oldest'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-600'
+                  }`}
+                >
+                  Oldest First
+                </button>
+                <button
+                  onClick={() => setSortOption('created')}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                    sortOption === 'created'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-600'
+                  }`}
+                >
+                  Date Booked
+                </button>
+              </motion.div>
+            )}
+
             {/* Bookings List */}
             <motion.div
               variants={containerVariants}
@@ -792,46 +865,61 @@ const ProfilePage = () => {
                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Time</th>
                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Type of Session</th>
                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Meeting Link</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {upcomingBookings.map((booking) => (
-                          <tr 
-                            key={booking.id} 
-                            className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
-                          >
-                            <td className="px-4 py-3 text-gray-800">{booking.user_name || 'N/A'}</td>
-                            <td className="px-4 py-3 text-gray-800">
-                              {booking.slot_date ? format(new Date(booking.slot_date), 'MMM dd, yyyy') : 'N/A'}
-                            </td>
-                            <td className="px-4 py-3 text-gray-800">
-                              {booking.slot_start_time && booking.slot_end_time ? `${booking.slot_start_time} - ${booking.slot_end_time}` : 'N/A'}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                booking.session_type === 'personal' 
-                                  ? 'bg-blue-100 text-blue-800' 
-                                  : 'bg-pink-100 text-pink-800'
-                              }`}>
-                                {booking.session_type === 'personal' ? 'Personal' : 'Couple'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              {booking.meeting_link ? (
-                                <a 
-                                  href={booking.meeting_link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-purple-600 hover:text-purple-800 font-medium underline"
+                        {getSortedUpcomingBookings().map((booking, idx) => {
+                          // Check if this is part of a bundle
+                          const isBundle = booking.number_of_sessions && booking.number_of_sessions > 1;
+                          const sessionIndex = isBundle ? idx : undefined;
+                          
+                          return (
+                            <tr 
+                              key={booking.id} 
+                              className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
+                            >
+                              <td className="px-4 py-3 text-gray-800">{booking.user_name || 'N/A'}</td>
+                              <td className="px-4 py-3 text-gray-800">
+                                {booking.slot_date ? format(new Date(booking.slot_date), 'MMM dd, yyyy') : 'N/A'}
+                              </td>
+                              <td className="px-4 py-3 text-gray-800">
+                                {booking.slot_start_time && booking.slot_end_time ? `${booking.slot_start_time} - ${booking.slot_end_time}` : 'N/A'}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                  booking.session_type === 'personal' 
+                                    ? 'bg-blue-100 text-blue-800' 
+                                    : 'bg-pink-100 text-pink-800'
+                                }`}>
+                                  {booking.session_type === 'personal' ? 'Personal' : 'Couple'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {booking.meeting_link ? (
+                                  <a 
+                                    href={booking.meeting_link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-purple-600 hover:text-purple-800 font-medium underline"
+                                  >
+                                    Join Meeting
+                                  </a>
+                                ) : (
+                                  <span className="text-gray-400">Not available</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <button
+                                  onClick={() => setRescheduleModal({ bookingId: booking.id, sessionIndex })}
+                                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all"
                                 >
-                                  Join Meeting
-                                </a>
-                              ) : (
-                                <span className="text-gray-400">Not available</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                                  Reschedule
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </motion.div>
@@ -897,6 +985,59 @@ const ProfilePage = () => {
             </motion.div>
           </motion.div>
         )}
+
+        {/* Reschedule Modal */}
+        <AnimatePresence>
+          {rescheduleModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setRescheduleModal(null)}
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4"
+              >
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">Reschedule Session</h2>
+                
+                <p className="text-gray-700 mb-6">
+                  You'll be redirected to select a new date and time for your session. No charges will apply.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setRescheduleModal(null)}
+                    disabled={rescheduleLoading}
+                    className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-semibold transition-all disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      const params = new URLSearchParams({
+                        reschedule: rescheduleModal.bookingId,
+                      });
+                      if (rescheduleModal.sessionIndex !== undefined) {
+                        params.append('sessionIndex', rescheduleModal.sessionIndex.toString());
+                      }
+                      router.push(`/appointment/slots?${params.toString()}`);
+                      setRescheduleModal(null);
+                    }}
+                    disabled={rescheduleLoading}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+                  >
+                    Continue to Select Slots
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

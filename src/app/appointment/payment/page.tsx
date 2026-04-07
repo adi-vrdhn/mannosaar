@@ -17,8 +17,9 @@ interface SlotInfo {
 
 interface SessionDate {
   date: string;
-  start_time: string;
-  end_time: string;
+  slotId: string;
+  startTime: string;
+  endTime: string;
 }
 
 interface UserProfile {
@@ -100,8 +101,10 @@ function PaymentPageContent() {
         const response = await fetch('/api/admin/pricing');
         if (response.ok) {
           const data = await response.json();
-          // New pricing_config table returns keys like personal_1, personal_2, etc.
-          setPrices(data);
+          // API returns { success, pricing, timestamp } - extract pricing only
+          if (data.pricing) {
+            setPrices(data.pricing);
+          }
         }
       } catch (err) {
         console.error('Error fetching prices:', err);
@@ -261,8 +264,9 @@ function PaymentPageContent() {
       console.log('✅ User ID:', userId);
 
       // Step 2: Create Razorpay order
+      const totalAmount = isBundleBooking ? sessionPrice * bundleSize : sessionPrice;
       console.log('🔵 Step 2: Creating payment order with:', {
-        amount: sessionPrice,
+        amount: totalAmount,
         sessionType,
         userEmail: session.user.email,
         userId,
@@ -272,7 +276,7 @@ function PaymentPageContent() {
       });
 
       const orderPayload: any = {
-        amount: sessionPrice,
+        amount: isBundleBooking ? sessionPrice * bundleSize : sessionPrice,
         sessionType,
         userEmail: session.user.email,
         userId,
@@ -498,7 +502,7 @@ function PaymentPageContent() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Price per Session</span>
-                      <span className="font-semibold text-gray-900">₹{sessionPrice / bundleSize}</span>
+                      <span className="font-semibold text-gray-900">₹{sessionPrice}</span>
                     </div>
 
                     {/* Sessions List */}
@@ -506,14 +510,14 @@ function PaymentPageContent() {
                       <p className="font-semibold text-gray-900">Sessions:</p>
                       {sessionDates.map((session, idx) => (
                         <div key={idx} className="text-sm text-gray-600 ml-4">
-                          <span className="font-medium">Session {idx + 1}:</span> {format(new Date(session.date), 'MMM dd')} at {session.start_time}
+                          <span className="font-medium">Session {idx + 1}:</span> {format(new Date(session.date), 'MMM dd')} at {session.startTime}
                         </div>
                       ))}
                     </div>
 
                     <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
                       <span className="text-lg font-bold text-gray-900">Total Amount</span>
-                      <span className="text-2xl font-bold text-purple-600">₹{sessionPrice}</span>
+                      <span className="text-2xl font-bold text-purple-600">₹{sessionPrice * bundleSize}</span>
                     </div>
                   </div>
                 </div>
@@ -556,7 +560,7 @@ function PaymentPageContent() {
                   disabled={processing || !agreementChecked}
                   className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
                 >
-                  {processing ? 'Processing...' : `Pay ₹${sessionPrice}`}
+                  {processing ? 'Processing...' : `Pay ₹${isBundleBooking ? sessionPrice * bundleSize : sessionPrice}`}
                 </button>
               </motion.div>
             </>

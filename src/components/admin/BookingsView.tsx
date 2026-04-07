@@ -14,6 +14,7 @@ interface Booking {
   session_type: string;
   status: string;
   meeting_link?: string;
+  meeting_links?: string[]; // for bundle bookings with multiple links
   meeting_password?: string;
   created_at: string;
   user_name?: string;
@@ -22,6 +23,13 @@ interface Booking {
   slot_date?: string;
   slot_start_time?: string;
   slot_end_time?: string;
+  number_of_sessions?: number; // for bundle bookings
+  session_dates?: Array<{
+    date: string;
+    start_time: string;
+    end_time: string;
+    slotId: string;
+  }>; // for bundle bookings
 }
 
 interface BookingWithDetails extends Booking {
@@ -217,57 +225,88 @@ const BookingsView = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredBookings.map((booking, idx) => (
-                    <motion.tr
-                      key={booking.id}
-                      variants={itemVariants}
-                      onClick={() => setSelectedBookingId(booking.id)}
-                      className={`border-b cursor-pointer transition-colors ${
-                        idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                      } hover:bg-purple-50`}
-                    >
-                      <td className="px-6 py-4">
-                        <p className="font-semibold text-gray-900">{booking.user?.name || 'N/A'}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-gray-600 text-sm">{booking.user?.email || 'N/A'}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-gray-600 text-sm">{booking.user_phone || 'N/A'}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-gray-900 font-medium whitespace-nowrap">
-                          {booking.slot
-                            ? format(new Date(booking.slot.date), 'MMM dd, yyyy') +
-                              ' ' +
-                              booking.slot.start_time.substring(0, 5)
-                            : 'N/A'}
-                        </p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="capitalize px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                          {booking.session_type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`capitalize px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(booking.status)}`}>
-                          {booking.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedBookingId(booking.id);
-                          }}
-                          className="px-4 py-1 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors"
-                        >
-                          View Details
-                        </motion.button>
-                      </td>
-                    </motion.tr>
-                  ))}
+                  {filteredBookings.map((booking, idx) => {
+                    // Check if this is a bundle booking
+                    const isBundle = booking.number_of_sessions && booking.number_of_sessions > 1;
+                    const sessionCount = booking.number_of_sessions || 1;
+
+                    return (
+                      <motion.tr
+                        key={booking.id}
+                        variants={itemVariants}
+                        onClick={() => setSelectedBookingId(booking.id)}
+                        className={`border-b cursor-pointer transition-colors ${
+                          idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                        } hover:bg-purple-50`}
+                      >
+                        <td className="px-6 py-4">
+                          <p className="font-semibold text-gray-900">{booking.user?.name || 'N/A'}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-gray-600 text-sm">{booking.user?.email || 'N/A'}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-gray-600 text-sm">{booking.user_phone || 'N/A'}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          {isBundle ? (
+                            // Bundle booking - show all session dates
+                            <div className="space-y-1">
+                              {booking.session_dates && booking.session_dates.map((session, sessionIdx) => (
+                                <p key={sessionIdx} className="text-gray-900 text-sm whitespace-nowrap">
+                                  <span className="inline-block bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-semibold mr-2">
+                                    Session {sessionIdx + 1}/{sessionCount}
+                                  </span>
+                                  {format(new Date(session.date), 'MMM dd')} {session.start_time.substring(0, 5)}
+                                </p>
+                              ))}
+                              {!booking.session_dates && (
+                                <p className="text-gray-600 text-sm text-italic">Bundle: {sessionCount} sessions</p>
+                              )}
+                            </div>
+                          ) : (
+                            // Single booking
+                            <p className="text-gray-900 font-medium whitespace-nowrap">
+                              {booking.slot
+                                ? format(new Date(booking.slot.date), 'MMM dd, yyyy') +
+                                  ' ' +
+                                  booking.slot.start_time.substring(0, 5)
+                                : 'N/A'}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1">
+                            <span className="capitalize px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 w-fit">
+                              {booking.session_type}
+                            </span>
+                            {isBundle && (
+                              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 w-fit">
+                                Bundle x{sessionCount}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`capitalize px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(booking.status)}`}>
+                            {booking.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedBookingId(booking.id);
+                            }}
+                            className="px-4 py-1 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors"
+                          >
+                            View Details
+                          </motion.button>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 interface Booking {
   id: string;
   meeting_link?: string;
+  meeting_links?: string[];
   meeting_password?: string;
   google_calendar_event_id?: string;
   slot_id?: string;
@@ -16,6 +17,13 @@ interface Booking {
   slot_date?: string;
   slot_start_time?: string;
   slot_end_time?: string;
+  session_dates?: Array<{
+    date: string;
+    slotId: string;
+    startTime: string;
+    endTime: string;
+  }>;
+  number_of_sessions?: number;
 }
 
 function SuccessPageContent() {
@@ -142,12 +150,34 @@ function SuccessPageContent() {
             </div>
           )}
 
-          {/* Google Meet Link */}
+          {/* Google Meet Link(s) */}
           {loading ? (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
               <p className="text-sm text-gray-600">Generating Google Meet link...</p>
             </div>
+          ) : booking?.meeting_links && booking.meeting_links.length > 1 ? (
+            // Multiple meeting links for bundle bookings
+            <div className="bg-blue-50 border border-blue-300 rounded-lg p-6 mb-8">
+              <p className="text-sm text-gray-600 mb-4">Google Meet Links ({booking.meeting_links.length} sessions)</p>
+              <div className="space-y-3">
+                {booking.meeting_links.map((link, idx) => (
+                  <a
+                    key={idx}
+                    href={link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors text-center"
+                  >
+                    🎥 Session {idx + 1} - Join Google Meet
+                  </a>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-3">
+                Confirmation emails with all meeting links have been sent to you and your therapist
+              </p>
+            </div>
           ) : booking?.meeting_link ? (
+            // Single meeting link for single bookings
             <div className="bg-blue-50 border border-blue-300 rounded-lg p-6 mb-8">
               <p className="text-sm text-gray-600 mb-3">Google Meet Link</p>
               <a
@@ -170,43 +200,91 @@ function SuccessPageContent() {
             </div>
           )}
 
-          {/* Booking Summary Table */}
+          {/* Booking Summary */}
           {booking && (
-            <div className="mb-8 overflow-x-auto inline-block">
-              <table className="border-collapse">
-                <tbody>
-                  <tr className="border-b-2 border-gray-200">
-                    <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
-                      ID
-                    </td>
-                    <td className="px-6 py-4 text-lg font-bold text-gray-900">{booking.id?.slice(0, 8)}...</td>
-                  </tr>
-                  <tr className="border-b-2 border-gray-200">
-                    <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
-                      Session Date
-                    </td>
-                    <td className="px-6 py-4 text-lg font-bold text-gray-900">
-                      {booking.slot_date ? format(new Date(booking.slot_date), 'MMM dd, yyyy') : 'N/A'}
-                    </td>
-                  </tr>
-                  <tr className="border-b-2 border-gray-200">
-                    <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
-                      Time
-                    </td>
-                    <td className="px-6 py-4 text-lg font-bold text-gray-900">
-                      {booking.slot_start_time && booking.slot_end_time
-                        ? `${booking.slot_start_time} - ${booking.slot_end_time}`
-                        : 'N/A'}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
-                      Type
-                    </td>
-                    <td className="px-6 py-4 text-lg font-bold text-gray-900 capitalize">{booking.session_type || 'N/A'}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div className="mb-8">
+              {/* Single Booking Summary */}
+              {booking.slot_date && (
+                <div className="overflow-x-auto inline-block">
+                  <table className="border-collapse">
+                    <tbody>
+                      <tr className="border-b-2 border-gray-200">
+                        <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
+                          ID
+                        </td>
+                        <td className="px-6 py-4 text-lg font-bold text-gray-900">{booking.id?.slice(0, 8)}...</td>
+                      </tr>
+                      <tr className="border-b-2 border-gray-200">
+                        <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
+                          Session Date
+                        </td>
+                        <td className="px-6 py-4 text-lg font-bold text-gray-900">
+                          {format(new Date(booking.slot_date), 'MMM dd, yyyy')}
+                        </td>
+                      </tr>
+                      <tr className="border-b-2 border-gray-200">
+                        <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
+                          Time
+                        </td>
+                        <td className="px-6 py-4 text-lg font-bold text-gray-900">
+                          {booking.slot_start_time && booking.slot_end_time
+                            ? `${booking.slot_start_time} - ${booking.slot_end_time}`
+                            : 'N/A'}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
+                          Type
+                        </td>
+                        <td className="px-6 py-4 text-lg font-bold text-gray-900 capitalize">{booking.session_type || 'N/A'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Bundle Booking Summary */}
+              {booking.session_dates && booking.session_dates.length > 0 && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Bundle Sessions ({booking.number_of_sessions || booking.session_dates.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {booking.session_dates.map((session, idx) => (
+                      <div
+                        key={idx}
+                        className="p-4 bg-white border border-purple-100 rounded-lg"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-semibold text-gray-900">
+                              Session {idx + 1} of {booking.session_dates?.length}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {format(new Date(session.date), 'MMM dd, yyyy')} at {session.startTime} - {session.endTime}
+                            </p>
+                          </div>
+                          {booking.meeting_links && booking.meeting_links[idx] && (
+                            <a
+                              href={booking.meeting_links[idx]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold"
+                            >
+                              Join
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-purple-200">
+                    <p className="text-sm text-gray-600">
+                      <span className="font-semibold">Session Type:</span> <span className="capitalize">{booking.session_type}</span>
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

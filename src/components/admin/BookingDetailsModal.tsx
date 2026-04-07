@@ -27,9 +27,17 @@ interface BookingDetails {
   session_type: string;
   status: string;
   meeting_link?: string;
+  meeting_links?: string[]; // for bundle bookings
   meeting_password?: string;
   created_at: string;
   cancelled_at?: string;
+  number_of_sessions?: number; // for bundle bookings
+  session_dates?: Array<{
+    date: string;
+    start_time: string;
+    end_time: string;
+    slotId: string;
+  }>; // for bundle bookings
 }
 
 export default function BookingDetailsModal({
@@ -272,32 +280,66 @@ export default function BookingDetailsModal({
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b-2 border-purple-200">
                       Session Information
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Session Type</p>
-                        <p className="text-lg font-semibold text-gray-900 capitalize">
-                          {booking.session_type}
-                        </p>
+                    {booking.number_of_sessions && booking.number_of_sessions > 1 ? (
+                      // Bundle booking
+                      <div className="space-y-3">
+                        <div className="flex gap-2 mb-4">
+                          <span className="inline-block px-3 py-1 rounded-full text-sm font-semibold bg-purple-100 text-purple-800">
+                            Bundle: {booking.number_of_sessions} Sessions
+                          </span>
+                          <span className="inline-block px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800 capitalize">
+                            {booking.session_type}
+                          </span>
+                        </div>
+                        {booking.session_dates && booking.session_dates.map((session, idx) => (
+                          <div key={idx} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-purple-100 text-purple-800">
+                                Session {idx + 1} of {booking.number_of_sessions}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div>
+                                <p className="text-gray-600">Date</p>
+                                <p className="font-semibold text-gray-900">{format(new Date(session.date), 'MMM dd, yyyy')}</p>
+                              </div>
+                              <div>
+                                <p className="text-gray-600">Time</p>
+                                <p className="font-semibold text-gray-900">{session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Date</p>
-                        <p className="text-lg font-semibold text-gray-900">
-                          {format(new Date(booking.slot.date), 'MMM dd, yyyy')}
-                        </p>
+                    ) : (
+                      // Single booking
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Session Type</p>
+                          <p className="text-lg font-semibold text-gray-900 capitalize">
+                            {booking.session_type}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Date</p>
+                          <p className="text-lg font-semibold text-gray-900">
+                            {format(new Date(booking.slot.date), 'MMM dd, yyyy')}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Time</p>
+                          <p className="text-lg font-semibold text-gray-900">
+                            {booking.slot.start_time.substring(0, 5)} - {booking.slot.end_time.substring(0, 5)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Duration</p>
+                          <p className="text-lg font-semibold text-gray-900">
+                            {booking.slot.duration_minutes} minutes
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Time</p>
-                        <p className="text-lg font-semibold text-gray-900">
-                          {booking.slot.start_time.substring(0, 5)} - {booking.slot.end_time.substring(0, 5)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Duration</p>
-                        <p className="text-lg font-semibold text-gray-900">
-                          {booking.slot.duration_minutes} minutes
-                        </p>
-                      </div>
-                    </div>
+                    )}
                   </section>
 
                   {/* Status Information */}
@@ -334,32 +376,61 @@ export default function BookingDetailsModal({
                   </section>
 
                   {/* Meeting Information */}
-                  {booking.meeting_link && (
+                  {(booking.meeting_link || booking.meeting_links) && (
                     <section>
                       <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b-2 border-purple-200">
                         Meeting Information
                       </h3>
                       <div className="space-y-3">
-                        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                          <p className="text-sm text-gray-600 mb-2">Google Meet Link</p>
-                          <div className="flex items-center justify-between gap-2">
-                            <a
-                              href={booking.meeting_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800 font-semibold break-all"
-                            >
-                              {booking.meeting_link}
-                            </a>
-                            <button
-                              onClick={() => copyToClipboard(booking.meeting_link!)}
-                              className="p-2 hover:bg-blue-100 rounded transition-colors flex-shrink-0"
-                              title="Copy link"
-                            >
-                              <Copy size={18} className="text-blue-600" />
-                            </button>
+                        {booking.meeting_links && booking.meeting_links.length > 1 ? (
+                          // Bundle bookings with multiple links
+                          booking.meeting_links.map((link, idx) => (
+                            <div key={idx} className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                              <p className="text-sm text-gray-600 mb-2">
+                                Google Meet Link - Session {idx + 1}
+                              </p>
+                              <div className="flex items-center justify-between gap-2">
+                                <a
+                                  href={link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:text-blue-800 font-semibold break-all text-sm"
+                                >
+                                  {link}
+                                </a>
+                                <button
+                                  onClick={() => copyToClipboard(link)}
+                                  className="p-2 hover:bg-blue-100 rounded transition-colors flex-shrink-0"
+                                  title="Copy link"
+                                >
+                                  <Copy size={18} className="text-blue-600" />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          // Single booking
+                          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                            <p className="text-sm text-gray-600 mb-2">Google Meet Link</p>
+                            <div className="flex items-center justify-between gap-2">
+                              <a
+                                href={booking.meeting_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 font-semibold break-all"
+                              >
+                                {booking.meeting_link}
+                              </a>
+                              <button
+                                onClick={() => copyToClipboard(booking.meeting_link!)}
+                                className="p-2 hover:bg-blue-100 rounded transition-colors flex-shrink-0"
+                                title="Copy link"
+                              >
+                                <Copy size={18} className="text-blue-600" />
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        )}
 
                         {booking.meeting_password && (
                           <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
@@ -390,15 +461,28 @@ export default function BookingDetailsModal({
 
                   {/* Edit Button */}
                   {booking.status === 'confirmed' && (
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={handleEditClick}
-                      className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all"
-                    >
-                      <Edit2 size={20} />
-                      Reschedule Booking
-                    </motion.button>
+                    <>
+                      {booking.number_of_sessions && booking.number_of_sessions > 1 ? (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <p className="text-sm text-blue-800 font-medium">
+                            📌 Bundle Booking - Rescheduling individual sessions is not supported yet.
+                          </p>
+                          <p className="text-xs text-blue-700 mt-1">
+                            To reschedule bundle bookings, please contact the client directly and create a new booking.
+                          </p>
+                        </div>
+                      ) : (
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={handleEditClick}
+                          className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all"
+                        >
+                          <Edit2 size={20} />
+                          Reschedule Booking
+                        </motion.button>
+                      )}
+                    </>
                   )}
                 </div>
               )}

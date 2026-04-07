@@ -22,15 +22,15 @@ export async function GET(
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Verify user is admin
-    const { data: userData } = await supabase
+    // Verify user is admin or owner of the booking
+    const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('role')
+      .select('role, id')
       .eq('id', session.user.id)
       .single();
 
-    if (userData?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 });
+    if (userError) {
+      console.error('Error fetching user data:', userError);
     }
 
     // Fetch detailed booking information
@@ -46,6 +46,22 @@ export async function GET(
 
     if (error || !booking) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+    }
+
+    // Check authorization: admin can access all, users can only access their own
+    const isAdmin = userData?.role === 'admin';
+    const isOwner = booking.user_id === session.user.id;
+
+    console.log('🔐 Authorization check:', {
+      userId: session.user.id,
+      bookingUserId: booking.user_id,
+      userRole: userData?.role,
+      isAdmin,
+      isOwner,
+    });
+
+    if (!isAdmin && !isOwner) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Format the response
@@ -66,9 +82,12 @@ export async function GET(
       status: booking.status,
       payment_status: booking.payment_status,
       meeting_link: booking.meeting_link,
+      meeting_links: booking.meeting_links,
       meeting_password: booking.meeting_password,
       created_at: booking.created_at,
       cancelled_at: booking.cancelled_at,
+      number_of_sessions: booking.number_of_sessions,
+      session_dates: booking.session_dates,
     };
 
     return NextResponse.json(formattedBooking);

@@ -25,8 +25,9 @@ interface UserProfile {
 
 interface SessionDate {
   date: string;
-  start_time: string;
-  end_time: string;
+  slotId: string;
+  startTime: string;
+  endTime: string;
 }
 
 const BookingConfirmation = () => {
@@ -39,17 +40,6 @@ const BookingConfirmation = () => {
   const slotId = searchParams.get('slotId');
   const selectedDate = searchParams.get('date');
   const bundle = searchParams.get('bundle') ? parseInt(searchParams.get('bundle')!) : null;
-  const sessionDatesParam = searchParams.get('sessionDates');
-  
-  // Parse sessionDates if present (for bundle bookings)
-  let sessionDates: SessionDate[] = [];
-  if (sessionDatesParam) {
-    try {
-      sessionDates = JSON.parse(decodeURIComponent(sessionDatesParam));
-    } catch (err) {
-      console.error('Failed to parse sessionDates:', err);
-    }
-  }
 
   // Price state - now supports bundle pricing
   const [prices, setPrices] = useState({
@@ -60,12 +50,6 @@ const BookingConfirmation = () => {
     couple_2: 6500,
     couple_3: 9000,
   });
-
-  // Calculate price based on bundle size
-  const bundleSize = sessionDates.length > 0 ? sessionDates.length : 1;
-  const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
-  const sessionPrice = prices[priceKey] || 0;
-  const totalPrice = sessionPrice * bundleSize; // Still price per session, shown as total
 
   const [slotInfo, setSlotInfo] = useState<SlotInfo | null>(null);
   const [sessionSlots, setSessionSlots] = useState<SessionDate[]>([]);
@@ -78,6 +62,29 @@ const BookingConfirmation = () => {
   const [phoneError, setPhoneError] = useState('');
   const [savingPhone, setSavingPhone] = useState(false);
 
+  // Load sessionDates from sessionStorage (set by SlotSelection)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedSessions = sessionStorage.getItem('pendingSessionDates');
+      if (storedSessions) {
+        try {
+          const parsed = JSON.parse(storedSessions);
+          setSessionSlots(parsed);
+          // Clear from storage after reading
+          sessionStorage.removeItem('pendingSessionDates');
+        } catch (err) {
+          console.error('Failed to parse sessionDates from storage:', err);
+        }
+      }
+    }
+  }, []);
+
+  // Calculate bundleSize from sessionDates when set
+  const bundleSize = sessionSlots.length > 0 ? sessionSlots.length : 1;
+  const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
+  const sessionPrice = prices[priceKey] || 0;
+  const totalPrice = sessionPrice * bundleSize;
+
   // Fetch pricing settings
   useEffect(() => {
     const fetchPrices = async () => {
@@ -85,8 +92,10 @@ const BookingConfirmation = () => {
         const response = await fetch('/api/admin/pricing');
         if (response.ok) {
           const data = await response.json();
-          // New pricing_config table returns keys like personal_1, personal_2, etc.
-          setPrices(data);
+          // API returns { success, pricing, timestamp } - extract pricing only
+          if (data.pricing) {
+            setPrices(data.pricing);
+          }
         }
       } catch (err) {
         console.error('Error fetching prices:', err);
@@ -117,14 +126,19 @@ const BookingConfirmation = () => {
       setLoading(false);
     };
 
-    if (!sessionDates || sessionDates.length === 0) {
+    // If we have sessionSlots (from sessionStorage), use those
+    if (sessionSlots.length > 0) {
+      setLoading(false);
+      return;
+    }
+
+    // Otherwise, fetch single slot
+    if (slotId) {
       fetchSlotInfo();
     } else {
-      // For bundles, use sessionDates directly
-      setSessionSlots(sessionDates);
       setLoading(false);
     }
-  }, [slotId, sessionDates, supabase]);
+  }, [slotId, sessionSlots.length, supabase]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -205,8 +219,8 @@ const BookingConfirmation = () => {
   };
 
   const handleConfirmBooking = async () => {
-    // For bundles: need sessionDates. For single: need slotId and slotInfo
-    const isBundleBooking = sessionDates && sessionDates.length > 0;
+    // For bundles: need sessionSlots. For single: need slotId and slotInfo
+    const isBundleBooking = sessionSlots && sessionSlots.length > 0;
     
     if (!session?.user?.email) {
       setError('Missing email information');
@@ -238,11 +252,11 @@ const BookingConfirmation = () => {
 
     try {
       if (isBundleBooking) {
-        // Bundle booking - pass sessionDates to payment
+        // Bundle booking - pass sessionSlots to payment
         const params = new URLSearchParams({
           type: sessionType,
           bundle: bundle!.toString(),
-          sessionDates: encodeURIComponent(JSON.stringify(sessionDates)),
+          sessionDates: encodeURIComponent(JSON.stringify(sessionSlots)),
         });
         router.push(`/appointment/payment?${params.toString()}`);
       } else {
@@ -300,7 +314,7 @@ const BookingConfirmation = () => {
           ) : (
             <>
               {/* Single Booking Details */}
-              {slotInfo && (
+              {(slotInfo || (bundleSize === 1 && sessionSlots.length === 1)) && (
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 mb-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
                     {/* Session Date */}
@@ -309,7 +323,9 @@ const BookingConfirmation = () => {
                         Session Date
                       </p>
                       <p className="text-lg font-bold text-gray-900">
-                        {format(new Date(slotInfo.date), 'MMM dd, yyyy')}
+                        {slotInfo 
+                          ? format(new Date(slotInfo.date), 'MMM dd, yyyy')
+                          : format(new Date(sessionSlots[0].date), 'MMM dd, yyyy')}
                       </p>
                     </div>
 
@@ -319,7 +335,9 @@ const BookingConfirmation = () => {
                         Session Time
                       </p>
                       <p className="text-lg font-bold text-gray-900">
-                        {slotInfo.start_time} - {slotInfo.end_time}
+                        {slotInfo 
+                          ? `${slotInfo.start_time} - ${slotInfo.end_time}`
+                          : `${sessionSlots[0].startTime} - ${sessionSlots[0].endTime}`}
                       </p>
                     </div>
 
@@ -359,7 +377,7 @@ const BookingConfirmation = () => {
               )}
 
               {/* Bundle Booking Details */}
-              {sessionDates && sessionDates.length > 0 && (
+              {bundleSize > 1 && sessionSlots && sessionSlots.length > 0 && (
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 mb-8">
                   {/* Bundle Summary */}
                   <div className="mb-6 pb-6 border-b border-gray-300">
@@ -390,7 +408,7 @@ const BookingConfirmation = () => {
                     Scheduled Sessions
                   </p>
                   <div className="space-y-3">
-                    {sessionDates.map((session, idx) => (
+                    {sessionSlots.map((session, idx) => (
                       <div
                         key={idx}
                         className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg"
@@ -400,7 +418,7 @@ const BookingConfirmation = () => {
                             Session {idx + 1} of {bundleSize}
                           </p>
                           <p className="text-sm text-gray-600">
-                            {format(new Date(session.date), 'MMM dd, yyyy')} at {session.start_time}
+                            {format(new Date(session.date), 'MMM dd, yyyy')} at {session.startTime}
                           </p>
                         </div>
                         <div className="text-sm font-semibold text-purple-600">

@@ -49,8 +49,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Booking found:', booking.id, 'User email:', booking.user_email, 'Meeting link:', booking.meeting_link);
-    return NextResponse.json({ booking, success: true });
+    console.log('Booking found:', booking.id, 'User email:', booking.user_email, 'Meeting link:', booking.meeting_link, 'Meeting links:', booking.meeting_links);
+    
+    // Convert snake_case session_dates back to camelCase for frontend
+    let sessionDates = undefined;
+    if (booking.session_dates && Array.isArray(booking.session_dates)) {
+      sessionDates = booking.session_dates.map((session: any) => ({
+        date: session.date,
+        slotId: session.slot_id,
+        startTime: session.start_time,
+        endTime: session.end_time,
+      }));
+    }
+    
+    // Ensure meeting_links is properly formatted
+    const bookingResponse = {
+      ...booking,
+      session_dates: sessionDates,
+      meeting_links: booking.meeting_links || (booking.meeting_link ? [booking.meeting_link] : undefined),
+    };
+    
+    return NextResponse.json({ booking: bookingResponse, success: true });
   } catch (err) {
     console.error('Catch error:', err);
     return NextResponse.json(

@@ -49,6 +49,10 @@ const SlotManagement = () => {
     startDate: format(new Date(), 'yyyy-MM-dd'),
     endDate: format(addDays(new Date(), 6), 'yyyy-MM-dd'),
   });
+  const [selectedDays, setSelectedDays] = useState<boolean[]>([false, false, false, false, false, true, true]); // Mon-Sun, default Sat-Sun
+  const [selectedHours, setSelectedHours] = useState<boolean[]>([
+    true, true, true, true, true, true, true, true, true, true, true, true // 9AM to 8PM
+  ]);
   const [previewSlots, setPreviewSlots] = useState<Array<{ start_time: string; end_time: string }>>([]);
   const [formData, setFormData] = useState({
     date: selectedDate,
@@ -139,25 +143,48 @@ const SlotManagement = () => {
 
   const handleGenerateDefaultPreview = (startDate: string, endDate: string) => {
     // Sample preview of default slots for one day
-    const defaultSlots = generateDefaultSlots();
-    setPreviewSlots(defaultSlots);
+    const allDefaultSlots = generateDefaultSlots();
+    const filteredSlots = allDefaultSlots.filter((_, idx) => selectedHours[idx]);
+    setPreviewSlots(filteredSlots);
   };
 
   const handleGenerateDefault = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if at least one day and hour is selected
+    if (!selectedDays.some(d => d)) {
+      alert('Please select at least one day');
+      return;
+    }
+    if (!selectedHours.some(h => h)) {
+      alert('Please select at least one hour');
+      return;
+    }
+    
     setLoading(true);
 
     try {
-      const defaultSlots = generateDefaultSlots();
+      const allDefaultSlots = generateDefaultSlots();
+      const filteredSlots = allDefaultSlots.filter((_, idx) => selectedHours[idx]);
+      
       const start = new Date(defaultFormData.startDate);
       const end = new Date(defaultFormData.endDate);
 
       const slotsToInsert = [];
+      const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
       for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+        const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
+        const selectedDayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert to Mon(0)-Sun(6)
+
+        // Only create slots for selected days
+        if (!selectedDays[selectedDayIndex]) {
+          continue;
+        }
+
         const dateStr = date.toISOString().split('T')[0];
 
-        for (const slot of defaultSlots) {
+        for (const slot of filteredSlots) {
           slotsToInsert.push({
             date: dateStr,
             start_time: slot.start_time,
@@ -166,6 +193,12 @@ const SlotManagement = () => {
             is_blocked: false,
           });
         }
+      }
+
+      if (slotsToInsert.length === 0) {
+        alert('No slots to create with the selected days and hours');
+        setLoading(false);
+        return;
       }
 
       const response = await fetch('/api/admin/slots/create-bulk', {
@@ -361,6 +394,44 @@ const SlotManagement = () => {
     }
   };
 
+  const handleDeleteAllSlots = async () => {
+    if (!confirm('Are you sure you want to delete all unbooked slots? Booked slots will be preserved.')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/admin/slots/delete-all', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert('Error deleting slots: ' + errorData.error);
+        setLoading(false);
+        return;
+      }
+
+      const result = await response.json();
+      alert(`✅ Successfully deleted ${result.deletedCount} unbooked slots!\n⚠️ ${result.bookedCount} booked slots were preserved.`);
+
+      // Refetch slots
+      const { data } = await supabase
+        .from('therapy_slots')
+        .select('*')
+        .eq('date', selectedDate)
+        .order('start_time', { ascending: true });
+
+      if (data) setSlots(data);
+    } catch (error) {
+      console.error('Delete all slots error:', error);
+      alert('Error deleting slots');
+    }
+
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -419,6 +490,14 @@ const SlotManagement = () => {
           >
             {showBlockForm ? 'Cancel' : 'Block Date Range'}
           </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            onClick={handleDeleteAllSlots}
+            disabled={loading}
+            className="px-6 py-2 bg-red-800 text-white rounded-lg hover:bg-red-900 transition-colors disabled:opacity-50"
+          >
+            Delete All Slots
+          </motion.button>
         </motion.div>
 
         {/* Generate Default Slots Form */}
@@ -431,10 +510,11 @@ const SlotManagement = () => {
           >
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Generate Default Slots</h2>
             <p className="text-gray-600 mb-4">
-              This will create slots from 9 AM to 9 PM. One 40-minute slot per hour with 20 minutes break between sessions. No continuous sessions.
+              Create slots with 40-minute duration and 20 minutes break between sessions.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {/* Date Range Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date</label>
                 <input
@@ -463,10 +543,104 @@ const SlotManagement = () => {
               </div>
             </div>
 
+            {/* Day Selection */}
+            <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-semibold text-gray-900">Select Days of Week</h3>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDays([true, true, true, true, true, true, true]);
+                      handleGenerateDefaultPreview(defaultFormData.startDate, defaultFormData.endDate);
+                    }}
+                    className="text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDays([false, false, false, false, false, false, false]);
+                      handleGenerateDefaultPreview(defaultFormData.startDate, defaultFormData.endDate);
+                    }}
+                    className="text-sm px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day, idx) => (
+                  <label key={day} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedDays[idx]}
+                      onChange={(e) => {
+                        const newDays = [...selectedDays];
+                        newDays[idx] = e.target.checked;
+                        setSelectedDays(newDays);
+                        handleGenerateDefaultPreview(defaultFormData.startDate, defaultFormData.endDate);
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-purple-600"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{day}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Hour Selection */}
+            <div className="mb-8 p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-semibold text-gray-900">Select Time Slots (9 AM to 8 PM)</h3>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedHours([true, true, true, true, true, true, true, true, true, true, true, true]);
+                      handleGenerateDefaultPreview(defaultFormData.startDate, defaultFormData.endDate);
+                    }}
+                    className="text-sm px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedHours([false, false, false, false, false, false, false, false, false, false, false, false]);
+                      handleGenerateDefaultPreview(defaultFormData.startDate, defaultFormData.endDate);
+                    }}
+                    className="text-sm px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {['09:00-09:40', '10:00-10:40', '11:00-11:40', '12:00-12:40', '13:00-13:40', '14:00-14:40', '15:00-15:40', '16:00-16:40', '17:00-17:40', '18:00-18:40', '19:00-19:40', '20:00-20:40'].map((time, idx) => (
+                  <label key={time} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedHours[idx]}
+                      onChange={(e) => {
+                        const newHours = [...selectedHours];
+                        newHours[idx] = e.target.checked;
+                        setSelectedHours(newHours);
+                        handleGenerateDefaultPreview(defaultFormData.startDate, defaultFormData.endDate);
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-green-600"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{time}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* Preview Slots */}
             {previewSlots.length > 0 && (
               <div className="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <h3 className="font-semibold text-gray-900 mb-3">Slot Preview (for each day):</h3>
+                <h3 className="font-semibold text-gray-900 mb-3">Slot Preview (for each selected day):</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                   {previewSlots.map((slot, idx) => (
                     <div key={idx} className="bg-white p-2 rounded border border-purple-200 text-sm">
