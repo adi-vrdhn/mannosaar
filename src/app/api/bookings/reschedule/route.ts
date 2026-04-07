@@ -166,8 +166,10 @@ export async function POST(request: Request) {
           conferenceData: {
             createRequest: {
               requestId: `reschedule-${bookingId}-${Date.now()}`,
-              conferenceSolutionKey: {
-                key: 'hangoutsMeet',
+              conferenceSolution: {
+                key: {
+                  conferenceType: 'hangoutsMeet',
+                },
               },
             },
           },

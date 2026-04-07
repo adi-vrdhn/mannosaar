@@ -14,6 +14,7 @@ interface Booking {
   session_type: string;
   status: string;
   meeting_link?: string;
+  meeting_links?: string[];
   meeting_password?: string;
   user_id?: string;
   user_name?: string;
@@ -23,6 +24,13 @@ interface Booking {
   slot_start_time?: string;
   slot_end_time?: string;
   created_at?: string;
+  number_of_sessions?: number;
+  session_dates?: Array<{
+    date: string;
+    start_time: string;
+    end_time: string;
+    slotId?: string;
+  }>;
   user?: {
     name: string;
     email: string;
