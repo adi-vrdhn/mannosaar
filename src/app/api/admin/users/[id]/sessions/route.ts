@@ -1,12 +1,13 @@
 import { auth } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
 
     // Check if user is authenticated and is admin
@@ -43,7 +44,7 @@ export async function GET(
         meeting_link,
         status
       `)
-      .eq('user_id', params.id)
+      .eq('user_id', id)
       .order('slot_date', { ascending: false });
 
     if (bookingsError) {
