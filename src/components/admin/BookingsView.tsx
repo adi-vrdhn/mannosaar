@@ -325,6 +325,7 @@ const BookingsView = () => {
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Date & Time</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Type</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Meeting Link</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Actions</th>
                   </tr>
                 </thead>
@@ -396,6 +397,36 @@ const BookingsView = () => {
                           <span className={`capitalize px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(booking.status)}`}>
                             {booking.status}
                           </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {booking.meeting_links && booking.meeting_links.length > 1 ? (
+                            // Multiple meeting links for bundle bookings
+                            <div className="space-y-2">
+                              {booking.meeting_links.map((link, idx) => (
+                                <a
+                                  key={idx}
+                                  href={link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold hover:bg-blue-200 transition-colors text-center"
+                                >
+                                  Session {idx + 1} 🎥
+                                </a>
+                              ))}
+                            </div>
+                          ) : booking.meeting_link ? (
+                            // Single meeting link
+                            <a
+                              href={booking.meeting_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold hover:bg-green-200 transition-colors"
+                            >
+                              Join Meet 🎥
+                            </a>
+                          ) : (
+                            <span className="text-gray-400 text-xs">No link</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-center">
                           <motion.button
