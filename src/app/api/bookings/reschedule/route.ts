@@ -150,18 +150,25 @@ export async function POST(request: Request) {
         }
 
         // Create a new event in Google Calendar
-        const eventStartTime = new Date(`${newDate}T${newStartTime}:00`);
-        const eventEndTime = new Date(`${newDate}T${newEndTime}:00`);
+        // Create datetime strings in Asia/Kolkata timezone format
+        const eventStartDateTime = `${newDate}T${newStartTime}:00`;
+        const eventEndDateTime = `${newDate}T${newEndTime}:00`;
+
+        console.log('📅 Creating Google Calendar event with times:', {
+          startTime: eventStartDateTime,
+          endTime: eventEndDateTime,
+          timezone: 'Asia/Kolkata',
+        });
 
         const event = {
           summary: `${booking.session_type === 'personal' ? 'Personal' : 'Couple'} Therapy Session - Mannosaar`,
           description: `Rescheduled session for ${session.user.name}`,
           start: {
-            dateTime: eventStartTime.toISOString(),
+            dateTime: eventStartDateTime,
             timeZone: 'Asia/Kolkata',
           },
           end: {
-            dateTime: eventEndTime.toISOString(),
+            dateTime: eventEndDateTime,
             timeZone: 'Asia/Kolkata',
           },
           conferenceData: {
