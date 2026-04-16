@@ -126,7 +126,7 @@ const ReviewsSection = () => {
 
                   {/* Info */}
                   <div className="pt-4 border-t border-gray-200">
-                    <p className="text-xs sm:text-sm text-gray-500">✓ Verified Session • {new Date(activeReview.created_at).toLocaleDateString()}</p>
+                    <p className="text-xs sm:text-sm text-gray-500" suppressHydrationWarning>✓ Verified Session • {new Date(activeReview.created_at).toLocaleDateString()}</p>
                   </div>
                 </div>
               </motion.div>

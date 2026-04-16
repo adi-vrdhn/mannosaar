@@ -62,14 +62,20 @@ async function createZoomMeeting(
   // Generate password once to ensure consistency
   const generatedPassword = Math.random().toString().slice(2, 8);
 
-  // Format start time to ISO string without milliseconds
-  const isoStartTime = startTime.toISOString().split('.')[0]; // Format: 2024-04-03T15:30:00
+  // Format start time as local time string (not UTC)
+  const year = startTime.getFullYear();
+  const month = String(startTime.getMonth() + 1).padStart(2, '0');
+  const date = String(startTime.getDate()).padStart(2, '0');
+  const hours = String(startTime.getHours()).padStart(2, '0');
+  const minutes = String(startTime.getMinutes()).padStart(2, '0');
+  const seconds = String(startTime.getSeconds()).padStart(2, '0');
+  const localStartTime = `${year}-${month}-${date}T${hours}:${minutes}:${seconds}`; // Format: 2024-04-03T15:30:00
 
   console.log('Creating Zoom meeting with:', {
     topic,
     duration,
-    startTime: isoStartTime,
-    timezone: 'UTC',
+    startTime: localStartTime,
+    timezone: 'Asia/Kolkata',
     password: generatedPassword,
   });
 
@@ -82,9 +88,9 @@ async function createZoomMeeting(
     body: JSON.stringify({
       topic: topic,
       type: 2, // Scheduled meeting
-      start_time: isoStartTime,
+      start_time: localStartTime,
       duration: duration,
-      timezone: 'UTC',
+      timezone: 'Asia/Kolkata',
       password: generatedPassword, // Use consistent password
       settings: {
         host_video: true,

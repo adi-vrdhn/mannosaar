@@ -181,14 +181,25 @@ export async function createGoogleCalendarEvent(
     const [endHours, endMinutes] = slotEndTime.split(':').map(Number);
     slotEndDate.setHours(endHours, endMinutes, 0, 0);
 
-    // Format for Google Calendar (ISO 8601 with timezone)
-    const startDateTime = slotStartDate.toISOString();
-    const endDateTime = slotEndDate.toISOString();
+    // Format for Google Calendar (ISO 8601 as local time, not UTC)
+    const formatLocalDateTime = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    };
+
+    const startDateTime = formatLocalDateTime(slotStartDate);
+    const endDateTime = formatLocalDateTime(slotEndDate);
 
     console.log('🔄 Creating Google Calendar event:', {
       summary: `Therapy Session - ${sessionType.charAt(0).toUpperCase() + sessionType.slice(1)}`,
       start: startDateTime,
       end: endDateTime,
+      timezone: 'Asia/Kolkata',
       attendees: [clientEmail, ...adminEmails, ...additionalEmails],
     });
 
@@ -215,11 +226,11 @@ export async function createGoogleCalendarEvent(
         description: `${sessionType.charAt(0).toUpperCase() + sessionType.slice(1)} therapy session`,
         start: {
           dateTime: startDateTime,
-          timeZone: 'UTC',
+          timeZone: 'Asia/Kolkata',
         },
         end: {
           dateTime: endDateTime,
-          timeZone: 'UTC',
+          timeZone: 'Asia/Kolkata',
         },
         attendees,
         conferenceData: {

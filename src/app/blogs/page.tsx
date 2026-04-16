@@ -587,7 +587,7 @@ export default function BlogsPage() {
                                 {blog.excerpt || 'No preview available'}
                               </p>
                               <div className="mt-4 flex gap-4 text-sm text-gray-500">
-                                <span>{formatDate(blog.created_at)}</span>
+                                <span suppressHydrationWarning>{formatDate(blog.created_at)}</span>
 
                               </div>
                             </div>

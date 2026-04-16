@@ -177,7 +177,7 @@ export default function Comments({ contentId, contentType }: CommentsProps) {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-semibold text-gray-900">{comment.author_name}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500" suppressHydrationWarning>
                     {new Date(comment.created_at).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'short',

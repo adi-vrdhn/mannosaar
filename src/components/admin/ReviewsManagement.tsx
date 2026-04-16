@@ -253,7 +253,7 @@ const ReviewsManagement = ({ userRole }: ReviewsManagementProps) => {
                   <div className="flex-1">
                     {renderStars(review.rating)}
                     <p className="text-gray-700 mt-2">{review.comment}</p>
-                    <p className="text-xs text-gray-500 mt-2">
+                    <p className="text-xs text-gray-500 mt-2" suppressHydrationWarning>
                       {new Date(review.created_at).toLocaleDateString()}
                     </p>
                   </div>
