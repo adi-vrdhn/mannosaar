@@ -18,7 +18,7 @@ export default function Footer() {
             Email: <a href="mailto:care@mannosaar.com" className="hover:text-white transition-colors font-medium">care@mannosaar.com</a>
           </p>
           <p className="text-purple-100 text-sm mt-2">
-            Phone: <a href="tel:+15551234567" className="hover:text-white transition-colors font-medium">+1 (555) 123-4567</a>
+            Phone: <a href="tel:+917080633396" className="hover:text-white transition-colors font-medium">+91 70806 33396</a>
           </p>
         </div>
 

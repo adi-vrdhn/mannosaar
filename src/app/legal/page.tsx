@@ -254,18 +254,6 @@ export default function LegalPage() {
             </div>
           )}
         </motion.div>
-
-        {/* Note */}
-        <motion.div
-          variants={itemVariants}
-          initial="hidden"
-          animate="visible"
-          className="mt-12 p-6 bg-purple-50 border border-purple-200 rounded-lg"
-        >
-          <p className="text-sm text-purple-800">
-            <strong>Note:</strong> These are placeholder policies. You can update the complete content for each policy by editing this page.
-          </p>
-        </motion.div>
       </div>
     </div>
   );
