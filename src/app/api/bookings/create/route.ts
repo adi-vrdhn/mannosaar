@@ -367,11 +367,11 @@ export async function POST(request: Request) {
     }
 
     console.log('✅ Booking API returning:', { booking });
-    return NextResponse.json({ booking }, { status: 201 });
+    return NextResponse.json({ success: true, booking }, { status: 201 });
   } catch (error) {
     console.error('❌ Create booking error:', error);
     return NextResponse.json(
-      { error: 'Failed to create booking' },
+      { success: false, error: 'Failed to create booking' },
       { status: 500 }
     );
   }

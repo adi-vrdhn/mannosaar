@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useState, Suspense } from 'react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import PaymentAgreement from '@/components/booking/PaymentAgreement';
 
@@ -658,12 +659,14 @@ function PaymentPageContent() {
               >
                 <p className="text-sm text-gray-600 mb-4 font-semibold">Scan to pay ₹{isBundleBooking ? sessionPrice * bundleSize : sessionPrice}</p>
                 <div className="bg-white p-6 rounded-xl inline-block border-2 border-purple-200">
-                  <div className="w-64 h-64 bg-gray-200 rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      <p className="text-gray-500 text-lg font-semibold">📱 QR Code</p>
-                      <p className="text-gray-400 text-sm mt-2">(Add your QR code image here)</p>
-                    </div>
-                  </div>
+                  <Image
+                    src="/payment-qr.png"
+                    alt="Payment QR Code"
+                    width={256}
+                    height={256}
+                    className="rounded-lg"
+                    priority
+                  />
                 </div>
                 <p className="text-xs text-gray-500 mt-4">Amount: ₹{isBundleBooking ? sessionPrice * bundleSize : sessionPrice}</p>
               </motion.div>
