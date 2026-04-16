@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { sendRescheduleNotificationWhatsApp } from '@/lib/whatsapp';
+import { sendBookingPostponedEmail } from '@/lib/email';
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -394,6 +395,47 @@ export async function POST(request: Request) {
     } catch (whatsappError) {
       console.warn('⚠️ WhatsApp sending error (non-blocking):', whatsappError);
       // Don't fail the reschedule if WhatsApp fails
+    }
+
+    // Send email reschedule notification
+    try {
+      console.log('📧 Sending reschedule email notification...');
+      
+      // Fetch therapist name for email
+      const { data: therapistData } = await supabase
+        .from('users')
+        .select('name')
+        .eq('id', booking.therapist_id)
+        .single();
+
+      const therapistName = therapistData?.name || 'Your Therapist';
+
+      // Format times (ensure HH:mm format, trim seconds if present)
+      const formatTime = (time: any): string => {
+        if (!time) return 'N/A';
+        const timeStr = typeof time === 'string' ? time : time.toString();
+        // Keep only HH:mm
+        return timeStr.substring(0, 5);
+      };
+
+      // Send email to client
+      await sendBookingPostponedEmail({
+        clientEmail: booking.user_email || session.user?.email || '',
+        clientName: booking.user_name || session.user?.name || 'Client',
+        therapistName,
+        sessionType: booking.session_type,
+        oldDate: booking.slot_date,
+        oldStartTime: formatTime(booking.slot_start_time),
+        oldEndTime: formatTime(booking.slot_end_time),
+        newDate: newSlot.date,
+        newStartTime: formatTime(newSlot.start_time),
+        newEndTime: formatTime(newSlot.end_time),
+      });
+
+      console.log('✅ Reschedule email notification sent to:', booking.user_email || session.user?.email);
+    } catch (emailError) {
+      console.warn('⚠️ Email sending error (non-blocking):', emailError);
+      // Don't fail the reschedule if email fails
     }
 
     return NextResponse.json({
