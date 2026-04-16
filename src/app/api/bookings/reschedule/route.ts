@@ -224,6 +224,7 @@ export async function POST(request: Request) {
         const calendarEvent = await calendar.events.insert({
           calendarId: 'primary',
           requestBody: event,
+          conferenceDataVersion: 1,
         });
 
         if (calendarEvent.data.id) {
