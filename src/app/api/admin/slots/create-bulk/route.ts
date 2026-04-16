@@ -31,21 +31,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing or invalid slots array' }, { status: 400 });
   }
 
-  // Check for duplicates before inserting
+  // Check for duplicates before inserting - include therapist_id in the check
   const { data: existingSlots } = await supabase
     .from('therapy_slots')
-    .select('date, start_time, end_time')
+    .select('date, start_time, therapist_id')
     .in(
       'date',
       [...new Set(slots.map((s) => s.date))]
     );
 
   const existingSet = new Set(
-    (existingSlots || []).map((s) => `${s.date}|${s.start_time}|${s.end_time}`)
+    (existingSlots || []).map((s) => `${s.date}|${s.start_time}|${s.therapist_id}`)
   );
 
   const newSlots = slots.filter((s) => {
-    const key = `${s.date}|${s.start_time}|${s.end_time}`;
+    const key = `${s.date}|${s.start_time}|${s.therapist_id}`;
     return !existingSet.has(key);
   });
 
