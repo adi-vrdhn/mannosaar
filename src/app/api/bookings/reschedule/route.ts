@@ -209,18 +209,15 @@ export async function POST(request: Request) {
           if (!extractedLink) {
             console.log('⏳ Conference data not found in initial response, fetching updated event...');
             try {
-              const getEvent = await calendar.events.get({
+              const getEventResponse = await calendar.events.get({
                 calendarId: 'primary',
                 eventId: newGoogleEventId,
-                requestBody: {
-                  requestMask: {
-                    fieldMask: 'conferenceData',
-                  },
-                },
               });
 
-              if (getEvent.data.conferenceData?.entryPoints) {
-                const meetLink = getEvent.data.conferenceData.entryPoints.find(
+              const fetchedEvent = getEventResponse.data;
+
+              if (fetchedEvent.conferenceData?.entryPoints) {
+                const meetLink = fetchedEvent.conferenceData.entryPoints.find(
                   (entry: any) => entry.entryPointType === 'video' || entry.uri?.includes('meet.google.com')
                 );
                 extractedLink = meetLink?.uri || null;
@@ -228,7 +225,7 @@ export async function POST(request: Request) {
                 if (extractedLink) {
                   console.log('✅ New Google Meet link extracted from fetched event:', extractedLink);
                 } else {
-                  console.warn('⚠️ No meet link found in entry points, entry points:', getEvent.data.conferenceData.entryPoints);
+                  console.warn('⚠️ No meet link found in entry points, entry points:', fetchedEvent.conferenceData.entryPoints);
                 }
               } else {
                 console.warn('⚠️ No conference data in fetched event');
