@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       .from('bookings')
       .select('*')
       .eq('status', 'confirmed')
-      .order('slot_date', { ascending: false });
+      .order('slot_date', { ascending: false, nullsFirst: false });
 
     // If user is NOT admin/therapist, only show their own bookings
     if (userData.role !== 'admin' && userData.role !== 'therapist') {

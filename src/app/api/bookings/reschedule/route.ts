@@ -94,12 +94,29 @@ export async function POST(request: Request) {
       console.log('✅ New slot marked unavailable:', newSlotId);
     }
 
+    // Get the new slot details to denormalize into booking
+    const { data: newSlot, error: slotFetchError } = await supabase
+      .from('therapy_slots')
+      .select('date, start_time, end_time')
+      .eq('id', newSlotId)
+      .single();
+
+    if (slotFetchError || !newSlot) {
+      console.error('❌ Error fetching new slot:', slotFetchError);
+      return NextResponse.json(
+        { error: 'New slot not found' },
+        { status: 404 }
+      );
+    }
+
+    console.log('📅 New slot details retrieved:', newSlot);
+
     // For bundle bookings, handle session_dates update
     let updateData: any = {
       slot_id: newSlotId,
-      slot_date: newDate,
-      slot_start_time: newStartTime,
-      slot_end_time: newEndTime,
+      slot_date: newSlot.date,
+      slot_start_time: newSlot.start_time,
+      slot_end_time: newSlot.end_time,
     };
 
     // If bundle booking and sessionIndex is provided, update that specific session
@@ -108,9 +125,9 @@ export async function POST(request: Request) {
         const updatedSessions = [...booking.session_dates];
         if (updatedSessions[sessionIndex]) {
           updatedSessions[sessionIndex] = {
-            date: newDate,
-            start_time: newStartTime,
-            end_time: newEndTime,
+            date: newSlot.date,
+            start_time: newSlot.start_time,
+            end_time: newSlot.end_time,
             slotId: newSlotId,
           };
           updateData.session_dates = updatedSessions;
@@ -150,13 +167,33 @@ export async function POST(request: Request) {
         }
 
         // Create a new event in Google Calendar
-        // Create datetime strings in Asia/Kolkata timezone format
-        const eventStartDateTime = `${newDate}T${newStartTime}:00`;
-        const eventEndDateTime = `${newDate}T${newEndTime}:00`;
+        // Use the database slot values for accuracy
+        // Ensure time is in HH:mm format
+        let startTimeStr = typeof newSlot.start_time === 'string' 
+          ? newSlot.start_time 
+          : newSlot.start_time?.toString?.() || newStartTime;
+        let endTimeStr = typeof newSlot.end_time === 'string'
+          ? newSlot.end_time
+          : newSlot.end_time?.toString?.() || newEndTime;
 
-        console.log('📅 Creating Google Calendar event with times:', {
-          startTime: eventStartDateTime,
-          endTime: eventEndDateTime,
+        // Trim to HH:mm if longer (e.g., "17:00:00" -> "17:00")
+        if (startTimeStr.length > 5) {
+          startTimeStr = startTimeStr.substring(0, 5);
+        }
+        if (endTimeStr.length > 5) {
+          endTimeStr = endTimeStr.substring(0, 5);
+        }
+
+        // Format as ISO 8601 local time (without Z, with timezone parameter)
+        const eventStartDateTime = `${newSlot.date}T${startTimeStr}:00`;
+        const eventEndDateTime = `${newSlot.date}T${endTimeStr}:00`;
+
+        console.log('📅 Creating Google Calendar event with local times:', {
+          date: newSlot.date,
+          startTime: startTimeStr,
+          endTime: endTimeStr,
+          startDateTime: eventStartDateTime,
+          endDateTime: eventEndDateTime,
           timezone: 'Asia/Kolkata',
         });
 
