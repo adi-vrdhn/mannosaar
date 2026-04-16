@@ -74,6 +74,7 @@ function PaymentPageContent() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [agreementChecked, setAgreementChecked] = useState(false);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
   // Calculate price based on bundle size
   const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
@@ -203,17 +204,21 @@ function PaymentPageContent() {
   }, [slotId, isBundleBooking, supabase]);
 
   // Load Razorpay script
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    document.body.appendChild(script);
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
+  // COMMENTED OUT FOR NOW - Using QR Code payment instead
+  // useEffect(() => {
+  //   const script = document.createElement('script');
+  //   script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+  //   script.async = true;
+  //   document.body.appendChild(script);
+  //   return () => {
+  //     document.body.removeChild(script);
+  //   };
+  // }, []);
 
-  const handlePayment = async () => {
+  // RAZORPAY PAYMENT - COMMENTED OUT FOR NOW
+  // Will be re-enabled later
+  /*
+  const handleRazorpayPayment = async () => {
     if (loading) {
       setError('Still loading booking details. Please wait...');
       return;
@@ -412,10 +417,116 @@ function PaymentPageContent() {
       setProcessing(false);
     }
   };
+  */
 
-  if (!session) {
-    return null;
-  }
+  // QR Code Payment Handler
+  const handleQRPaymentConfirmation = async () => {
+    if (loading) {
+      setError('Still loading booking details. Please wait...');
+      return;
+    }
+
+    if (!session?.user?.email) {
+      setError('Not authenticated');
+      return;
+    }
+
+    // Validate we have either slotId (single) or sessionDates (bundle)
+    if (!isBundleBooking && !slotId) {
+      setError('No booking information provided');
+      return;
+    }
+
+    setProcessing(true);
+    setError('');
+
+    try {
+      // Step 1: Get user ID
+      console.log('🔵 Step 1: Getting user ID...');
+      const userResponse = await fetch('/api/user/get-id');
+      if (!userResponse.ok) {
+        throw new Error('User not found');
+      }
+      const userData = await userResponse.json();
+      const { userId } = userData;
+
+      if (!userId) {
+        throw new Error('User not found');
+      }
+
+      console.log('✅ User ID:', userId);
+
+      // Step 2: Create booking directly (QR payment is manual)
+      const totalAmount = isBundleBooking ? sessionPrice * bundleSize : sessionPrice;
+      console.log('🔵 Step 2: Creating booking with manual QR payment:', {
+        amount: totalAmount,
+        sessionType,
+        userEmail: session.user.email,
+        userId,
+        isBundleBooking,
+        bundleSize,
+      });
+
+      const bookingPayload: any = {
+        userId,
+        userEmail: session.user.email,
+        userName: userProfile?.name || session.user?.name || 'User',
+        userPhone: userProfile?.phone_number || '',
+        sessionType,
+        amount: totalAmount,
+        paymentMethod: 'qr',
+      };
+
+      if (isBundleBooking) {
+        bookingPayload.bundle = bundle;
+        bookingPayload.sessionDates = sessionDates;
+      } else {
+        bookingPayload.slotId = slotId;
+        bookingPayload.date = slotInfo?.date;
+      }
+
+      const bookingResponse = await fetch('/api/bookings/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bookingPayload),
+      });
+
+      const bookingText = await bookingResponse.text();
+      console.log('Booking response:', { status: bookingResponse.status, body: bookingText });
+
+      if (!bookingResponse.ok) {
+        let bookingError = 'Failed to create booking';
+        try {
+          const errorData = JSON.parse(bookingText);
+          bookingError = errorData.error || bookingError;
+        } catch {
+          bookingError = bookingText || bookingError;
+        }
+        throw new Error(bookingError);
+      }
+
+      let bookingData;
+      try {
+        bookingData = JSON.parse(bookingText);
+      } catch {
+        throw new Error('Invalid booking response from server');
+      }
+
+      if (bookingData.success) {
+        console.log('✅ Booking created, redirecting to success...');
+        // Add a small delay to ensure modal closes before redirecting
+        await new Promise(resolve => setTimeout(resolve, 500));
+        router.replace(`/appointment/success?bookingId=${bookingData.booking.id}`);
+      } else {
+        throw new Error(bookingData.error || 'Failed to create booking');
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'An error occurred';
+      console.error('Booking error:', errorMsg, err);
+      setError(errorMsg);
+      setProcessing(false);
+    }
+  };
 
   const containerVariants = {
     hidden: { opacity: 0, scale: 0.95 },
@@ -534,8 +645,27 @@ function PaymentPageContent() {
                 className="p-6 bg-blue-50 border border-blue-200 rounded-2xl mb-8"
               >
                 <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> You will be redirected to a secure payment gateway to complete your payment. A Google Meet link will be sent to your email once the payment is confirmed.
+                  <strong>Note:</strong> Scan the QR code below to make the payment. Once payment is complete, click "I've Paid" to proceed.
                 </p>
+              </motion.div>
+
+              {/* QR Code Section */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="p-8 bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-dashed border-purple-300 rounded-2xl mb-8 text-center"
+              >
+                <p className="text-sm text-gray-600 mb-4 font-semibold">Scan to pay ₹{isBundleBooking ? sessionPrice * bundleSize : sessionPrice}</p>
+                <div className="bg-white p-6 rounded-xl inline-block border-2 border-purple-200">
+                  <div className="w-64 h-64 bg-gray-200 rounded-lg flex items-center justify-center">
+                    <div className="text-center">
+                      <p className="text-gray-500 text-lg font-semibold">📱 QR Code</p>
+                      <p className="text-gray-400 text-sm mt-2">(Add your QR code image here)</p>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-4">Amount: ₹{isBundleBooking ? sessionPrice * bundleSize : sessionPrice}</p>
               </motion.div>
 
               {/* Payment Agreement */}
@@ -559,11 +689,11 @@ function PaymentPageContent() {
                   Back
                 </button>
                 <button
-                  onClick={handlePayment}
+                  onClick={handleQRPaymentConfirmation}
                   disabled={processing || !agreementChecked}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
                 >
-                  {processing ? 'Processing...' : `Pay ₹${isBundleBooking ? sessionPrice * bundleSize : sessionPrice}`}
+                  {processing ? 'Processing...' : `✓ I've Paid`}
                 </button>
               </motion.div>
             </>
