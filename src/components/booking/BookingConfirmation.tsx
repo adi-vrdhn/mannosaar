@@ -156,9 +156,14 @@ const BookingConfirmation = () => {
         if (response.ok) {
           const profile = await response.json();
           setUserProfile(profile);
-          // Show phone modal if phone number is missing
+          console.log('📱 Profile loaded, phone_number:', profile.phone_number ? '✅ YES' : '❌ NO');
+          // Only show phone modal if phone number is MISSING
           if (!profile.phone_number) {
+            console.log('📱 Showing phone modal - no phone number found');
             setShowPhoneModal(true);
+          } else {
+            console.log('📱 Phone number exists, not showing modal');
+            setShowPhoneModal(false);
           }
         } else if (response.status === 401) {
           // User not authenticated
@@ -207,11 +212,17 @@ const BookingConfirmation = () => {
       }
 
       const updated = await response.json();
+      console.log('✅ Phone number saved:', updated.user.phone_number);
+      
+      // Update userProfile with the new phone number
       setUserProfile(updated.user);
+      
+      // Hide modal only after successful save
       setShowPhoneModal(false);
       setPhoneInput('');
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to save phone number';
+      console.error('❌ Error saving phone:', errorMsg);
       setPhoneError(errorMsg);
     } finally {
       setSavingPhone(false);
@@ -241,11 +252,14 @@ const BookingConfirmation = () => {
       }
     }
 
-    // Check if phone number is set
+    // Check if phone number is set - only show modal if NOT set
     if (!userProfile?.phone_number) {
+      console.log('❌ Phone number missing - showing modal');
       setShowPhoneModal(true);
       return;
     }
+
+    console.log('✅ Phone number exists:', userProfile.phone_number);
 
     setConfirming(true);
     setError('');
@@ -493,7 +507,9 @@ const BookingConfirmation = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => {
-                if (!savingPhone) setShowPhoneModal(false);
+                // Only close if user already had a phone number (Cancel button case)
+                // If they didn't have one, don't allow closing by clicking outside
+                if (userProfile?.phone_number && !savingPhone) setShowPhoneModal(false);
               }}
               className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
             >
