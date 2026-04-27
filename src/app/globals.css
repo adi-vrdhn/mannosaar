@@ -7,6 +7,9 @@
   --secondary: #f5f1e8;
   --accent: #d4a5d4;
   --text-muted: #6b6b6b;
+  --font-geist-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-geist-mono: "SFMono-Regular", "SF Mono", Consolas, monospace;
+  --font-playfair-display: "Georgia", "Times New Roman", serif;
 }
 
 @theme inline {
@@ -18,6 +21,7 @@
   --color-text-muted: var(--text-muted);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-playfair: var(--font-playfair-display);
 }
 
 body {
