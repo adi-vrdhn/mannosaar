@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import TherapistHeader from '@/components/booking/TherapistHeader';
+import { Suspense } from 'react';
 
 interface BundlePricing {
   personal_1: number;
@@ -15,7 +16,7 @@ interface BundlePricing {
   couple_3: number;
 }
 
-export default function AppointmentNotePage() {
+function AppointmentNotePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
@@ -216,5 +217,24 @@ export default function AppointmentNotePage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+function AppointmentNoteLoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function AppointmentNotePage() {
+  return (
+    <Suspense fallback={<AppointmentNoteLoadingFallback />}>
+      <AppointmentNotePageContent />
+    </Suspense>
   );
 }

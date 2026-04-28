@@ -72,6 +72,13 @@ export async function POST(request: NextRequest) {
       date: booking.slot.date,
       startTime: booking.slot.start_time,
       endTime: booking.slot.end_time,
+      sessionSchedule: [
+        {
+          date: booking.slot.date,
+          startTime: booking.slot.start_time,
+          endTime: booking.slot.end_time,
+        },
+      ],
       meetingLink: booking.slot.meeting_link || undefined,
     });
 

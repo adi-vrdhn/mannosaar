@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { useState, useRef, useEffect } from 'react';
 import { signOut } from 'next-auth/react';
 import { useSession } from 'next-auth/react';
@@ -46,17 +45,12 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
   };
 
   return (
-    <motion.nav
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="sticky top-0 z-50 bg-white backdrop-blur-md border-b border-purple-100/20 shadow-sm"
-    >
+    <nav className="sticky top-0 z-50 bg-white backdrop-blur-md border-b border-purple-100/20 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group flex-shrink-0">
-            <motion.img 
+            <img 
               src="/mannosaar_logog_only.png" 
               alt="Mannosaar" 
               className="w-12 h-12 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6"
@@ -131,13 +125,7 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
 
                 {/* Dropdown Menu */}
                 {isDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2 }}
-                    className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden"
-                  >
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
                     <Link
                       href="/profile"
                       onClick={() => setIsDropdownOpen(false)}
@@ -159,8 +147,8 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
                       className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-gray-200"
                     >
                       Logout
-                    </button>
-                  </motion.div>
+                      </button>
+                  </div>
                 )}
               </div>
             ) : (
@@ -176,12 +164,8 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
 
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <motion.div
+          <div
             ref={mobileMenuRef}
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
             className="md:hidden mt-4 pb-4 border-t border-purple-100/20"
             suppressHydrationWarning
           >
@@ -215,10 +199,10 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
                 Reviews
               </Link>
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
-    </motion.nav>
+    </nav>
   );
 };
 

@@ -4,8 +4,8 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
-import Link from 'next/link';
 import { Play, FileText, Video, Image as ImageIcon, X, Loader2, Trash2, Share2 } from 'lucide-react';
+import BlogCard from '@/components/blog/BlogCard';
 import RichTextEditor from '@/components/admin/RichTextEditor';
 import VideoUpload from '@/components/admin/VideoUpload';
 import ImageUpload from '@/components/admin/ImageUpload';
@@ -18,6 +18,7 @@ interface Blog {
   slug: string;
   author_name: string;
   created_at: string;
+  featured_image?: string | null;
   views_count: number;
 }
 
@@ -50,6 +51,10 @@ export default function BlogsPage() {
   const [showUploadUI, setShowUploadUI] = useState(false);
   const [articleTitle, setArticleTitle] = useState('');
   const [articleContent, setArticleContent] = useState('');
+  const [articleCoverImage, setArticleCoverImage] = useState('');
+  const [articleCoverPreview, setArticleCoverPreview] = useState('');
+  const [articleCoverUploading, setArticleCoverUploading] = useState(false);
+  const [articleCoverError, setArticleCoverError] = useState('');
   const [videoData, setVideoData] = useState<{
     videoUrl: string;
     publicId: string;
@@ -99,14 +104,6 @@ export default function BlogsPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '0:00';
     const mins = Math.floor(seconds / 60);
@@ -153,6 +150,7 @@ export default function BlogsPage() {
             .substring(0, 200),
           author: 'Neetu Rathore',
           tags: ['mental-health', 'therapy'],
+          featured_image: articleCoverImage || undefined,
         }),
       });
 
@@ -162,6 +160,9 @@ export default function BlogsPage() {
         setSuccessMessage('Article published successfully!');
         setArticleTitle('');
         setArticleContent('');
+        setArticleCoverImage('');
+        setArticleCoverPreview('');
+        setArticleCoverError('');
         await fetchAllContent();
         setTimeout(() => setSuccessMessage(''), 3000);
       } else {
@@ -215,6 +216,54 @@ export default function BlogsPage() {
       alert(`Error publishing video: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleArticleCoverSelect = async (file: File | null) => {
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setArticleCoverError('Please select an image file');
+      return;
+    }
+
+    setArticleCoverUploading(true);
+    setArticleCoverError('');
+
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      setArticleCoverPreview(dataUrl);
+
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: dataUrl,
+          folder: 'mental-health/blog-covers',
+          resourceType: 'image',
+        }),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.error || 'Failed to upload cover image');
+      }
+
+      setArticleCoverImage(responseData.imageUrl);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to upload cover image';
+      setArticleCoverError(message);
+      setArticleCoverImage('');
+      setArticleCoverPreview('');
+    } finally {
+      setArticleCoverUploading(false);
     }
   };
 
@@ -381,45 +430,83 @@ export default function BlogsPage() {
 
       {/* Header */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="flex justify-between items-start">
+        <div className="grid gap-8 lg:grid-cols-[1.25fr_0.75fr] lg:items-end">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
+            className="space-y-6"
           >
-            <h1 className="text-5xl md:text-6xl font-bold leading-tight mb-2 font-playfair text-purple-500">
-              Blog
-            </h1>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-purple-700 shadow-sm backdrop-blur">
+              Community feed
+            </div>
+            <div className="space-y-4">
+              <h1 className="max-w-3xl text-5xl font-black leading-[0.95] tracking-tight text-gray-900 md:text-7xl">
+                Stories, art, and moments from the mindcare journal.
+              </h1>
+              <p className="max-w-2xl text-lg leading-8 text-gray-600 md:text-xl">
+                Share articles, pictures, and short updates with a bold visual style.
+              </p>
+            </div>
+
+            <div className="grid max-w-2xl grid-cols-3 gap-3">
+              <div className="rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-500">Articles</p>
+                <p className="mt-2 text-2xl font-black text-gray-900">{blogs.length}</p>
+              </div>
+              <div className="rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-pink-500">Images</p>
+                <p className="mt-2 text-2xl font-black text-gray-900">{images.length}</p>
+              </div>
+              <div className="rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-500">Shorts</p>
+                <p className="mt-2 text-2xl font-black text-gray-900">{videos.length}</p>
+              </div>
+            </div>
           </motion.div>
 
-          {/* Upload Button for Admin */}
-          {isAdmin && (
-            <motion.button
-              onClick={() => setShowUploadUI(!showUploadUI)}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition"
-              whileHover={{ scale: 1.05 }}
-            >
-              {showUploadUI ? 'Hide Upload' : '+ Upload Content'}
-            </motion.button>
-          )}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="rounded-[32px] border border-white/80 bg-white/85 p-5 shadow-[0_20px_60px_rgba(99,102,241,0.12)] backdrop-blur"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-purple-500">Create & share</p>
+                <p className="mt-2 text-lg font-bold text-gray-900">Posts feel better with a cover image.</p>
+              </div>
+
+              {isAdmin && (
+                <motion.button
+                  onClick={() => setShowUploadUI(!showUploadUI)}
+                  className="rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:shadow-xl"
+                  whileHover={{ scale: 1.04 }}
+                >
+                  {showUploadUI ? 'Hide upload' : '+ Upload'}
+                </motion.button>
+              )}
+            </div>
+
+          </motion.div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-2 mt-8 border-b border-purple-200">
+        <div className="mt-10 flex flex-wrap gap-2 rounded-3xl border border-white/70 bg-white/70 p-2 shadow-sm backdrop-blur">
           {[
-            { id: 'articles', label: 'Articles', icon: FileText },
-            { id: 'shorts', label: 'Shorts', icon: Video },
-            { id: 'images', label: 'Images', icon: ImageIcon },
+            { id: 'articles', label: 'Feed', icon: FileText },
+            { id: 'shorts', label: 'Reels', icon: Video },
+            { id: 'images', label: 'Gallery', icon: ImageIcon },
           ].map((tab) => {
             const Icon = tab.icon;
             return (
               <motion.button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-6 py-3 font-semibold transition-all border-b-2 ${
+                className={`flex items-center gap-2 rounded-2xl px-6 py-3 font-semibold transition-all ${
                   activeTab === tab.id
-                    ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
+                    : 'text-gray-600 hover:bg-white hover:text-gray-900'
                 }`}
                 whileHover={{ scale: 1.05 }}
               >
@@ -477,9 +564,58 @@ export default function BlogsPage() {
                     />
                   </div>
 
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Cover Image from Device
+                    </label>
+                    <div className="rounded-2xl border border-dashed border-purple-300 bg-purple-50 p-4">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleArticleCoverSelect(e.target.files?.[0] || null)}
+                        className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-full file:border-0 file:bg-purple-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-purple-700"
+                      />
+                      <p className="mt-2 text-xs text-gray-500">
+                        JPG, PNG, or WebP. This image will appear as the article cover.
+                      </p>
+
+                      {articleCoverUploading && (
+                        <p className="mt-3 text-sm font-medium text-purple-700">Uploading cover image...</p>
+                      )}
+
+                      {articleCoverError && (
+                        <p className="mt-3 text-sm font-medium text-red-600">{articleCoverError}</p>
+                      )}
+
+                      {articleCoverPreview && (
+                        <div className="mt-4 overflow-hidden rounded-2xl border border-purple-200 bg-white">
+                          <img
+                            src={articleCoverPreview}
+                            alt="Cover preview"
+                            className="h-56 w-full object-cover"
+                          />
+                          <div className="flex items-center justify-between gap-3 p-3">
+                            <p className="text-sm font-semibold text-gray-700">Cover selected</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setArticleCoverImage('');
+                                setArticleCoverPreview('');
+                                setArticleCoverError('');
+                              }}
+                              className="rounded-full bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-200"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <button
                     onClick={handlePublishArticle}
-                    disabled={isSubmitting || !articleTitle.trim() || !articleContent.trim()}
+                    disabled={isSubmitting || !articleTitle.trim() || !articleContent.trim() || articleCoverUploading}
                     className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition"
                   >
                     {isSubmitting && <Loader2 size={20} className="animate-spin" />}
@@ -558,59 +694,45 @@ export default function BlogsPage() {
             <p className="text-gray-500">Loading...</p>
           </div>
         ) : (
-          <motion.div
-            key={activeTab}
-            variants={tabVariants}
-            initial="hidden"
-            animate="visible"
-          >
+            <motion.div key={activeTab} variants={tabVariants} initial="hidden" animate="visible">
             {/* Articles Tab */}
             {activeTab === 'articles' && (
               <div className="space-y-6">
                 {blogs.length > 0 ? (
-                  blogs.map((blog, idx) => (
-                    <motion.div
-                      key={blog.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.1 }}
-                      className="group"
-                    >
-                      <div className="p-6 bg-white rounded-2xl shadow-md hover:shadow-lg transition-all border border-purple-100 hover:border-purple-300">
-                        <div className="flex justify-between items-start gap-4">
-                          <Link href={`/blogs/${blog.slug}`} className="flex-1">
-                            <div className="cursor-pointer">
-                              <h3 className="text-xl md:text-2xl font-bold text-gray-900 group-hover:text-purple-600 transition-colors mb-3">
-                                {blog.title}
-                              </h3>
-                              <p className="text-gray-600 text-base leading-relaxed line-clamp-2">
-                                {blog.excerpt || 'No preview available'}
-                              </p>
-                              <div className="mt-4 flex gap-4 text-sm text-gray-500">
-                                <span suppressHydrationWarning>{formatDate(blog.created_at)}</span>
-
-                              </div>
-                            </div>
-                          </Link>
-                          <div className="flex flex-col items-center gap-2 flex-shrink-0">
-                            <button
-                              onClick={() => handleShareContent(blog.title, 'article', blog.slug)}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Share article"
-                            >
-                              <Share2 size={20} />
-                            </button>
-                            <div className="text-purple-500 group-hover:translate-x-2 transition-transform">
-                              →
-                            </div>
-                          </div>
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    {blogs.map((blog, idx) => (
+                      <motion.div
+                        key={blog.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.08 }}
+                      >
+                        <BlogCard
+                          id={blog.id}
+                          title={blog.title}
+                          excerpt={blog.excerpt || 'No preview available'}
+                          slug={blog.slug}
+                          author_name={blog.author_name}
+                          created_at={blog.created_at}
+                          featured_image={blog.featured_image}
+                        />
+                        <div className="mt-3 flex justify-end pr-2">
+                          <button
+                            onClick={() => handleShareContent(blog.title, 'article', blog.slug)}
+                            className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-green-700 shadow-sm transition hover:bg-green-50"
+                            title="Share article"
+                          >
+                            <Share2 size={16} />
+                            Share
+                          </button>
                         </div>
-                      </div>
-                    </motion.div>
-                  ))
+                      </motion.div>
+                    ))}
+                  </div>
                 ) : (
-                  <div className="text-center py-12">
-                    <p className="text-gray-500">No articles yet</p>
+                  <div className="rounded-[28px] border border-dashed border-purple-200 bg-white/70 px-6 py-14 text-center">
+                    <p className="text-lg font-semibold text-gray-900">No articles yet</p>
+                    <p className="mt-2 text-sm text-gray-500">Start with a story, a picture, or a short reflection.</p>
                   </div>
                 )}
               </div>

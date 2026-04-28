@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
     // Generate Google Meet links and create calendar events
     console.log('🔵 Creating Google Calendar events...');
     const meetingLinks: string[] = [];
-    const therapistId = 'default-therapist'; // Uses admin credentials as fallback
+    const calendarTherapistId = 'default-therapist'; // Uses admin credentials as fallback
 
     try {
       if (isBundleBooking) {
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
           try {
             console.log(`🔵 Creating calendar event for session ${index + 1}/${sessionDates.length}...`);
             const calendarResult = await createGoogleCalendarEvent(
-              therapistId,
+              calendarTherapistId,
               userEmail,
               userName,
               session.date,
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
       } else {
         // Single booking - create one calendar event
         const calendarResult = await createGoogleCalendarEvent(
-          therapistId,
+          calendarTherapistId,
           userEmail,
           userName,
           slotDataForCalendar.date,
@@ -251,16 +251,38 @@ export async function POST(request: NextRequest) {
         : slotDataForCalendar.date;
       const emailStartTime = isBundleBooking ? 'Varies' : slotDataForCalendar.start_time;
       const emailEndTime = isBundleBooking ? 'Varies' : slotDataForCalendar.end_time;
+      const sessionSchedule = isBundleBooking
+        ? sessionDates.map((session: any) => ({
+            date: session.date,
+            startTime: session.startTime,
+            endTime: session.endTime,
+          }))
+        : [
+            {
+              date: slotDataForCalendar.date,
+              startTime: slotDataForCalendar.start_time,
+              endTime: slotDataForCalendar.end_time,
+            },
+          ];
+
+      const therapistId = slotDataForCalendar?.therapist_id || calendarTherapistId;
+      const { data: therapistData } = await supabase
+        .from('users')
+        .select('email, name')
+        .eq('id', therapistId)
+        .single();
 
       await sendBookingConfirmationEmail({
         clientEmail: userEmail,
         clientName: userName,
-        therapistEmail: process.env.EMAIL_USER || '',
-        therapistName: 'Neetu Rathore',
+        therapistEmail:
+          therapistData?.email || process.env.THERAPIST_EMAIL || process.env.EMAIL_USER || '',
+        therapistName: therapistData?.name || 'Therapist',
         sessionType,
         date: emailDate,
         startTime: emailStartTime,
         endTime: emailEndTime,
+        sessionSchedule,
         meetingLink: meetingLinks[0] || '',
       });
       console.log('✅ Confirmation email sent');

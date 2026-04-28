@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { Search, Filter, X } from 'lucide-react';
 import BookingDetailsModal from './BookingDetailsModal';
+import NoteModal from '@/components/shared/NoteModal';
 
 interface Booking {
   id: string;
@@ -45,6 +46,7 @@ const Analytics = () => {
 
   // Modal state
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [noteModal, setNoteModal] = useState<{ title: string; note: string | null } | null>(null);
 
   // Fetch all bookings
   useEffect(() => {
@@ -342,11 +344,18 @@ const Analytics = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
-                        <div className="max-w-xs">
-                          <p className="whitespace-pre-wrap break-words">
-                            {booking.notes || 'No note added'}
-                          </p>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNoteModal({
+                              title: `Note for ${booking.user_name || 'booking'}`,
+                              note: booking.notes || null,
+                            })
+                          }
+                          className="inline-flex items-center rounded-lg bg-purple-100 px-3 py-2 text-xs font-semibold text-purple-700 transition-colors hover:bg-purple-200"
+                        >
+                          View Notes
+                        </button>
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                         {booking.sessions_taken_before ?? 0}
@@ -401,6 +410,13 @@ const Analytics = () => {
           bookingId={selectedBookingId}
           onClose={() => setSelectedBookingId(null)}
           onRefresh={handleRefresh}
+        />
+
+        <NoteModal
+          isOpen={!!noteModal}
+          note={noteModal?.note ?? null}
+          title={noteModal?.title}
+          onClose={() => setNoteModal(null)}
         />
       </div>
     </div>

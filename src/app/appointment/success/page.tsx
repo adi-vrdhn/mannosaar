@@ -110,200 +110,151 @@ function SuccessPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-green-50 to-white pt-24 pb-12">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center">
-          {/* Success Icon */}
-          <div className="mb-8 flex justify-center">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-              <span className="text-4xl font-bold text-green-600">✓</span>
+    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-green-50 pt-24 pb-12">
+      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+        <div className="rounded-[32px] border border-white/80 bg-white/90 p-6 shadow-[0_24px_70px_rgba(76,29,149,0.12)] backdrop-blur md:p-8">
+          <div className="text-center">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-4xl font-bold text-green-600">
+              ✓
+            </div>
+
+            <h1 className="text-4xl font-black tracking-tight text-gray-900 md:text-5xl">
+              Booking Confirmed
+            </h1>
+            <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-gray-600">
+              Your session has been booked successfully. A confirmation email has been sent with the details.
+            </p>
+
+            <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-purple-50 px-4 py-2 text-sm font-semibold text-purple-700">
+              Booking ID: {bookingId || 'Pending'}
             </div>
           </div>
 
-          {/* Heading */}
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Booking Confirmed!
-          </h1>
-
-          {/* Message */}
-          <p className="text-lg text-gray-600 mb-8">
-            Your therapy session has been successfully booked. You will receive a confirmation email shortly with all the details.
-          </p>
-
-          {/* Loading State */}
           {loading && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8 inline-block max-w-md">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                <p className="text-sm text-blue-700 font-medium">Loading booking details...</p>
+            <div className="mt-8 rounded-3xl border border-blue-200 bg-blue-50 p-5">
+              <div className="flex items-center gap-3">
+                <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-blue-600" />
+                <p className="text-sm font-medium text-blue-700">Preparing your meeting details...</p>
               </div>
-              <p className="text-xs text-blue-600">Attempt {retryCount + 1} of 6</p>
             </div>
           )}
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8 text-red-600">
-              ❌ {error}
+            <div className="mt-8 rounded-3xl border border-red-200 bg-red-50 p-5 text-red-700">
+              {error}
             </div>
           )}
 
-          {/* Booking ID */}
-          {bookingId && (
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 mb-8 inline-block">
-              <p className="text-sm text-gray-600 mb-1">Booking ID</p>
-              <p className="text-lg font-mono text-purple-600 font-semibold">{bookingId}</p>
-            </div>
-          )}
-
-          {/* Google Meet Link(s) */}
-          {loading ? (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
-              <p className="text-sm text-gray-600">Generating Google Meet link...</p>
-            </div>
-          ) : booking?.meeting_links && booking.meeting_links.length > 1 ? (
-            // Multiple meeting links for bundle bookings
-            <div className="bg-blue-50 border border-blue-300 rounded-lg p-6 mb-8">
-              <p className="text-sm text-gray-600 mb-4">Google Meet Links ({booking.meeting_links.length} sessions)</p>
-              <div className="space-y-3">
-                {booking.meeting_links.map((link, idx) => (
-                  <a
-                    key={idx}
-                    href={link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors text-center"
-                  >
-                    🎥 Session {idx + 1} - Join Google Meet
-                  </a>
-                ))}
-              </div>
-              <p className="text-xs text-gray-500 mt-3">
-                Confirmation emails with all meeting links have been sent to you and your therapist
-              </p>
-            </div>
-          ) : booking?.meeting_link ? (
-            // Single meeting link for single bookings
-            <div className="bg-blue-50 border border-blue-300 rounded-lg p-6 mb-8">
-              <p className="text-sm text-gray-600 mb-3">Google Meet Link</p>
-              <a
-                href={booking.meeting_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-              >
-                🎥 Join Google Meet (40 mins)
-              </a>
-              <p className="text-xs text-gray-500 mt-3">
-                A confirmation email with the meeting link has been sent to you and your therapist
-              </p>
-            </div>
-          ) : (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
-              <p className="text-sm text-yellow-700">
-                ⚠️ Google Meet link is being prepared. Please refresh the page in a moment.
-              </p>
-            </div>
-          )}
-
-          {/* Booking Summary */}
           {booking && (
-            <div className="mb-8">
-              {/* Single Booking Summary */}
-              {booking.slot_date && (
-                <div className="overflow-x-auto inline-block">
-                  <table className="border-collapse">
-                    <tbody>
-                      <tr className="border-b-2 border-gray-200">
-                        <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
-                          ID
-                        </td>
-                        <td className="px-6 py-4 text-lg font-bold text-gray-900">{booking.id?.slice(0, 8)}...</td>
-                      </tr>
-                      <tr className="border-b-2 border-gray-200">
-                        <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
-                          Session Date
-                        </td>
-                        <td className="px-6 py-4 text-lg font-bold text-gray-900">
-                          {format(new Date(booking.slot_date), 'MMM dd, yyyy')}
-                        </td>
-                      </tr>
-                      <tr className="border-b-2 border-gray-200">
-                        <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
-                          Time
-                        </td>
-                        <td className="px-6 py-4 text-lg font-bold text-gray-900">
-                          {booking.slot_start_time && booking.slot_end_time
-                            ? `${booking.slot_start_time} - ${booking.slot_end_time}`
-                            : 'N/A'}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">
-                          Type
-                        </td>
-                        <td className="px-6 py-4 text-lg font-bold text-gray-900 capitalize">{booking.session_type || 'N/A'}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              )}
+            <div className="mt-8 space-y-6">
+              <div className="rounded-3xl border border-purple-100 bg-purple-50 p-6">
+                <h2 className="text-lg font-bold text-gray-900">Session Details</h2>
 
-              {/* Bundle Booking Summary */}
-              {booking.session_dates && booking.session_dates.length > 0 && (
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Bundle Sessions ({booking.number_of_sessions || booking.session_dates.length})
-                  </h3>
-                  <div className="space-y-3">
+                {booking.slot_date ? (
+                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                    <div className="rounded-2xl bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Date</p>
+                      <p className="mt-2 text-base font-bold text-gray-900">
+                        {format(new Date(booking.slot_date), 'MMM dd, yyyy')}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Time</p>
+                      <p className="mt-2 text-base font-bold text-gray-900">
+                        {booking.slot_start_time && booking.slot_end_time
+                          ? `${booking.slot_start_time} - ${booking.slot_end_time}`
+                          : 'N/A'}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Type</p>
+                      <p className="mt-2 text-base font-bold capitalize text-gray-900">
+                        {booking.session_type || 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                ) : booking.session_dates && booking.session_dates.length > 0 ? (
+                  <div className="mt-4 space-y-3">
                     {booking.session_dates.map((session, idx) => (
-                      <div
-                        key={idx}
-                        className="p-4 bg-white border border-purple-100 rounded-lg"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-semibold text-gray-900">
-                              Session {idx + 1} of {booking.session_dates?.length}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              {format(new Date(session.date), 'MMM dd, yyyy')} at {session.startTime} - {session.endTime}
-                            </p>
-                          </div>
-                          {booking.meeting_links && booking.meeting_links[idx] && (
-                            <a
-                              href={booking.meeting_links[idx]}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold"
-                            >
-                              Join
-                            </a>
-                          )}
-                        </div>
+                      <div key={idx} className="rounded-2xl bg-white p-4">
+                        <p className="text-sm font-semibold text-gray-900">
+                          Session {idx + 1} of {booking.session_dates?.length}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-600">
+                          {format(new Date(session.date), 'MMM dd, yyyy')} at {session.startTime} - {session.endTime}
+                        </p>
+                        {booking.meeting_links && booking.meeting_links[idx] && (
+                          <a
+                            href={booking.meeting_links[idx]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-3 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                          >
+                            Join Meeting
+                          </a>
+                        )}
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 pt-4 border-t border-purple-200">
-                    <p className="text-sm text-gray-600">
-                      <span className="font-semibold">Session Type:</span> <span className="capitalize">{booking.session_type}</span>
-                    </p>
+                ) : null}
+              </div>
+
+              <div className="rounded-3xl border border-blue-100 bg-blue-50 p-6">
+                <h2 className="text-lg font-bold text-gray-900">Meeting Link</h2>
+                {loading ? (
+                  <p className="mt-3 text-sm text-gray-600">Generating your Google Meet link...</p>
+                ) : booking?.meeting_links && booking.meeting_links.length > 1 ? (
+                  <div className="mt-4 space-y-3">
+                    {booking.meeting_links.map((link, idx) => (
+                      <a
+                        key={idx}
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block rounded-2xl bg-blue-600 px-5 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                      >
+                        Session {idx + 1} - Join Google Meet
+                      </a>
+                    ))}
                   </div>
-                </div>
-              )}
+                ) : booking?.meeting_link ? (
+                  <a
+                    href={booking.meeting_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-flex rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                  >
+                    Join Google Meet
+                  </a>
+                ) : (
+                  <p className="mt-3 text-sm text-gray-600">
+                    Meeting link is being prepared. Please refresh in a moment.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-3xl border border-gray-200 bg-white p-6">
+                <h2 className="text-lg font-bold text-gray-900">Need Help?</h2>
+                <p className="mt-3 text-sm leading-7 text-gray-600">
+                  Any problems please WhatsApp: <span className="font-semibold text-gray-900">70806 33396</span>
+                </p>
+                <p className="mt-2 text-sm leading-7 text-gray-600">
+                  For meetings related mail: <span className="font-semibold text-gray-900">meeting.mannosaar@gmail.com</span>
+                </p>
+              </div>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex gap-4 justify-center">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
               href="/"
-              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center justify-center rounded-full bg-purple-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-purple-700"
             >
               Back to Home
             </Link>
             <Link
               href="/profile"
-              className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center justify-center rounded-full bg-gray-200 px-6 py-3 font-semibold text-gray-900 transition-colors hover:bg-gray-300"
             >
               View My Bookings
             </Link>

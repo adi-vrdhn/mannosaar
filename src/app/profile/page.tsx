@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { User, Phone, Edit2, LogOut, Trash2, AlertTriangle, Check } from 'lucide-react';
+import NoteModal from '@/components/shared/NoteModal';
 
 interface Booking {
   id: string;
@@ -77,6 +78,7 @@ const ProfilePage = () => {
   const [sortOption, setSortOption] = useState<'recent' | 'oldest' | 'created'>('recent');
   const [rescheduleModal, setRescheduleModal] = useState<{ bookingId: string; sessionIndex?: number } | null>(null);
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [noteModal, setNoteModal] = useState<{ title: string; note: string | null } | null>(null);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -814,11 +816,18 @@ const ProfilePage = () => {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-gray-700">
-                            <div className="max-w-xs">
-                              <p className="text-sm text-gray-800 break-words whitespace-pre-wrap">
-                                {booking.notes || 'No note added'}
-                              </p>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setNoteModal({
+                                  title: `Note for ${booking.user_name || 'booking'}`,
+                                  note: booking.notes || null,
+                                })
+                              }
+                              className="inline-flex items-center rounded-lg bg-purple-100 px-3 py-2 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-200"
+                            >
+                              View Notes
+                            </button>
                           </td>
                           <td className="px-4 py-3 text-gray-800 font-semibold">
                             {booking.sessions_taken_before ?? 0}
@@ -989,11 +998,18 @@ const ProfilePage = () => {
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-gray-700">
-                                <div className="max-w-xs">
-                                  <p className="text-sm text-gray-800 break-words whitespace-pre-wrap">
-                                    {booking.notes || 'No note added'}
-                                  </p>
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setNoteModal({
+                                      title: `Note for ${booking.user_name || 'booking'}`,
+                                      note: booking.notes || null,
+                                    })
+                                  }
+                                  className="inline-flex items-center rounded-lg bg-purple-100 px-3 py-2 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-200"
+                                >
+                                  View Notes
+                                </button>
                               </td>
                               <td className="px-4 py-3 text-gray-800 font-semibold">
                                 {booking.sessions_taken_before ?? 0}
@@ -1077,11 +1093,18 @@ const ProfilePage = () => {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-gray-700">
-                            <div className="max-w-xs">
-                              <p className="text-sm text-gray-800 break-words whitespace-pre-wrap">
-                                {booking.notes || 'No note added'}
-                              </p>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setNoteModal({
+                                  title: `Note for ${booking.user_name || 'booking'}`,
+                                  note: booking.notes || null,
+                                })
+                              }
+                              className="inline-flex items-center rounded-lg bg-purple-100 px-3 py-2 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-200"
+                            >
+                              View Notes
+                            </button>
                           </td>
                           <td className="px-4 py-3 text-gray-800 font-semibold">
                             {booking.sessions_taken_before ?? 0}
@@ -1109,6 +1132,13 @@ const ProfilePage = () => {
             </motion.div>
           </motion.div>
         )}
+
+        <NoteModal
+          isOpen={!!noteModal}
+          note={noteModal?.note ?? null}
+          title={noteModal?.title}
+          onClose={() => setNoteModal(null)}
+        />
 
         {/* Reschedule Modal */}
         <AnimatePresence>

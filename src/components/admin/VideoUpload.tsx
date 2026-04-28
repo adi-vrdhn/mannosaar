@@ -1,8 +1,7 @@
 'use client';
 
-import { CldUploadWidget } from 'next-cloudinary';
-import { useState } from 'react';
-import { Upload, CheckCircle, AlertCircle } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Upload, CheckCircle, AlertCircle, Video } from 'lucide-react';
 
 interface VideoUploadProps {
   onUpload: (data: {
@@ -18,37 +17,86 @@ export default function VideoUpload({ onUpload }: VideoUploadProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [selectedFileName, setSelectedFileName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleUploadSuccess = (result: any) => {
-    const url = result.info.secure_url;
-    const publicId = result.info.public_id;
+  const handleFileChange = async (file: File | null) => {
+    if (!file) return;
 
-    setVideoUrl(url);
+    if (!file.type.startsWith('video/')) {
+      alert('Please select a video file');
+      return;
+    }
+
+    setSelectedFileName(file.name);
     setIsUploading(false);
-    setUploadStatus('success');
+  };
 
-    // Auto-call onUpload after a short delay
-    setTimeout(() => {
+  const handleUpload = async () => {
+    if (!title.trim()) {
+      alert('Please enter a video title');
+      return;
+    }
+
+    if (!description.trim()) {
+      alert('Please enter a video description');
+      return;
+    }
+
+    const fileInput = fileInputRef.current;
+    const file = fileInput?.files?.[0];
+
+    if (!file) {
+      alert('Please choose a video file first');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadStatus('uploading');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('resourceType', 'video');
+      formData.append('folder', 'mental-health/videos');
+
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      setVideoUrl(data.imageUrl);
+      setUploadStatus('success');
+
       onUpload({
-        videoUrl: url,
-        publicId: publicId,
-        duration: result.info.duration,
+        videoUrl: data.imageUrl,
+        publicId: data.publicId,
+        duration: data.duration,
         title,
         description,
       });
-      // Reset form
+
       setTitle('');
       setDescription('');
-      setVideoUrl('');
-      setUploadStatus('idle');
-    }, 1500);
-  };
-
-  const handleUploadError = () => {
-    setIsUploading(false);
-    setUploadStatus('error');
+      setSelectedFileName('');
+      if (fileInput) {
+        fileInput.value = '';
+      }
+    } catch (error) {
+      console.error('Video upload error:', error);
+      setUploadStatus('error');
+      alert(error instanceof Error ? error.message : 'Upload failed');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -86,34 +134,30 @@ export default function VideoUpload({ onUpload }: VideoUploadProps) {
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Upload Video
         </label>
-        <CldUploadWidget
-          uploadPreset="ml_default"
-          onSuccess={handleUploadSuccess}
-          onError={handleUploadError}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/*"
+          onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+          className="hidden"
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full px-4 py-3 rounded-lg border-2 border-dashed border-purple-300 bg-purple-50 text-purple-600 font-medium hover:bg-purple-100 flex items-center justify-center gap-2"
         >
-          {({ open }) => (
-            <button
-              onClick={() => {
-                // Validate title and description before upload
-                if (!title.trim()) {
-                  alert('Please enter a video title');
-                  return;
-                }
-                if (!description.trim()) {
-                  alert('Please enter a video description');
-                  return;
-                }
-                setIsUploading(true);
-                open();
-              }}
-              disabled={isUploading}
-              className="w-full px-4 py-3 rounded-lg border-2 border-dashed border-purple-300 bg-purple-50 text-purple-600 font-medium hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <Upload size={20} />
-              {isUploading ? 'Uploading...' : 'Click to Upload Video'}
-            </button>
-          )}
-        </CldUploadWidget>
+          <Video size={20} />
+          {selectedFileName || 'Choose a Video File'}
+        </button>
+        <button
+          type="button"
+          onClick={handleUpload}
+          disabled={isUploading || !selectedFileName}
+          className="mt-3 w-full px-4 py-3 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          <Upload size={20} />
+          {isUploading ? 'Uploading...' : 'Upload Video'}
+        </button>
       </div>
 
       {/* Status Messages */}

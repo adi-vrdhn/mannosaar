@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@/lib/auth';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 export async function POST(
   request: NextRequest,
@@ -7,6 +8,7 @@ export async function POST(
 ) {
   const params = await props.params;
   try {
+    const session = await auth();
     const { content } = await request.json();
 
     if (!content || content.trim().length === 0) {
@@ -16,26 +18,23 @@ export async function POST(
       );
     }
 
-    const supabase = await createClient();
-
-    // Get current user
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (!user || userError) {
+    if (!session?.user?.email) {
       return NextResponse.json(
         { error: 'User not authenticated' },
         { status: 401 }
       );
     }
 
+    const supabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     // Get user details
     const { data: userData } = await supabase
       .from('users')
-      .select('name, email')
-      .eq('id', user.id)
+      .select('id, name, email')
+      .eq('email', session.user.email)
       .single();
 
     // Get blog by slug
@@ -57,9 +56,9 @@ export async function POST(
       .from('blog_comments')
       .insert({
         blog_id: blog.id,
-        user_id: user.id,
-        user_name: userData?.name || user.email || 'Anonymous',
-        user_email: userData?.email || user.email,
+        user_id: userData?.id,
+        user_name: userData?.name || session.user.email || 'Anonymous',
+        user_email: userData?.email || session.user.email,
         content: content.trim(),
         is_approved: true,
       })
@@ -90,7 +89,10 @@ export async function GET(
 ) {
   const params = await props.params;
   try {
-    const supabase = await createClient();
+    const supabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     // Get blog by slug
     const { data: blog, error: blogError } = await supabase

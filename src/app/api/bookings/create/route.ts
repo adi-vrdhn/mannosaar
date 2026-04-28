@@ -171,17 +171,53 @@ export async function POST(request: Request) {
       bookingPayload.slot_end_time = slotData.end_time;
     }
 
-    const { data: bookingData, error: bookingError } = await supabase
-      .from('bookings')
-      .insert([bookingPayload])
-      .select();
+    const insertBooking = async (initialPayload: Record<string, unknown>) => {
+      let payload = { ...initialPayload };
+
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const { data, error } = await supabase
+          .from('bookings')
+          .insert([payload])
+          .select();
+
+        if (!error) {
+          return { data, error };
+        }
+
+        const missingColumnMatch =
+          error.code === 'PGRST204'
+            ? error.message?.match(/Could not find the '([^']+)' column/i)
+            : null;
+        const missingColumn = missingColumnMatch?.[1];
+
+        if (!missingColumn || !(missingColumn in payload)) {
+          return { data, error };
+        }
+
+        console.warn(`⚠️ bookings.${missingColumn} is unavailable, retrying without the field`);
+        const { [missingColumn]: _ignored, ...nextPayload } = payload;
+        payload = nextPayload;
+      }
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert([payload])
+        .select();
+
+      return { data, error };
+    };
+
+    let { data: bookingData, error: bookingError } = await insertBooking(bookingPayload);
 
     if (bookingError) {
       console.error('❌ Booking creation error:', bookingError);
       return NextResponse.json({ error: bookingError.message }, { status: 400 });
     }
 
-    const booking = bookingData[0];
+    const booking = bookingData?.[0];
+    if (!booking) {
+      return NextResponse.json({ error: 'Booking could not be created' }, { status: 400 });
+    }
     console.log('✅ Booking created:', booking);
 
     // Mark slots as unavailable
@@ -302,34 +338,47 @@ export async function POST(request: Request) {
 
     // Send confirmation emails to client and therapist
     try {
-      // Fetch therapist details
+      // Fetch therapist details, then fall back to env-based therapist email if needed
       const therapistId = slotData?.therapist_id || 'default-therapist';
       const { data: therapistData } = await supabase
         .from('users')
-        .select('*')
+        .select('email, name')
         .eq('id', therapistId)
         .single();
 
-      if (therapistData?.email) {
-        const emailDate = isBundleBooking
-          ? `${sessionDates.length} sessions scheduled`
-          : slotData.date;
-        const emailStartTime = isBundleBooking ? 'Varies' : slotData.start_time;
-        const emailEndTime = isBundleBooking ? 'Varies' : slotData.end_time;
+      const therapistEmail =
+        therapistData?.email || process.env.THERAPIST_EMAIL || process.env.EMAIL_USER || '';
+      const therapistName = therapistData?.name || 'Therapist';
+      const emailDate = isBundleBooking ? `${sessionDates.length} sessions scheduled` : slotData.date;
+      const emailStartTime = isBundleBooking ? 'Varies' : slotData.start_time;
+      const emailEndTime = isBundleBooking ? 'Varies' : slotData.end_time;
+      const sessionSchedule = isBundleBooking
+        ? sessionDates.map((session: any) => ({
+            date: session.date,
+            startTime: session.startTime,
+            endTime: session.endTime,
+          }))
+        : [
+            {
+              date: slotData.date,
+              startTime: slotData.start_time,
+              endTime: slotData.end_time,
+            },
+          ];
 
-        await sendBookingConfirmationEmail({
-          clientEmail: userData.email,
-          clientName: userData.name || 'Client',
-          therapistEmail: therapistData.email,
-          therapistName: therapistData.name || 'Therapist',
-          sessionType,
-          date: emailDate,
-          startTime: emailStartTime,
-          endTime: emailEndTime,
-          meetingLink: meetingLinks[0] || '',
-          meetingPassword: booking.meeting_password,
-        });
-      }
+      await sendBookingConfirmationEmail({
+        clientEmail: userData.email,
+        clientName: userData.name || 'Client',
+        therapistEmail,
+        therapistName,
+        sessionType,
+        date: emailDate,
+        startTime: emailStartTime,
+        endTime: emailEndTime,
+        sessionSchedule,
+        meetingLink: meetingLinks[0] || '',
+        meetingPassword: booking.meeting_password,
+      });
     } catch (emailError) {
       console.warn('⚠️ Email sending error (non-blocking):', emailError);
       // Don't fail the booking if email fails

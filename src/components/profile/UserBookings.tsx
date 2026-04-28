@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { format } from 'date-fns';
+import NoteModal from '@/components/shared/NoteModal';
 
 interface Booking {
   id: string;
@@ -12,6 +13,7 @@ interface Booking {
   meeting_link?: string;
   meeting_password?: string;
   google_calendar_event_id?: string;
+  notes?: string | null;
   status: string;
   created_at: string;
   slot: {
@@ -29,6 +31,7 @@ export default function UserBookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [noteModal, setNoteModal] = useState<{ title: string; note: string | null } | null>(null);
 
   useEffect(() => {
     if (!session) {
@@ -46,6 +49,7 @@ export default function UserBookings() {
             meeting_link,
             meeting_password,
             google_calendar_event_id,
+            notes,
             status,
             created_at,
             slot_id,
@@ -71,6 +75,7 @@ export default function UserBookings() {
           meeting_link: booking.meeting_link,
           meeting_password: booking.meeting_password,
           google_calendar_event_id: booking.google_calendar_event_id,
+          notes: booking.notes,
           status: booking.status,
           created_at: booking.created_at,
           slot: booking.therapy_slots,
@@ -208,6 +213,19 @@ export default function UserBookings() {
                   </div>
                 )}
 
+                <button
+                  type="button"
+                  onClick={() =>
+                    setNoteModal({
+                      title: 'Your Booking Note',
+                      note: booking.notes || null,
+                    })
+                  }
+                  className="inline-flex items-center gap-2 rounded-lg bg-purple-100 px-4 py-2 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-200"
+                >
+                  View Notes
+                </button>
+
                 {/* Booking ID */}
                 <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 inline-block mt-2">
                   Booking ID: {booking.id}
@@ -217,6 +235,13 @@ export default function UserBookings() {
           </div>
         )}
       </div>
+
+      <NoteModal
+        isOpen={!!noteModal}
+        note={noteModal?.note ?? null}
+        title={noteModal?.title}
+        onClose={() => setNoteModal(null)}
+      />
     </div>
   );
 }

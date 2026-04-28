@@ -1,32 +1,21 @@
 'use client';
 
-import { motion } from 'framer-motion';
-
 const WhatsAppButton = () => {
   const whatsappLink = 'https://wa.me/1234567890?text=Hello%20Mannosaar%20Therapy';
 
   return (
-    <motion.a
+    <a
       href={whatsappLink}
       target="_blank"
       rel="noopener noreferrer"
-      initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ delay: 0.5, duration: 0.5 }}
-      whileHover={{ scale: 1.1 }}
-      whileTap={{ scale: 0.95 }}
       className="fixed bottom-8 right-8 z-40 w-14 h-14 bg-green-500 rounded-full flex items-center justify-center shadow-lg hover:shadow-2xl transition-shadow group"
     >
       {/* Pulse background */}
-      <motion.div
-        animate={{ scale: [1, 1.2, 1] }}
-        transition={{ duration: 2, repeat: Infinity }}
+      <div
         className="absolute inset-0 bg-green-500 rounded-full opacity-20"
       />
 
-      <motion.div
-        animate={{ scale: [1, 1.15, 1] }}
-        transition={{ duration: 2, repeat: Infinity, delay: 0.1 }}
+      <div
         className="absolute inset-0 bg-green-500 rounded-full opacity-10"
       />
 
@@ -41,7 +30,7 @@ const WhatsAppButton = () => {
       <div className="absolute bottom-full right-0 mb-3 px-3 py-1 bg-gray-800 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
         Chat with us
       </div>
-    </motion.a>
+    </a>
   );
 };
 

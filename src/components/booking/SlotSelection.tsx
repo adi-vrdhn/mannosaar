@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { createClient } from '@/lib/supabase/client';
 import TherapistHeader from './TherapistHeader';
 
 interface Slot {
@@ -33,7 +32,6 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
-  const supabase = createClient();
 
   // Reschedule mode detection
   const rescheduleId = searchParams.get('reschedule');
@@ -96,61 +94,26 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   useEffect(() => {
     const fetchMonthAvailability = async () => {
       try {
-        const monthStart = startOfMonth(displayMonth);
-        const monthEnd = endOfMonth(displayMonth);
-        
-        const { data: monthSlots, error } = await supabase
-          .from('therapy_slots')
-          .select('date, id')
-          .gte('date', format(monthStart, 'yyyy-MM-dd'))
-          .lte('date', format(monthEnd, 'yyyy-MM-dd'))
-          .eq('is_available', true)
-          .eq('is_blocked', false);
+        const monthParam = format(startOfMonth(displayMonth), 'yyyy-MM-dd');
 
-        if (error) {
-          console.error('Error fetching month slots:', error);
+        const response = await fetch(
+          `/api/appointment/available-slots?month=${monthParam}`
+        );
+
+        if (!response.ok) {
+          console.error('Error fetching month slots:', await response.json());
           return;
         }
 
-        const { data: bookings } = await supabase
-          .from('bookings')
-          .select('slot_id')
-          .eq('status', 'confirmed');
-
-        const bookedSlotIds = new Set(bookings?.map(b => b.slot_id) || []);
-
-        const { data: blockedRanges } = await supabase
-          .from('block_schedules')
-          .select('start_date, end_date')
-          .lte('start_date', format(monthEnd, 'yyyy-MM-dd'))
-          .gte('end_date', format(monthStart, 'yyyy-MM-dd'));
-
-        const blockedDates = new Set<string>();
-        blockedRanges?.forEach(range => {
-          let current = new Date(range.start_date);
-          while (current <= new Date(range.end_date)) {
-            blockedDates.add(format(current, 'yyyy-MM-dd'));
-            current = addDays(current, 1);
-          }
-        });
-
-        const available = new Set<string>();
-        const today = format(new Date(), 'yyyy-MM-dd');
-        
-        monthSlots?.forEach((slot: any) => {
-          if (!bookedSlotIds.has(slot.id) && !blockedDates.has(slot.date) && slot.date >= today) {
-            available.add(slot.date);
-          }
-        });
-
-        setAvailableDates(available);
+        const data = await response.json();
+        setAvailableDates(new Set(data.availableDates || []));
       } catch (error) {
         console.error('Error fetching month availability:', error);
       }
     };
 
     fetchMonthAvailability();
-  }, [displayMonth, supabase]);
+  }, [displayMonth]);
 
   // Fetch slots for selected date
   useEffect(() => {
@@ -158,53 +121,25 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
       setLoading(true);
       setSelectedSlot(null);
       try {
-        const { data: allSlots, error } = await supabase
-          .from('therapy_slots')
-          .select('*')
-          .eq('date', selectedDate)
-          .eq('is_available', true)
-          .eq('is_blocked', false)
-          .order('start_time', { ascending: true });
+        const response = await fetch(
+          `/api/appointment/available-slots?date=${selectedDate}`
+        );
 
-        if (error) {
-          console.error('Error fetching slots:', error);
+        if (!response.ok) {
+          console.error('Error fetching slots:', await response.json());
           setLoading(false);
           return;
         }
 
-        const { data: bookings } = await supabase
-          .from('bookings')
-          .select('slot_id')
-          .eq('status', 'confirmed');
-
-        const bookedSlotIds = bookings?.map(b => b.slot_id) || [];
-
-        const { data: blockedRanges } = await supabase
-          .from('block_schedules')
-          .select('start_date, end_date')
-          .lte('start_date', selectedDate)
-          .gte('end_date', selectedDate);
-
-        const isDateBlocked = blockedRanges && blockedRanges.length > 0;
-
-        let availableSlots = (allSlots || []).filter(
-          slot => !bookedSlotIds.includes(slot.id) && !isDateBlocked
-        );
-
-        const today = format(new Date(), 'yyyy-MM-dd');
-        if (selectedDate === today) {
-          const currentTime = format(new Date(), 'HH:mm');
-          availableSlots = availableSlots.filter(slot => slot.start_time > currentTime);
-        }
-
-        setSlots(availableSlots);
+        const data = await response.json();
+        setSlots(data.slots || []);
       } finally {
         setLoading(false);
       }
     };
 
     fetchSlots();
-  }, [selectedDate, supabase]);
+  }, [selectedDate]);
 
   const handleSelectSlot = (slotId: string, slot: Slot) => {
     setSelectedSlot(slotId);

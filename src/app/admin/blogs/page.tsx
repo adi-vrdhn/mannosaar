@@ -12,6 +12,10 @@ export default function AdminBlogPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [excerpt, setExcerpt] = useState('');
+  const [coverImage, setCoverImage] = useState('');
+  const [coverPreview, setCoverPreview] = useState('');
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverError, setCoverError] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -53,6 +57,7 @@ export default function AdminBlogPage() {
           title: title.trim(),
           content,
           excerpt: excerpt.trim() || undefined,
+          featured_image: coverImage || undefined,
         }),
       });
 
@@ -67,6 +72,9 @@ export default function AdminBlogPage() {
       setTitle('');
       setContent('');
       setExcerpt('');
+      setCoverImage('');
+      setCoverPreview('');
+      setCoverError('');
 
       // Redirect to blog details page
       setTimeout(() => {
@@ -77,6 +85,54 @@ export default function AdminBlogPage() {
       console.error('Error publishing blog:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCoverSelect = async (file: File | null) => {
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setCoverError('Please select an image file');
+      return;
+    }
+
+    setCoverUploading(true);
+    setCoverError('');
+
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      setCoverPreview(dataUrl);
+
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: dataUrl,
+          folder: 'mental-health/blog-covers',
+          resourceType: 'image',
+        }),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.error || 'Failed to upload cover image');
+      }
+
+      setCoverImage(responseData.imageUrl);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to upload cover image';
+      setCoverError(message);
+      setCoverImage('');
+      setCoverPreview('');
+    } finally {
+      setCoverUploading(false);
     }
   };
 
@@ -154,6 +210,56 @@ export default function AdminBlogPage() {
             <p className="text-xs text-gray-500 mt-1">{excerpt.length}/500 characters</p>
           </div>
 
+          <div className="mb-8">
+            <label className="block text-sm font-semibold text-gray-700 mb-3">
+              Cover Image from Device
+            </label>
+            <div className="rounded-2xl border border-dashed border-purple-300 bg-purple-50 p-4">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleCoverSelect(e.target.files?.[0] || null)}
+                className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-full file:border-0 file:bg-purple-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-purple-700"
+                disabled={loading}
+              />
+              <p className="mt-2 text-xs text-gray-500">
+                This cover image will appear at the top of the article and in the blog feed.
+              </p>
+
+              {coverUploading && (
+                <p className="mt-3 text-sm font-medium text-purple-700">Uploading cover image...</p>
+              )}
+
+              {coverError && (
+                <p className="mt-3 text-sm font-medium text-red-600">{coverError}</p>
+              )}
+
+              {coverPreview && (
+                <div className="mt-4 overflow-hidden rounded-2xl border border-purple-200 bg-white">
+                  <img
+                    src={coverPreview}
+                    alt="Cover preview"
+                    className="h-56 w-full object-cover"
+                  />
+                  <div className="flex items-center justify-between gap-3 p-3">
+                    <p className="text-sm font-semibold text-gray-700">Cover selected</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCoverImage('');
+                        setCoverPreview('');
+                        setCoverError('');
+                      }}
+                      className="rounded-full bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-200"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Content Editor */}
           <div className="mb-8">
             <label className="block text-sm font-semibold text-gray-700 mb-3">
@@ -170,7 +276,7 @@ export default function AdminBlogPage() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             type="submit"
-            disabled={loading || !title.trim() || !content.trim()}
+            disabled={loading || !title.trim() || !content.trim() || coverUploading}
             className="w-full px-6 py-4 bg-gradient-to-r from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 disabled:opacity-50 text-white font-semibold rounded-lg transition-all"
           >
             {loading ? 'Publishing...' : '✨ Publish Blog Post'}

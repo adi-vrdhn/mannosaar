@@ -10,7 +10,7 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, content, excerpt } = await request.json();
+    const { title, content, excerpt, featured_image, featuredImage } = await request.json();
     
     if (!title) {
       return NextResponse.json(
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
         slug,
         content,
         excerpt: excerpt || content.substring(0, 160),
+        featured_image: featured_image || featuredImage || null,
         author_id: session.user.id,
         author_name: userData?.name || session.user.name || session.user.email,
         is_published: true,
