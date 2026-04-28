@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   slot_id UUID NOT NULL REFERENCES therapy_slots(id) ON DELETE CASCADE,
   session_type VARCHAR(50) NOT NULL CHECK (session_type IN ('personal', 'couple')),
   status VARCHAR(50) DEFAULT 'confirmed' CHECK (status IN ('pending', 'confirmed', 'cancelled', 'completed')),
+  notes TEXT,
+  sessions_taken_before INTEGER DEFAULT 0,
   meeting_link VARCHAR(255),
   meeting_password VARCHAR(50),
   google_calendar_event_id VARCHAR(255),

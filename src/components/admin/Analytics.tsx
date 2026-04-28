@@ -14,6 +14,8 @@ interface Booking {
   user_phone: string;
   session_type: string;
   status: string;
+  notes?: string | null;
+  sessions_taken_before?: number | null;
   slot_date: string;
   slot_start_time: string;
   slot_end_time: string;
@@ -307,6 +309,8 @@ const Analytics = () => {
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Session Date</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Time</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Type</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Notes</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Sessions Before</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Meeting Link</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Actions</th>
@@ -336,6 +340,16 @@ const Analytics = () => {
                         >
                           {booking.session_type === 'personal' ? 'Personal' : 'Couple'}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        <div className="max-w-xs">
+                          <p className="whitespace-pre-wrap break-words">
+                            {booking.notes || 'No note added'}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                        {booking.sessions_taken_before ?? 0}
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <span

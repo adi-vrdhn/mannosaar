@@ -26,6 +26,8 @@ interface BookingDetails {
   };
   session_type: string;
   status: string;
+  notes?: string | null;
+  sessions_taken_before?: number | null;
   meeting_link?: string;
   meeting_links?: string[]; // for bundle bookings
   meeting_password?: string;
@@ -340,6 +342,25 @@ export default function BookingDetailsModal({
                         </div>
                       </div>
                     )}
+                    <div className="mt-4">
+                      <p className="text-sm text-gray-600 mb-1">Sessions Taken Before</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {booking.sessions_taken_before ?? 0}
+                      </p>
+                    </div>
+                  </section>
+
+                  {/* Client Note */}
+                  <section>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b-2 border-purple-200">
+                      Client Note
+                    </h3>
+                    <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                      <p className="text-sm text-gray-600 mb-2">Problem described before booking</p>
+                      <p className="text-gray-900 whitespace-pre-wrap break-words">
+                        {booking.notes || 'No note added'}
+                      </p>
+                    </div>
                   </section>
 
                   {/* Status Information */}

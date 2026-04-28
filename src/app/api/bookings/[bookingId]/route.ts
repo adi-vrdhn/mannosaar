@@ -80,6 +80,8 @@ export async function GET(
       },
       session_type: booking.session_type,
       status: booking.status,
+      notes: booking.notes,
+      sessions_taken_before: booking.sessions_taken_before,
       payment_status: booking.payment_status,
       meeting_link: booking.meeting_link,
       meeting_links: booking.meeting_links,

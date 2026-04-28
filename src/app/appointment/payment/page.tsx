@@ -76,6 +76,7 @@ function PaymentPageContent() {
   const [error, setError] = useState('');
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [appointmentNote, setAppointmentNote] = useState('');
 
   // Calculate price based on bundle size
   const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
@@ -157,6 +158,13 @@ function PaymentPageContent() {
       fetchUserProfile();
     }
   }, [session]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const storedNote = window.sessionStorage.getItem('appointmentNote') || '';
+    setAppointmentNote(storedNote);
+  }, []);
 
   // Fetch slot details (for single bookings only)
   useEffect(() => {
@@ -387,6 +395,11 @@ function PaymentPageContent() {
             if (verifyData.success) {
               // Redirect to success page
               console.log('✅ Payment verified, redirecting to success...');
+              if (typeof window !== 'undefined') {
+                window.sessionStorage.removeItem('appointmentNote');
+                window.sessionStorage.removeItem('appointmentSessionType');
+                window.sessionStorage.removeItem('appointmentBundleSize');
+              }
               // Add a small delay to ensure modal closes before redirecting
               await new Promise(resolve => setTimeout(resolve, 500));
               // Use replace instead of push to avoid going back to payment page
@@ -476,6 +489,9 @@ function PaymentPageContent() {
         sessionType,
         amount: totalAmount,
         paymentMethod: 'qr',
+        notes:
+          appointmentNote ||
+          (typeof window !== 'undefined' ? window.sessionStorage.getItem('appointmentNote') || undefined : undefined),
       };
 
       if (isBundleBooking) {

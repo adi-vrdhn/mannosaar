@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { userId, slotId, sessionType, sessionDates, bundle } = await request.json();
+    const { userId, slotId, sessionType, sessionDates, bundle, notes } = await request.json();
     
     const isBundleBooking = sessionDates && sessionDates.length > 0;
     
@@ -123,6 +123,16 @@ export async function POST(request: Request) {
     console.log('🔵 Creating booking...');
     
     const meetingPassword = generateMeetingPassword();
+
+    const { count: previousBookingCount, error: countError } = await supabase
+      .from('bookings')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('status', 'confirmed');
+
+    if (countError) {
+      console.warn('⚠️ Could not calculate previous booking count:', countError);
+    }
     
     let bookingPayload: any = {
       user_id: userId,
@@ -132,6 +142,8 @@ export async function POST(request: Request) {
       session_type: sessionType,
       status: 'confirmed',
       meeting_password: meetingPassword,
+      notes: notes?.trim() || null,
+      sessions_taken_before: (previousBookingCount || 0) + 1,
     };
 
     if (isBundleBooking) {

@@ -13,6 +13,8 @@ interface Booking {
   id: string;
   session_type: string;
   status: string;
+  notes?: string | null;
+  sessions_taken_before?: number | null;
   meeting_link?: string;
   meeting_links?: string[];
   meeting_password?: string;
@@ -328,6 +330,8 @@ const ProfilePage = () => {
             id: b.id,
             session_type: b.session_type,
             status: b.status,
+            notes: b.notes,
+            sessions_taken_before: b.sessions_taken_before,
             meeting_link: b.meeting_link,
             meeting_password: b.meeting_password,
             user_id: b.user_id,
@@ -771,6 +775,8 @@ const ProfilePage = () => {
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Date</th>
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Time</th>
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">Type</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Notes</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Sessions Before</th>
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">Meeting Link</th>
                       </tr>
                     </thead>
@@ -806,6 +812,16 @@ const ProfilePage = () => {
                             }`}>
                               {booking.session_type === 'personal' ? 'Personal' : 'Couple'}
                             </span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            <div className="max-w-xs">
+                              <p className="text-sm text-gray-800 break-words whitespace-pre-wrap">
+                                {booking.notes || 'No note added'}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-800 font-semibold">
+                            {booking.sessions_taken_before ?? 0}
                           </td>
                           <td className="px-4 py-3">
                             {booking.meeting_link ? (
@@ -930,6 +946,8 @@ const ProfilePage = () => {
                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Date</th>
                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Time</th>
                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Type of Session</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Notes</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Sessions Before</th>
                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Meeting Link</th>
                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Actions</th>
                         </tr>
@@ -970,6 +988,16 @@ const ProfilePage = () => {
                                   {booking.session_type === 'personal' ? 'Personal' : 'Couple'}
                                 </span>
                               </td>
+                              <td className="px-4 py-3 text-gray-700">
+                                <div className="max-w-xs">
+                                  <p className="text-sm text-gray-800 break-words whitespace-pre-wrap">
+                                    {booking.notes || 'No note added'}
+                                  </p>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-gray-800 font-semibold">
+                                {booking.sessions_taken_before ?? 0}
+                              </td>
                               <td className="px-4 py-3">
                                 {booking.meeting_link ? (
                                   <a 
@@ -1009,11 +1037,13 @@ const ProfilePage = () => {
                     <thead>
                       <tr className="border-b-2 border-purple-600 bg-purple-50">
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">User Name</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Date</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Time</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Type of Session</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Meeting Link</th>
-                      </tr>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Date</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Time</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Type of Session</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Notes</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Sessions Before</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Meeting Link</th>
+                        </tr>
                     </thead>
                     <tbody>
                       {pastBookings.map((booking) => (
@@ -1045,6 +1075,16 @@ const ProfilePage = () => {
                             }`}>
                               {booking.session_type === 'personal' ? 'Personal' : 'Couple'}
                             </span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            <div className="max-w-xs">
+                              <p className="text-sm text-gray-800 break-words whitespace-pre-wrap">
+                                {booking.notes || 'No note added'}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-800 font-semibold">
+                            {booking.sessions_taken_before ?? 0}
                           </td>
                           <td className="px-4 py-3">
                             {booking.meeting_link ? (
