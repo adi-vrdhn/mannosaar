@@ -81,6 +81,7 @@ function PaymentPageContent() {
   // Calculate price based on bundle size
   const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
   const sessionPrice = prices[priceKey] || 0;
+  const totalPrice = sessionPrice;
 
   // Debug logging
   useEffect(() => {
@@ -278,7 +279,7 @@ function PaymentPageContent() {
       console.log('✅ User ID:', userId);
 
       // Step 2: Create Razorpay order
-      const totalAmount = isBundleBooking ? sessionPrice * bundleSize : sessionPrice;
+      const totalAmount = totalPrice;
       console.log('🔵 Step 2: Creating payment order with:', {
         amount: totalAmount,
         sessionType,
@@ -290,7 +291,7 @@ function PaymentPageContent() {
       });
 
       const orderPayload: any = {
-        amount: isBundleBooking ? sessionPrice * bundleSize : sessionPrice,
+        amount: totalPrice,
         sessionType,
         userEmail: session.user.email,
         userId,
@@ -471,7 +472,7 @@ function PaymentPageContent() {
       console.log('✅ User ID:', userId);
 
       // Step 2: Create booking directly (QR payment is manual)
-      const totalAmount = isBundleBooking ? sessionPrice * bundleSize : sessionPrice;
+      const totalAmount = totalPrice;
       console.log('🔵 Step 2: Creating booking with manual QR payment:', {
         amount: totalAmount,
         sessionType,
@@ -632,8 +633,8 @@ function PaymentPageContent() {
                       <span className="font-semibold text-gray-900">{bundleSize} Sessions</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Price per Session</span>
-                      <span className="font-semibold text-gray-900">₹{sessionPrice}</span>
+                      <span className="text-gray-600">Bundle Price</span>
+                      <span className="font-semibold text-gray-900">₹{totalPrice}</span>
                     </div>
 
                     {/* Sessions List */}
@@ -648,7 +649,7 @@ function PaymentPageContent() {
 
                     <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
                       <span className="text-lg font-bold text-gray-900">Total Amount</span>
-                      <span className="text-2xl font-bold text-purple-600">₹{sessionPrice * bundleSize}</span>
+                      <span className="text-2xl font-bold text-purple-600">₹{totalPrice}</span>
                     </div>
                   </div>
                 </div>
@@ -673,7 +674,7 @@ function PaymentPageContent() {
                 transition={{ delay: 0.3 }}
                 className="p-8 bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-dashed border-purple-300 rounded-2xl mb-8 text-center"
               >
-                <p className="text-sm text-gray-600 mb-4 font-semibold">Scan to pay ₹{isBundleBooking ? sessionPrice * bundleSize : sessionPrice}</p>
+                <p className="text-sm text-gray-600 mb-4 font-semibold">Scan to pay ₹{totalPrice}</p>
                 <div className="bg-white p-6 rounded-xl inline-block border-2 border-purple-200">
                   <Image
                     src="/payment-qr.png"
@@ -684,7 +685,7 @@ function PaymentPageContent() {
                     priority
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-4">Amount: ₹{isBundleBooking ? sessionPrice * bundleSize : sessionPrice}</p>
+                <p className="text-xs text-gray-500 mt-4">Amount: ₹{totalPrice}</p>
               </motion.div>
 
               {/* Payment Agreement */}

@@ -141,8 +141,8 @@ function AppointmentNotePageContent() {
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-[1.3fr_0.9fr] gap-8">
-            <div>
+          <div className="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] gap-8 items-stretch">
+            <div className="flex h-full flex-col">
               <label className="block text-sm font-semibold text-gray-700 mb-3">
                 Your note
               </label>
@@ -152,7 +152,7 @@ function AppointmentNotePageContent() {
                 rows={10}
                 maxLength={1000}
                 placeholder="Write a few lines about what you would like support with..."
-                className="w-full rounded-2xl border border-gray-300 px-4 py-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
+                className="w-full min-h-[420px] flex-1 rounded-2xl border border-gray-300 px-4 py-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
               />
               <div className="flex items-center justify-between mt-2 text-sm text-gray-500">
                 <span>Keep it brief and comfortable for you.</span>
@@ -169,7 +169,7 @@ function AppointmentNotePageContent() {
               </div>
             </div>
 
-            <div>
+            <div className="flex h-full flex-col">
               <div className="mb-4">
                 <h2 className="text-lg font-bold text-gray-900 mb-2">Choose bundle size</h2>
                 <p className="text-sm text-gray-600">
@@ -177,7 +177,7 @@ function AppointmentNotePageContent() {
                 </p>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-4 flex-1">
                 {[1, 2, 3].map((size) => {
                   const active = bundleSize === size;
                   return (
@@ -185,7 +185,7 @@ function AppointmentNotePageContent() {
                       key={size}
                       type="button"
                       onClick={() => setBundleSize(size as 1 | 2 | 3)}
-                      className={`${cardBase} text-left ${
+                      className={`${cardBase} h-full min-h-[168px] flex flex-col justify-between text-left ${
                         active
                           ? 'border-purple-500 ring-2 ring-purple-200'
                           : 'border-gray-200 hover:border-purple-300'
@@ -197,7 +197,7 @@ function AppointmentNotePageContent() {
                           <p className="text-2xl font-bold text-gray-900">{size} Session{size > 1 ? 's' : ''}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-gray-500 mb-1">Price</p>
+                          <p className="text-xs text-gray-500 mb-1">Total price</p>
                           <p className="text-xl font-bold text-purple-600">
                             ₹{loadingPrices ? '...' : getPriceForBundle(sessionType, size)}
                           </p>

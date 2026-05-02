@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { addDays } from 'date-fns';
+import {
+  getCurrentDateString,
+  isSlotInTheFuture,
+} from '@/lib/time';
 
 export async function GET() {
   try {
@@ -33,16 +37,17 @@ export async function GET() {
     }
 
     // Fetch available slots from next 30 days
-    const today = new Date();
-    const thirtyDaysLater = addDays(today, 30);
+    const currentDateString = getCurrentDateString();
+    const thirtyDaysLater = addDays(new Date(), 30);
+    const thirtyDaysLaterString = thirtyDaysLater.toISOString().split('T')[0];
 
     const { data: slots, error } = await supabase
       .from('therapy_slots')
       .select('id, date, start_time, end_time')
       .eq('is_available', true)
       .eq('is_blocked', false)
-      .gte('date', today.toISOString().split('T')[0])
-      .lte('date', thirtyDaysLater.toISOString().split('T')[0])
+      .gte('date', currentDateString)
+      .lte('date', thirtyDaysLaterString)
       .order('date', { ascending: true })
       .order('start_time', { ascending: true });
 
@@ -54,10 +59,11 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(
-      { slots: slots || [] },
-      { status: 200 }
+    const filteredSlots = (slots || []).filter((slot) =>
+      isSlotInTheFuture(slot.date, slot.start_time, currentDateString)
     );
+
+    return NextResponse.json({ slots: filteredSlots }, { status: 200 });
   } catch (error) {
     console.error('Error:', error);
     return NextResponse.json(

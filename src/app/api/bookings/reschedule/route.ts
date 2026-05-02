@@ -30,6 +30,22 @@ export async function POST(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    const extractMeetLink = (eventData: any) => {
+      if (!eventData) return null;
+
+      if (eventData.hangoutLink) {
+        return eventData.hangoutLink;
+      }
+
+      const entryPoints = eventData.conferenceData?.entryPoints || [];
+      const meetEntry = entryPoints.find(
+        (entry: any) =>
+          entry.entryPointType === 'video' || entry.uri?.includes('meet.google.com')
+      );
+
+      return meetEntry?.uri || null;
+    };
+
     // Fetch the current booking
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
@@ -240,19 +256,13 @@ export async function POST(request: Request) {
           });
 
           // Try to extract meeting link from initial response
-          let extractedLink: string | null = null;
+          let extractedLink: string | null = extractMeetLink(calendarEvent.data);
 
-          if (calendarEvent.data.conferenceData?.entryPoints) {
+          if (extractedLink) {
+            console.log('✅ New Google Meet link extracted from initial response:', extractedLink);
+          } else if (calendarEvent.data.conferenceData?.entryPoints) {
             console.log('🔍 Searching for meeting link in entryPoints:', calendarEvent.data.conferenceData.entryPoints);
-            const meetLink = calendarEvent.data.conferenceData.entryPoints.find(
-              (entry: any) => entry.entryPointType === 'video' || entry.uri?.includes('meet.google.com')
-            );
-            extractedLink = meetLink?.uri || null;
-            if (extractedLink) {
-              console.log('✅ New Google Meet link extracted from initial response:', extractedLink);
-            } else {
-              console.warn('⚠️ No video entry point found in initial response');
-            }
+            console.warn('⚠️ No video entry point found in initial response');
           } else {
             console.log('ℹ️ No conference data in initial response, will fetch later');
           }
@@ -276,28 +286,12 @@ export async function POST(request: Request) {
                 allEntryPoints: fetchedEvent.conferenceData?.entryPoints,
               });
 
-              if (fetchedEvent.conferenceData?.entryPoints && fetchedEvent.conferenceData.entryPoints.length > 0) {
-                console.log('🔍 Searching for meeting link in fetched entryPoints:', fetchedEvent.conferenceData.entryPoints);
-                
-                // Try to find video conference link
-                let meetLink = fetchedEvent.conferenceData.entryPoints.find(
-                  (entry: any) => entry.entryPointType === 'video'
-                );
-                
-                // If not found by type, try by URL pattern
-                if (!meetLink) {
-                  meetLink = fetchedEvent.conferenceData.entryPoints.find(
-                    (entry: any) => entry.uri?.includes('meet.google.com')
-                  );
-                }
-                
-                extractedLink = meetLink?.uri || null;
-                
-                if (extractedLink) {
-                  console.log('✅ New Google Meet link extracted from fetched event:', extractedLink);
-                } else {
-                  console.warn('⚠️ No video meet link found in any entry points:', fetchedEvent.conferenceData.entryPoints.map((e: any) => ({ type: e.entryPointType, uri: e.uri })));
-                }
+              extractedLink = extractMeetLink(fetchedEvent);
+
+              if (extractedLink) {
+                console.log('✅ New Google Meet link extracted from fetched event:', extractedLink);
+              } else if (fetchedEvent.conferenceData?.entryPoints && fetchedEvent.conferenceData.entryPoints.length > 0) {
+                console.warn('⚠️ No video meet link found in any entry points:', fetchedEvent.conferenceData.entryPoints.map((e: any) => ({ type: e.entryPointType, uri: e.uri })));
               } else {
                 console.warn('⚠️ No conference data in fetched event');
               }
@@ -431,6 +425,7 @@ export async function POST(request: Request) {
         newDate: newSlot.date,
         newStartTime: formatTime(newSlot.start_time),
         newEndTime: formatTime(newSlot.end_time),
+        meetingLink: newMeetingLink || undefined,
       });
 
       console.log('✅ Reschedule email notification sent to:', booking.user_email || session.user?.email);
@@ -442,7 +437,11 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: 'Session rescheduled successfully',
-      booking: updatedBooking,
+      booking: {
+        ...updatedBooking,
+        meeting_link: newMeetingLink,
+        google_calendar_event_id: newGoogleEventId,
+      },
     });
   } catch (error) {
     console.error('❌ Reschedule error:', error);

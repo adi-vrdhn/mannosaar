@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { sendBookingPostponedEmail } from '@/lib/email';
+import { createGoogleCalendarEvent, deleteGoogleCalendarEvent } from '@/lib/google-calendar';
 
 export async function POST(request: NextRequest) {
   try {
@@ -110,6 +111,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let newMeetingLink = booking.meeting_link || '';
+    let newGoogleCalendarEventId = booking.google_calendar_event_id || '';
+
+    try {
+      const calendarResult = await createGoogleCalendarEvent(
+        booking.therapist_id,
+        user_data.email,
+        user_data.name || 'Client',
+        newDate,
+        newStartTime,
+        newEndTime,
+        booking.session_type
+      );
+
+      newMeetingLink = calendarResult?.meetLink || '';
+      newGoogleCalendarEventId = calendarResult?.eventId || newGoogleCalendarEventId;
+
+      if (booking.google_calendar_event_id) {
+        await deleteGoogleCalendarEvent(booking.therapist_id, booking.google_calendar_event_id);
+      }
+    } catch (calendarError) {
+      console.warn('⚠️ Calendar update failed during admin reschedule:', calendarError);
+    }
+
     // Free up the old slot (mark as available)
     await supabase
       .from('therapy_slots')
@@ -121,6 +146,8 @@ export async function POST(request: NextRequest) {
       .from('bookings')
       .update({
         slot_id: newSlot.id,
+        meeting_link: newMeetingLink,
+        google_calendar_event_id: newGoogleCalendarEventId,
         updated_at: new Date().toISOString(),
       })
       .eq('id', bookingId)
@@ -148,6 +175,7 @@ export async function POST(request: NextRequest) {
         newStartTime: newStartTime,
         newEndTime: newEndTime,
         reason: reason || 'Therapist needs to reschedule',
+        meetingLink: newMeetingLink || undefined,
       });
     } catch (emailError) {
       console.error('❌ Failed to send email, but booking was updated:', emailError);

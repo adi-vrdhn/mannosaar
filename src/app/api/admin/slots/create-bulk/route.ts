@@ -31,34 +31,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing or invalid slots array' }, { status: 400 });
   }
 
-  // Check for duplicates before inserting - include therapist_id in the check
+  const defaultTherapistId = '00000000-0000-0000-0000-000000000000';
+  const normalizedSlots = slots.map((slot) => ({
+    date: slot.date,
+    start_time: slot.start_time,
+    end_time: slot.end_time,
+    duration_minutes: slot.duration_minutes ?? 45,
+    is_available: slot.is_available ?? true,
+    is_blocked: slot.is_blocked ?? false,
+    blocked_reason: slot.blocked_reason ?? null,
+    therapist_id: slot.therapist_id ?? defaultTherapistId,
+  }));
+
+  const uniqueDates = [...new Set(normalizedSlots.map((slot) => slot.date))];
   const { data: existingSlots } = await supabase
     .from('therapy_slots')
     .select('date, start_time, therapist_id')
-    .in(
-      'date',
-      [...new Set(slots.map((s) => s.date))]
-    );
+    .in('date', uniqueDates)
+    .eq('therapist_id', defaultTherapistId);
 
-  const existingSet = new Set(
-    (existingSlots || []).map((s) => `${s.date}|${s.start_time}|${s.therapist_id}`)
+  const existingKeys = new Set(
+    (existingSlots || []).map(
+      (slot) => `${slot.date}|${slot.start_time}|${slot.therapist_id}`
+    )
   );
 
-  const newSlots = slots.filter((s) => {
-    const key = `${s.date}|${s.start_time}|${s.therapist_id}`;
-    return !existingSet.has(key);
-  });
-
-  if (newSlots.length === 0) {
-    return NextResponse.json(
-      { error: 'All slots already exist', skipped: slots.length },
-      { status: 400 }
-    );
-  }
+  const overwrittenCount = normalizedSlots.filter((slot) =>
+    existingKeys.has(`${slot.date}|${slot.start_time}|${slot.therapist_id}`)
+  ).length;
+  const createdCount = normalizedSlots.length - overwrittenCount;
 
   const { data, error } = await supabase
     .from('therapy_slots')
-    .insert(newSlots)
+    .upsert(normalizedSlots, {
+      onConflict: 'date,start_time,therapist_id',
+    })
     .select();
 
   if (error) {
@@ -69,9 +76,13 @@ export async function POST(request: Request) {
   return NextResponse.json(
     {
       data,
-      created: newSlots.length,
-      skipped: slots.length - newSlots.length,
+      created: createdCount,
+      overwritten: overwrittenCount,
+      message:
+        overwrittenCount > 0
+          ? `${createdCount} slot(s) created and ${overwrittenCount} existing slot(s) updated.`
+          : `${createdCount} slot(s) created successfully.`,
     },
-    { status: 201 }
+    { status: overwrittenCount > 0 ? 200 : 201 }
   );
 }

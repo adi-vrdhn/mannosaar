@@ -31,17 +31,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
+  const therapistId = '00000000-0000-0000-0000-000000000000';
+  const { data: existingSlot } = await supabase
+    .from('therapy_slots')
+    .select('id')
+    .eq('date', date)
+    .eq('start_time', startTime)
+    .eq('therapist_id', therapistId)
+    .maybeSingle();
+
   const { data, error } = await supabase
     .from('therapy_slots')
-    .insert([
+    .upsert(
+      [
+        {
+          date,
+          start_time: startTime,
+          end_time: endTime,
+          is_available: true,
+          is_blocked: false,
+          therapist_id: therapistId,
+        },
+      ],
       {
-        date,
-        start_time: startTime,
-        end_time: endTime,
-        is_available: true,
-        is_blocked: false,
-      },
-    ])
+        onConflict: 'date,start_time,therapist_id',
+      }
+    )
     .select();
 
   if (error) {
@@ -49,5 +64,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ data }, { status: 201 });
+  return NextResponse.json(
+    {
+      data,
+      message: existingSlot
+        ? 'This slot already existed and was updated.'
+        : 'Slot created successfully.',
+      overwritten: !!existingSlot,
+    },
+    { status: existingSlot ? 200 : 201 }
+  );
 }

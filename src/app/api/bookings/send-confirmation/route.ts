@@ -52,18 +52,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Format date and time
-    const bookingDate = new Date(booking.slot.date);
-    const formattedDate = bookingDate.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-    const formattedTime = booking.slot.start_time;
-
     // Send confirmation email to client and therapist
-    await sendBookingConfirmationEmail({
+    const emailSent = await sendBookingConfirmationEmail({
       clientEmail: booking.user.email,
       clientName: booking.user.name || 'Client',
       therapistEmail: therapist.email,
@@ -81,6 +71,13 @@ export async function POST(request: NextRequest) {
       ],
       meetingLink: booking.slot.meeting_link || undefined,
     });
+
+    if (!emailSent) {
+      return NextResponse.json(
+        { error: 'Email could not be sent. Check SMTP credentials and server logs.' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       { message: 'Confirmation emails sent successfully' },

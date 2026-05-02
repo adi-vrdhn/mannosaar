@@ -8,23 +8,41 @@ const emailUser = process.env.EMAIL_USER;
 const emailPassword = process.env.EMAIL_PASSWORD;
 const clientRecipient = process.env.EMAIL_TEST_TO || emailUser;
 const therapistRecipient = process.env.THERAPIST_EMAIL || emailUser;
+const emailFrom = process.env.EMAIL_FROM || emailUser;
+const emailHost = process.env.EMAIL_HOST;
+const emailPort = Number(process.env.EMAIL_PORT || '587');
+const emailSecure = process.env.EMAIL_SECURE === 'true';
 
 if (isPlaceholder(emailUser) || isPlaceholder(emailPassword)) {
   console.error('❌ EMAIL_USER / EMAIL_PASSWORD are not set to real values.');
   process.exit(1);
 }
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: emailUser,
-    pass: emailPassword,
-  },
-});
+const transporter = nodemailer.createTransport(
+  emailHost
+    ? {
+        host: emailHost,
+        port: Number.isFinite(emailPort) ? emailPort : 587,
+        secure: emailSecure,
+        auth: {
+          user: emailUser,
+          pass: emailPassword,
+        },
+      }
+    : {
+        service: (process.env.EMAIL_SERVICE || 'gmail').toLowerCase(),
+        port: Number.isFinite(emailPort) ? emailPort : 587,
+        secure: emailSecure,
+        auth: {
+          user: emailUser,
+          pass: emailPassword,
+        },
+      }
+);
 
 async function sendTestMail(to, subject, body) {
   await transporter.sendMail({
-    from: emailUser,
+    from: emailFrom,
     to,
     subject,
     html: body,

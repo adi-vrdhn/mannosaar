@@ -1,13 +1,68 @@
 import nodemailer from 'nodemailer';
 
-// Create email transport (using Gmail SMTP - you can change this)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
+type EmailTransport = ReturnType<typeof nodemailer.createTransport>;
+
+function getEmailPort() {
+  const port = Number(process.env.EMAIL_PORT || '587');
+  return Number.isFinite(port) ? port : 587;
+}
+
+function createTransportConfig() {
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASSWORD;
+
+  if (!user || !pass) {
+    throw new Error('EMAIL_USER and EMAIL_PASSWORD must be set before sending email');
+  }
+
+  const secure = process.env.EMAIL_SECURE === 'true';
+  const host = process.env.EMAIL_HOST?.trim();
+
+  if (host) {
+    return {
+      host,
+      port: getEmailPort(),
+      secure,
+      auth: {
+        user,
+        pass,
+      },
+    };
+  }
+
+  return {
+    service: (process.env.EMAIL_SERVICE || 'gmail').toLowerCase(),
+    port: getEmailPort(),
+    secure,
+    auth: {
+      user,
+      pass,
+    },
+  };
+}
+
+let transporter: EmailTransport | null = null;
+let transporterVerifyPromise: Promise<void> | null = null;
+
+function getTransporter() {
+  if (!transporter) {
+    transporter = nodemailer.createTransport(createTransportConfig());
+  }
+
+  return transporter;
+}
+
+async function ensureTransporterReady() {
+  if (!transporterVerifyPromise) {
+    transporterVerifyPromise = getTransporter().verify().then(() => undefined);
+  }
+
+  return transporterVerifyPromise;
+}
+
+function getFromAddress() {
+  return process.env.EMAIL_FROM || process.env.EMAIL_USER || '';
+}
 
 interface BookingEmailData {
   clientEmail: string;
@@ -43,15 +98,9 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
   } = data;
 
   try {
-    // Format date for display
-    const formattedDate = new Date(date).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    await ensureTransporterReady();
 
-    const timeRange = `${startTime} - ${endTime}`;
+    // Format date for display
     const schedule = sessionSchedule && sessionSchedule.length > 0
       ? sessionSchedule
       : [{ date, startTime, endTime }];
@@ -184,16 +233,16 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
     `;
 
     // Send email to client
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    await getTransporter().sendMail({
+      from: getFromAddress(),
       to: clientEmail,
       subject: '✅ Your therapy session is confirmed',
       html: clientEmailHtml,
     });
 
     // Send email to therapist
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    await getTransporter().sendMail({
+      from: getFromAddress(),
       to: therapistEmail,
       subject: `📅 New booking from ${clientName}`,
       html: therapistEmailHtml,
@@ -220,6 +269,7 @@ interface BookingPostponeEmailData {
   newStartTime: string;
   newEndTime: string;
   reason?: string;
+  meetingLink?: string;
 }
 
 export async function sendBookingPostponedEmail(data: BookingPostponeEmailData) {
@@ -235,9 +285,12 @@ export async function sendBookingPostponedEmail(data: BookingPostponeEmailData) 
     newStartTime,
     newEndTime,
     reason,
+    meetingLink,
   } = data;
 
   try {
+    await ensureTransporterReady();
+
     // Format dates for display
     const oldFormattedDate = new Date(oldDate).toLocaleDateString('en-US', {
       weekday: 'long',
@@ -294,6 +347,17 @@ export async function sendBookingPostponedEmail(data: BookingPostponeEmailData) 
             </p>
           </div>
 
+          ${meetingLink ? `
+            <div style="margin: 20px 0; text-align: center;">
+              <a href="${meetingLink}" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:700;">
+                Join New Meeting
+              </a>
+              <p style="margin:10px 0 0 0;color:#666;font-size:13px;word-break:break-all;">
+                ${meetingLink}
+              </p>
+            </div>
+          ` : ''}
+
           <p style="color: #999; font-size: 14px; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px;">
             If you have any questions about this rescheduling, please contact ${therapistName} directly.
           </p>
@@ -302,8 +366,8 @@ export async function sendBookingPostponedEmail(data: BookingPostponeEmailData) 
     `;
 
     // Send email to client
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    await getTransporter().sendMail({
+      from: getFromAddress(),
       to: clientEmail,
       subject: '📅 Your Therapy Session Has Been Rescheduled',
       html: emailHtml,
@@ -313,6 +377,62 @@ export async function sendBookingPostponedEmail(data: BookingPostponeEmailData) 
     return true;
   } catch (error) {
     console.error('❌ Failed to send booking postponed email:', error);
+    return false;
+  }
+}
+
+interface BookingCancellationEmailData {
+  clientEmail: string;
+  clientName: string;
+  therapistName: string;
+  date: string;
+  time: string;
+}
+
+export async function sendBookingCancellationEmail(data: BookingCancellationEmailData) {
+  const { clientEmail, clientName, therapistName, date, time } = data;
+
+  try {
+    await ensureTransporterReady();
+
+    const formattedDate = new Date(date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;padding:24px;background:#f8fafc;">
+        <div style="background:#ffffff;padding:28px;border-radius:16px;border:1px solid #e2e8f0;">
+          <div style="display:inline-block;background:#fee2e2;color:#b91c1c;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">
+            Booking cancelled
+          </div>
+          <h2 style="color:#111827;margin:18px 0 12px 0;font-size:28px;line-height:1.2;">Your session has been cancelled</h2>
+
+          <p style="color:#374151;font-size:16px;line-height:1.7;margin:0 0 16px 0;">Hi ${clientName},</p>
+          <p style="color:#374151;font-size:16px;line-height:1.7;margin:0 0 20px 0;">
+            Your therapy session with ${therapistName} scheduled for ${formattedDate} at ${time} has been cancelled.
+          </p>
+
+          <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:24px 0 0 0;border-top:1px solid #e5e7eb;padding-top:18px;">
+            If you have any questions or would like to reschedule, please contact us on the platform.
+          </p>
+        </div>
+      </div>
+    `;
+
+    await getTransporter().sendMail({
+      from: getFromAddress(),
+      to: clientEmail,
+      subject: 'Your therapy session has been cancelled',
+      html,
+    });
+
+    console.log('✅ Booking cancellation email sent successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send booking cancellation email:', error);
     return false;
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { sendBookingCancellationEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,24 +51,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Format date and time
-    const bookingDate = new Date(booking.slot.date);
-    const formattedDate = bookingDate.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+    const emailSent = await sendBookingCancellationEmail({
+      clientEmail: booking.user.email,
+      clientName: booking.user.name || 'Client',
+      therapistName: therapist.name || 'Therapist',
+      date: booking.slot.date,
+      time: booking.slot.start_time,
     });
-    const formattedTime = booking.slot.start_time;
 
-    // Send cancellation email to client
-    // TODO: Implement sendBookingCancellation email
-    // await sendBookingCancellation(booking.user.email, {
-    //   bookingId: booking.id,
-    //   therapistName: therapist.full_name,
-    //   date: formattedDate,
-    //   time: formattedTime,
-    // });
+    if (!emailSent) {
+      return NextResponse.json(
+        { error: 'Cancellation email could not be sent. Check SMTP credentials and server logs.' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       { message: 'Cancellation email sent successfully' },

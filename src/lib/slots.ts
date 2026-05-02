@@ -1,4 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
+import {
+  getCurrentDateString,
+  getCurrentTimeInMinutes,
+  isSlotInTheFuture,
+} from '@/lib/time';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,8 +39,17 @@ export async function getAvailableSlots(date: string) {
 
   // Filter out booked slots
   const bookedSlotIds = await getBookedSlotIds();
+  const currentDateString = getCurrentDateString();
+  const currentTimeMinutes = getCurrentTimeInMinutes();
   const availableSlots = (slots || []).filter(
-    slot => !bookedSlotIds.includes(slot.id)
+    slot =>
+      !bookedSlotIds.includes(slot.id) &&
+      isSlotInTheFuture(
+        slot.date,
+        slot.start_time,
+        currentDateString,
+        currentTimeMinutes
+      )
   );
 
   return availableSlots as Slot[];
@@ -140,16 +154,22 @@ export async function createSlot(
 ) {
   const { data, error } = await supabase
     .from('therapy_slots')
-    .insert([
+    .upsert(
+      [
+        {
+          date,
+          start_time: startTime,
+          end_time: endTime,
+          duration_minutes: durationMinutes,
+          is_available: true,
+          is_blocked: false,
+          therapist_id: '00000000-0000-0000-0000-000000000000',
+        },
+      ],
       {
-        date,
-        start_time: startTime,
-        end_time: endTime,
-        duration_minutes: durationMinutes,
-        is_available: true,
-        is_blocked: false,
-      },
-    ])
+        onConflict: 'date,start_time,therapist_id',
+      }
+    )
     .select();
 
   if (error) {

@@ -110,7 +110,7 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
       className="bg-white rounded-2xl shadow-lg p-8"
     >
       <h2 className="text-2xl font-bold text-gray-900 mb-2">💰 Session Bundle Pricing</h2>
-      <p className="text-gray-600 mb-6">Set prices for 1, 2, and 3 session bundles (in Indian Rupees)</p>
+      <p className="text-gray-600 mb-6">Set the total price for 1, 2, and 3 session bundles (in Indian Rupees)</p>
 
       {!canEdit && (
         <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -249,16 +249,16 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
             <p className="text-sm text-blue-700 mb-2">Personal Sessions</p>
             <div className="space-y-1 text-sm text-blue-900">
               <p>Single: ₹{pricing.personal_1.toFixed(0)}</p>
-              <p>Bundle 2: ₹{pricing.personal_2.toFixed(0)} (save ₹{(pricing.personal_1 * 2 - pricing.personal_2).toFixed(0)})</p>
-              <p>Bundle 3: ₹{pricing.personal_3.toFixed(0)} (save ₹{(pricing.personal_1 * 3 - pricing.personal_3).toFixed(0)})</p>
+              <p>2 Session total: ₹{pricing.personal_2.toFixed(0)} (save ₹{(pricing.personal_1 * 2 - pricing.personal_2).toFixed(0)})</p>
+              <p>3 Session total: ₹{pricing.personal_3.toFixed(0)} (save ₹{(pricing.personal_1 * 3 - pricing.personal_3).toFixed(0)})</p>
             </div>
           </div>
           <div>
             <p className="text-sm text-blue-700 mb-2">Couple Sessions</p>
             <div className="space-y-1 text-sm text-blue-900">
               <p>Single: ₹{pricing.couple_1.toFixed(0)}</p>
-              <p>Bundle 2: ₹{pricing.couple_2.toFixed(0)} (save ₹{(pricing.couple_1 * 2 - pricing.couple_2).toFixed(0)})</p>
-              <p>Bundle 3: ₹{pricing.couple_3.toFixed(0)} (save ₹{(pricing.couple_1 * 3 - pricing.couple_3).toFixed(0)})</p>
+              <p>2 Session total: ₹{pricing.couple_2.toFixed(0)} (save ₹{(pricing.couple_1 * 2 - pricing.couple_2).toFixed(0)})</p>
+              <p>3 Session total: ₹{pricing.couple_3.toFixed(0)} (save ₹{(pricing.couple_1 * 3 - pricing.couple_3).toFixed(0)})</p>
             </div>
           </div>
         </div>
@@ -280,7 +280,7 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
       {/* Info Box */}
       <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <p className="text-xs text-blue-800">
-          ℹ️ These bundle prices will be automatically applied when users select multi-session bookings and payment. Changes take effect immediately.
+          ℹ️ These bundle totals will be automatically applied when users select multi-session bookings and payment. Changes take effect immediately.
         </p>
       </div>
     </motion.div>

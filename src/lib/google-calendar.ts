@@ -146,6 +146,22 @@ async function getOrRefreshAccessToken(credentials: any) {
   return tokenData.access_token;
 }
 
+function extractMeetLink(eventData: any) {
+  if (!eventData) return null;
+
+  if (eventData.hangoutLink) {
+    return eventData.hangoutLink;
+  }
+
+  const entryPoints = eventData.conferenceData?.entryPoints || [];
+  const meetEntry = entryPoints.find(
+    (entry: any) =>
+      entry.entryPointType === 'video' || entry.uri?.includes('meet.google.com')
+  );
+
+  return meetEntry?.uri || null;
+}
+
 export async function createGoogleCalendarEvent(
   therapistId: string,
   clientEmail: string,
@@ -285,9 +301,7 @@ export async function createGoogleCalendarEvent(
     }
 
     // Extract the Google Meet link
-    const meetLink = finalEvent.conferenceData?.entryPoints?.find(
-      (ep: any) => ep.entryPointType === 'video'
-    )?.uri;
+    const meetLink = extractMeetLink(finalEvent);
 
     console.log('🔗 Conference data:', finalEvent.conferenceData);
     console.log('📞 Entry points:', finalEvent.conferenceData?.entryPoints);
@@ -311,5 +325,44 @@ export async function createGoogleCalendarEvent(
     const errorMessage = error instanceof Error ? error.message : 'Failed to create Google Calendar event';
     console.error('❌ Google Calendar creation error:', errorMessage);
     throw error;
+  }
+}
+
+export async function deleteGoogleCalendarEvent(
+  therapistId: string,
+  eventId: string
+) {
+  try {
+    if (!eventId) {
+      console.log('ℹ️ No Google Calendar event ID provided, skipping delete');
+      return true;
+    }
+
+    const credentials = await getTherapistGoogleCredentials(therapistId);
+    const accessToken = await getOrRefreshAccessToken(credentials);
+
+    const deleteResponse = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    if (!deleteResponse.ok && deleteResponse.status !== 404) {
+      const errorText = await deleteResponse.text();
+      throw new Error(
+        `Failed to delete Google Calendar event: ${deleteResponse.status} ${errorText}`
+      );
+    }
+
+    console.log('✅ Google Calendar event deleted successfully:', eventId);
+    return true;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to delete Google Calendar event';
+    console.error('❌ Google Calendar deletion error:', errorMessage);
+    return false;
   }
 }

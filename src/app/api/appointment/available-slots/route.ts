@@ -8,6 +8,11 @@ import {
   parseISO,
   startOfMonth,
 } from 'date-fns';
+import {
+  getCurrentDateString,
+  getCurrentTimeInMinutes,
+  isSlotInTheFuture,
+} from '@/lib/time';
 
 interface SlotRow {
   id: string;
@@ -49,17 +54,18 @@ export async function GET(request: NextRequest) {
     const dateParam = searchParams.get('date');
     const monthParam = searchParams.get('month');
 
-    const today = new Date();
+    const currentDateString = getCurrentDateString();
+    const currentTimeMinutes = getCurrentTimeInMinutes();
     const startDate = dateParam
       ? dateParam
       : monthParam
         ? format(startOfMonth(parseISO(monthParam)), 'yyyy-MM-dd')
-        : format(today, 'yyyy-MM-dd');
+        : currentDateString;
     const endDate = dateParam
       ? dateParam
       : monthParam
         ? format(endOfMonth(parseISO(monthParam)), 'yyyy-MM-dd')
-        : format(today, 'yyyy-MM-dd');
+        : currentDateString;
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -102,15 +108,18 @@ export async function GET(request: NextRequest) {
 
     const bookedSlotIds = new Set((bookings || []).map((booking) => booking.slot_id));
     const blockedDates = expandBlockedDates(blockedRanges || []);
-    const todayString = format(today, 'yyyy-MM-dd');
-    const currentTime = format(today, 'HH:mm');
 
     const filteredSlots = (slots || [])
       .filter((slot: SlotRow) => !bookedSlotIds.has(slot.id))
       .filter((slot: SlotRow) => !blockedDates.has(slot.date))
-      .filter((slot: SlotRow) => slot.date >= todayString)
+      .filter((slot: SlotRow) => slot.date >= currentDateString)
       .filter((slot: SlotRow) =>
-        slot.date !== todayString || slot.start_time.slice(0, 5) > currentTime
+        isSlotInTheFuture(
+          slot.date,
+          slot.start_time,
+          currentDateString,
+          currentTimeMinutes
+        )
       );
 
     const availableDates = Array.from(

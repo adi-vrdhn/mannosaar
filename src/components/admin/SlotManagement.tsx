@@ -171,8 +171,6 @@ const SlotManagement = () => {
       const end = new Date(defaultFormData.endDate);
 
       const slotsToInsert = [];
-      const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
       for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
         const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
         const selectedDayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert to Mon(0)-Sun(6)
@@ -214,6 +212,8 @@ const SlotManagement = () => {
         return;
       }
 
+      const result = await response.json();
+
       setShowGenerateDefaultForm(false);
       setPreviewSlots([]);
       setDefaultFormData({
@@ -221,7 +221,7 @@ const SlotManagement = () => {
         endDate: format(addDays(new Date(), 6), 'yyyy-MM-dd'),
       });
 
-      alert(`Successfully created ${slotsToInsert.length} slots!`);
+      alert(result.message || `Successfully saved ${slotsToInsert.length} slots!`);
 
       // Refetch slots
       const { data } = await supabase
@@ -261,6 +261,8 @@ const SlotManagement = () => {
         return;
       }
 
+      const result = await response.json();
+
       setFormData({
         date: selectedDate,
         startTime: '09:00',
@@ -276,6 +278,8 @@ const SlotManagement = () => {
         .order('start_time', { ascending: true });
 
       if (data) setSlots(data);
+
+      alert(result.message || 'Slot saved successfully.');
     } catch (error) {
       console.error('Create slot error:', error);
       alert('Error creating slot');

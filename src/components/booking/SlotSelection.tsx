@@ -243,6 +243,10 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
     }
   };
 
+  const goToProfile = () => {
+    window.location.assign('/profile');
+  };
+
   // Generate calendar dates
   const monthStart = startOfMonth(displayMonth);
   const monthEnd = endOfMonth(displayMonth);
@@ -553,7 +557,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
               exit={{ opacity: 0 }}
               onClick={() => {
                 setRescheduleSuccess(false);
-                router.push('/profile');
+                goToProfile();
               }}
               className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
             >
@@ -625,7 +629,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                   whileHover={{ scale: 1.02 }}
                   onClick={() => {
                     setRescheduleSuccess(false);
-                    router.push('/profile');
+                    goToProfile();
                   }}
                   className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
                 >

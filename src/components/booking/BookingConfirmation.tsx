@@ -83,7 +83,7 @@ const BookingConfirmation = () => {
   const bundleSize = sessionSlots.length > 0 ? sessionSlots.length : 1;
   const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
   const sessionPrice = prices[priceKey] || 0;
-  const totalPrice = sessionPrice * bundleSize;
+  const totalPrice = sessionPrice;
 
   // Fetch pricing settings
   useEffect(() => {
@@ -409,10 +409,10 @@ const BookingConfirmation = () => {
                         <p className="text-lg font-bold text-gray-900">{bundleSize} Sessions</p>
                       </div>
                       <div className="flex flex-col">
-                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                          Total Price
-                        </p>
-                        <p className="text-lg font-bold text-purple-600">₹{totalPrice}</p>
+                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                        Bundle Price
+                      </p>
+                      <p className="text-lg font-bold text-purple-600">₹{totalPrice}</p>
                       </div>
                     </div>
                   </div>
@@ -435,8 +435,8 @@ const BookingConfirmation = () => {
                             {format(new Date(session.date), 'MMM dd, yyyy')} at {session.startTime}
                           </p>
                         </div>
-                        <div className="text-sm font-semibold text-purple-600">
-                          ₹{sessionPrice}
+                        <div className="text-sm font-semibold text-gray-500">
+                          Included
                         </div>
                       </div>
                     ))}
