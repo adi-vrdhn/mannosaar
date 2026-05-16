@@ -9,6 +9,8 @@ type SessionReminderState = {
 
 type ReminderStateBySession = Record<string, SessionReminderState>;
 
+type Relation<T> = T | T[] | null | undefined;
+
 type BookingRecord = {
   id: string;
   session_type: string;
@@ -31,15 +33,15 @@ type BookingRecord = {
     slotId?: string;
   }> | null;
   session_reminders_sent?: ReminderStateBySession | null;
-  user?: {
+  user?: Relation<{
     id: string;
     email: string | null;
     name: string | null;
-  } | null;
-  slot?: {
+  }>;
+  slot?: Relation<{
     id: string;
     therapist_id: string | null;
-  } | null;
+  }>;
 };
 
 type TherapistRecord = {
@@ -72,6 +74,14 @@ function normalizeReminderState(value: unknown): ReminderStateBySession {
 
 function formatTime(value: string) {
   return value.slice(0, 5);
+}
+
+function firstRelation<T>(value: Relation<T>): T | null {
+  if (!value) {
+    return null;
+  }
+
+  return Array.isArray(value) ? value[0] ?? null : value;
 }
 
 function getSessionEntries(booking: BookingRecord) {
@@ -178,9 +188,11 @@ export async function POST(request: NextRequest) {
 
     for (const booking of bookings as BookingRecord[]) {
       try {
-        const clientName = booking.user_name || booking.user?.name || 'Client';
-        const clientEmail = booking.user_email || booking.user?.email || '';
-        const therapistId = booking.slot?.therapist_id;
+        const bookingUser = firstRelation(booking.user);
+        const bookingSlot = firstRelation(booking.slot);
+        const clientName = booking.user_name || bookingUser?.name || 'Client';
+        const clientEmail = booking.user_email || bookingUser?.email || '';
+        const therapistId = bookingSlot?.therapist_id;
 
         if (!clientEmail) {
           console.log(`⚠️ Booking ${booking.id} has no client email`);
