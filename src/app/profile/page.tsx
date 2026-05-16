@@ -329,6 +329,7 @@ const ProfilePage = () => {
         const processedBookings: Booking[] = [];
         
         bookings.forEach((b) => {
+          const sessionDates = Array.isArray(b.session_dates) ? b.session_dates : [];
           const baseBooking = {
             id: b.id,
             session_type: b.session_type,
@@ -348,8 +349,8 @@ const ProfilePage = () => {
           };
 
           // If this is a bundle booking, expand each session into a separate row
-          if (b.session_dates && Array.isArray(b.session_dates) && b.session_dates.length > 0) {
-            b.session_dates.forEach((sessionDate, index) => {
+          if (sessionDates.length > 0) {
+            sessionDates.forEach((sessionDate, index) => {
               processedBookings.push({
                 ...baseBooking,
                 slot_date: sessionDate.date,
@@ -358,7 +359,7 @@ const ProfilePage = () => {
                 meeting_link: b.meeting_links && b.meeting_links[index] ? b.meeting_links[index] : b.meeting_link,
                 // Add session number info for display
                 sessionNumber: index + 1,
-                totalSessions: b.session_dates.length,
+                totalSessions: sessionDates.length,
               });
             });
           } else {
