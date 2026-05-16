@@ -1198,8 +1198,7 @@ const ProfilePage = () => {
                 <div className="flex gap-3">
                   <button
                     onClick={() => setRescheduleModal(null)}
-                    disabled={rescheduleLoading}
-                    className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-semibold transition-all disabled:opacity-50"
+                    className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-semibold transition-all"
                   >
                     Cancel
                   </button>
@@ -1214,8 +1213,7 @@ const ProfilePage = () => {
                       router.push(`/appointment/slots?${params.toString()}`);
                       setRescheduleModal(null);
                     }}
-                    disabled={rescheduleLoading}
-                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
                   >
                     Continue to Select Slots
                   </button>
