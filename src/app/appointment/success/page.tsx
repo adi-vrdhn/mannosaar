@@ -37,6 +37,8 @@ function SuccessPageContent() {
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
 
+  const formatTime = (time?: string) => (time ? time.slice(0, 5) : 'N/A');
+
   useEffect(() => {
     if (!session) {
       router.push('/auth/login');
@@ -111,27 +113,31 @@ function SuccessPageContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-green-50 pt-24 pb-12">
-      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-        <div className="rounded-[32px] border border-white/80 bg-white/90 p-6 shadow-[0_24px_70px_rgba(76,29,149,0.12)] backdrop-blur md:p-8">
+      <div className="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+        <div className="rounded-[32px] border border-white/80 bg-white/90 px-5 py-8 shadow-[0_24px_70px_rgba(76,29,149,0.12)] backdrop-blur sm:px-8 sm:py-10">
           <div className="text-center">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-4xl font-bold text-green-600">
+            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-4xl font-bold text-green-600">
               ✓
             </div>
 
-            <h1 className="text-4xl font-black tracking-tight text-gray-900 md:text-5xl">
-              Booking Confirmed
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-green-700">
+              Booking confirmed
+            </p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-gray-900 sm:text-4xl">
+              Your session is booked
             </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-gray-600">
-              Your session has been booked successfully. A confirmation email has been sent with the details.
+            <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-gray-600 sm:text-lg">
+              A confirmation email has been sent with the details. You can review the booking summary below.
             </p>
 
-            <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-purple-50 px-4 py-2 text-sm font-semibold text-purple-700">
-              Booking ID: {bookingId || 'Pending'}
+            <div className="mt-5 inline-flex max-w-full items-center rounded-full bg-purple-50 px-4 py-2 text-sm font-semibold text-purple-700">
+              <span className="mr-2 text-gray-500">Booking ID</span>
+              <span className="break-all">{bookingId || 'Pending'}</span>
             </div>
           </div>
 
           {loading && (
-            <div className="mt-8 rounded-3xl border border-blue-200 bg-blue-50 p-5">
+            <div className="mt-8 rounded-2xl border border-blue-200 bg-blue-50 p-4 sm:p-5">
               <div className="flex items-center gap-3">
                 <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-blue-600" />
                 <p className="text-sm font-medium text-blue-700">Preparing your meeting details...</p>
@@ -140,66 +146,66 @@ function SuccessPageContent() {
           )}
 
           {error && (
-            <div className="mt-8 rounded-3xl border border-red-200 bg-red-50 p-5 text-red-700">
+            <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 p-4 sm:p-5 text-red-700">
               {error}
             </div>
           )}
 
           {booking && (
-            <div className="mt-8 space-y-6">
-              <div className="rounded-3xl border border-purple-100 bg-purple-50 p-6">
-                <h2 className="text-lg font-bold text-gray-900">Session Details</h2>
+            <div className="mt-8 space-y-5">
+              <div className="rounded-3xl border border-gray-200 bg-white p-5 sm:p-6">
+                <h2 className="text-lg font-bold text-gray-900">Session summary</h2>
 
-                {booking.slot_date ? (
-                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                    <div className="rounded-2xl bg-white p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Date</p>
-                      <p className="mt-2 text-base font-bold text-gray-900">
-                        {format(new Date(booking.slot_date), 'MMM dd, yyyy')}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl bg-white p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Time</p>
-                      <p className="mt-2 text-base font-bold text-gray-900">
-                        {booking.slot_start_time && booking.slot_end_time
-                          ? `${booking.slot_start_time} - ${booking.slot_end_time}`
-                          : 'N/A'}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl bg-white p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Type</p>
-                      <p className="mt-2 text-base font-bold capitalize text-gray-900">
-                        {booking.session_type || 'N/A'}
-                      </p>
-                    </div>
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3">
+                    <span className="text-sm text-gray-500">Session type</span>
+                    <span className="text-sm font-semibold capitalize text-gray-900">{booking.session_type || sessionType}</span>
                   </div>
-                ) : booking.session_dates && booking.session_dates.length > 0 ? (
-                  <div className="mt-4 space-y-3">
-                    {booking.session_dates.map((session, idx) => (
-                      <div key={idx} className="rounded-2xl bg-white p-4">
-                        <p className="text-sm font-semibold text-gray-900">
-                          Session {idx + 1} of {booking.session_dates?.length}
-                        </p>
-                        <p className="mt-1 text-sm text-gray-600">
-                          {format(new Date(session.date), 'MMM dd, yyyy')} at {session.startTime} - {session.endTime}
-                        </p>
-                        {booking.meeting_links && booking.meeting_links[idx] && (
-                          <a
-                            href={booking.meeting_links[idx]}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-3 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                          >
-                            Join Meeting
-                          </a>
-                        )}
+                  {booking.slot_date ? (
+                    <>
+                      <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3">
+                        <span className="text-sm text-gray-500">Date</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {format(new Date(booking.slot_date), 'MMM dd, yyyy')}
+                        </span>
                       </div>
-                    ))}
+                      <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3">
+                        <span className="text-sm text-gray-500">Time</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {booking.slot_start_time && booking.slot_end_time
+                            ? `${formatTime(booking.slot_start_time)} - ${formatTime(booking.slot_end_time)}`
+                            : 'N/A'}
+                        </span>
+                      </div>
+                    </>
+                  ) : booking.session_dates && booking.session_dates.length > 0 ? (
+                    <>
+                      <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3">
+                        <span className="text-sm text-gray-500">Sessions</span>
+                        <span className="text-sm font-semibold text-gray-900">{booking.session_dates.length}</span>
+                      </div>
+                      <div className="space-y-2 pt-1">
+                        {booking.session_dates.map((session, idx) => (
+                          <div key={idx} className="rounded-2xl bg-gray-50 px-4 py-3">
+                            <p className="text-sm font-semibold text-gray-900">
+                              Session {idx + 1}
+                            </p>
+                            <p className="mt-1 text-sm text-gray-600">
+                              {format(new Date(session.date), 'MMM dd, yyyy')} • {formatTime(session.startTime)} - {formatTime(session.endTime)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                  <div className="flex items-start justify-between gap-4 pt-1">
+                    <span className="text-sm text-gray-500">Therapist</span>
+                    <span className="text-sm font-semibold text-gray-900">Neetu Rathore</span>
                   </div>
-                ) : null}
+                </div>
               </div>
 
-              <div className="rounded-3xl border border-blue-100 bg-blue-50 p-6">
+              <div className="rounded-3xl border border-blue-100 bg-blue-50 p-5 sm:p-6 text-center">
                 <h2 className="text-lg font-bold text-gray-900">Meeting Link</h2>
                 {loading ? (
                   <p className="mt-3 text-sm text-gray-600">Generating your Google Meet link...</p>
@@ -211,7 +217,7 @@ function SuccessPageContent() {
                         href={link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block rounded-2xl bg-blue-600 px-5 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                        className="block rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                       >
                         Session {idx + 1} - Join Google Meet
                       </a>
@@ -222,7 +228,7 @@ function SuccessPageContent() {
                     href={booking.meeting_link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-4 inline-flex rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                    className="mt-4 inline-flex items-center justify-center rounded-2xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                   >
                     Join Google Meet
                   </a>
@@ -233,14 +239,28 @@ function SuccessPageContent() {
                 )}
               </div>
 
-              <div className="rounded-3xl border border-gray-200 bg-white p-6">
-                <h2 className="text-lg font-bold text-gray-900">Need Help?</h2>
-                <p className="mt-3 text-sm leading-7 text-gray-600">
-                  Any problems please WhatsApp: <span className="font-semibold text-gray-900">70806 33396</span>
+              <p className="text-center text-sm text-gray-500">
+                Need help? WhatsApp <span className="font-semibold text-gray-900">70806 33396</span> or email{' '}
+                <span className="font-semibold text-gray-900">meeting.mannosaar@gmail.com</span>
+              </p>
+
+              <div className="rounded-3xl border border-gray-200 bg-white p-4 sm:p-5">
+                <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">
+                  Policies
                 </p>
-                <p className="mt-2 text-sm leading-7 text-gray-600">
-                  For meetings related mail: <span className="font-semibold text-gray-900">meeting.mannosaar@gmail.com</span>
-                </p>
+                <div className="mt-3 flex flex-col items-center justify-center gap-2 text-sm sm:flex-row sm:gap-4">
+                  <Link href="/terms" className="font-medium text-purple-700 underline underline-offset-4">
+                    Terms & Conditions
+                  </Link>
+                  <span className="hidden text-gray-300 sm:inline">|</span>
+                  <Link href="/privacy" className="font-medium text-purple-700 underline underline-offset-4">
+                    Privacy Policy
+                  </Link>
+                  <span className="hidden text-gray-300 sm:inline">|</span>
+                  <Link href="/refund-policy" className="font-medium text-purple-700 underline underline-offset-4">
+                    Refund Policy
+                  </Link>
+                </div>
               </div>
             </div>
           )}

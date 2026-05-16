@@ -6,7 +6,6 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { format } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
-import TherapistHeader from './TherapistHeader';
 
 interface SlotInfo {
   id: string;
@@ -38,7 +37,6 @@ const BookingConfirmation = () => {
 
   const sessionType = searchParams.get('type') || 'personal';
   const slotId = searchParams.get('slotId');
-  const selectedDate = searchParams.get('date');
   const bundle = searchParams.get('bundle') ? parseInt(searchParams.get('bundle')!) : null;
 
   // Price state - now supports bundle pricing
@@ -84,6 +82,7 @@ const BookingConfirmation = () => {
   const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
   const sessionPrice = prices[priceKey] || 0;
   const totalPrice = sessionPrice;
+  const formatTime = (time?: string) => (time ? time.slice(0, 5) : '');
 
   // Fetch pricing settings
   useEffect(() => {
@@ -302,16 +301,23 @@ const BookingConfirmation = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
-      <div className="max-w-2xl mx-auto px-4">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6">
         <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="bg-white rounded-3xl shadow-2xl p-8 md:p-12"
+          className="rounded-3xl border border-gray-200 bg-white p-5 sm:p-6 md:p-8 shadow-sm"
         >
           {/* Header */}
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Booking Confirmation</h1>
-          <p className="text-gray-600 mb-8">Review your appointment details</p>
+          <div className="mb-6 sm:mb-8">
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-purple-600 mb-2">
+              Step 4
+            </p>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 mb-2">
+              Booking confirmation
+            </h1>
+            <p className="text-gray-600">Review the details before you continue.</p>
+          </div>
 
           {error && (
             <motion.div
@@ -327,149 +333,84 @@ const BookingConfirmation = () => {
             <div className="text-center py-12">Loading booking details...</div>
           ) : (
             <>
-              {/* Single Booking Details */}
-              {(slotInfo || (bundleSize === 1 && sessionSlots.length === 1)) && (
-                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 mb-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
-                    {/* Session Date */}
-                    <div className="flex flex-col">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                        Session Date
-                      </p>
-                      <p className="text-lg font-bold text-gray-900">
-                        {slotInfo 
-                          ? format(new Date(slotInfo.date), 'MMM dd, yyyy')
-                          : format(new Date(sessionSlots[0].date), 'MMM dd, yyyy')}
-                      </p>
-                    </div>
-
-                    {/* Session Time */}
-                    <div className="flex flex-col">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                        Session Time
-                      </p>
-                      <p className="text-lg font-bold text-gray-900">
-                        {slotInfo 
-                          ? `${slotInfo.start_time} - ${slotInfo.end_time}`
-                          : `${sessionSlots[0].startTime} - ${sessionSlots[0].endTime}`}
-                      </p>
-                    </div>
-
-                    {/* Session Type */}
-                    <div className="flex flex-col">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                        Session Type
-                      </p>
-                      <p className="text-lg font-bold text-gray-900 capitalize">{sessionType}</p>
-                    </div>
-
-                    {/* Therapist */}
-                    <div className="flex flex-col">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                        Therapist
-                      </p>
-                      <p className="text-lg font-bold text-gray-900">Neetu Rathore</p>
-                    </div>
-
-                    {/* Duration */}
-                    <div className="flex flex-col">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                        Duration
-                      </p>
-                      <p className="text-lg font-bold text-gray-900">40 mins</p>
-                    </div>
-
-                    {/* Price */}
-                    <div className="flex flex-col">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                        Price
-                      </p>
-                      <p className="text-lg font-bold text-purple-600">₹{sessionPrice}</p>
-                    </div>
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 sm:p-5 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                      Session type
+                    </p>
+                    <p className="text-lg font-semibold text-gray-900 capitalize">{sessionType}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                      Price
+                    </p>
+                    <p className="text-lg font-semibold text-purple-600">₹{totalPrice}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                      Duration
+                    </p>
+                    <p className="text-lg font-semibold text-gray-900">40 mins</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                      Therapist
+                    </p>
+                    <p className="text-lg font-semibold text-gray-900">Neetu Rathore</p>
                   </div>
                 </div>
-              )}
+              </div>
 
-              {/* Bundle Booking Details */}
-              {bundleSize > 1 && sessionSlots && sessionSlots.length > 0 && (
-                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 mb-8">
-                  {/* Bundle Summary */}
-                  <div className="mb-6 pb-6 border-b border-gray-300">
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="flex flex-col">
-                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                          Session Type
-                        </p>
-                        <p className="text-lg font-bold text-gray-900 capitalize">{sessionType}</p>
-                      </div>
-                      <div className="flex flex-col">
-                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                          Bundle Size
-                        </p>
-                        <p className="text-lg font-bold text-gray-900">{bundleSize} Sessions</p>
-                      </div>
-                      <div className="flex flex-col">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                        Bundle Price
-                      </p>
-                      <p className="text-lg font-bold text-purple-600">₹{totalPrice}</p>
-                      </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 mb-6">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+                  Appointment details
+                </p>
+                {slotInfo ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-sm text-gray-500">Date</span>
+                      <span className="text-sm font-semibold text-gray-900">
+                        {format(new Date(slotInfo.date), 'MMM dd, yyyy')}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-sm text-gray-500">Time</span>
+                      <span className="text-sm font-semibold text-gray-900">
+                        {formatTime(slotInfo.start_time)} - {formatTime(slotInfo.end_time)}
+                      </span>
                     </div>
                   </div>
-
-                  {/* Individual Sessions */}
-                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-4">
-                    Scheduled Sessions
-                  </p>
+                ) : (
                   <div className="space-y-3">
                     {sessionSlots.map((session, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg"
-                      >
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900">
+                      <div key={idx} className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
                             Session {idx + 1} of {bundleSize}
                           </p>
-                          <p className="text-sm text-gray-600">
-                            {format(new Date(session.date), 'MMM dd, yyyy')} at {session.startTime}
+                          <p className="text-sm text-gray-500">
+                            {format(new Date(session.date), 'MMM dd, yyyy')}
                           </p>
                         </div>
-                        <div className="text-sm font-semibold text-gray-500">
-                          Included
-                        </div>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {formatTime(session.startTime)} - {formatTime(session.endTime)}
+                        </span>
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
 
-                  {/* Therapist and Duration info */}
-                  <div className="mt-6 pt-6 border-t border-gray-300 grid grid-cols-2 gap-4">
-                    <div className="flex flex-col">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                        Therapist
-                      </p>
-                      <p className="text-lg font-bold text-gray-900">Neetu Rathore</p>
-                    </div>
-                    <div className="flex flex-col">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                        Duration per Session
-                      </p>
-                      <p className="text-lg font-bold text-gray-900">40 mins</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Info Box */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.6 }}
-                className="p-6 bg-blue-50 border border-blue-200 rounded-2xl mb-8"
+                className="rounded-2xl border border-blue-200 bg-blue-50 p-4 sm:p-5 mb-6"
               >
-                <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> A Google Meet link will be sent to your email{' '}
-                  <span className="font-semibold">{session.user?.email}</span> once the booking is confirmed.
+                <p className="text-sm text-blue-800 leading-relaxed">
+                  <span className="font-semibold">Note:</span> A Google Meet link will be sent to{' '}
+                  <span className="font-semibold break-all">{session.user?.email}</span> after the booking is confirmed.
                 </p>
               </motion.div>
 
@@ -478,19 +419,19 @@ const BookingConfirmation = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.7 }}
-                className="flex gap-4"
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3"
               >
                 <button
                   onClick={() => router.back()}
                   disabled={confirming}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-900 rounded-xl font-semibold hover:border-gray-400 transition-colors disabled:opacity-50"
+                  className="w-full px-6 py-3 border-2 border-gray-300 text-gray-900 rounded-xl font-semibold hover:border-gray-400 transition-colors disabled:opacity-50 bg-white"
                 >
                   Back
                 </button>
                 <button
                   onClick={handleConfirmBooking}
                   disabled={confirming}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
                 >
                   {confirming ? 'Processing...' : 'Proceed to Payment'}
                 </button>

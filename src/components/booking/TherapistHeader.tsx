@@ -16,21 +16,23 @@ export default function TherapistHeader({
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="mb-8"
+      className="mb-6"
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Session Time Block */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
-          whileHover={{ scale: 1.02, boxShadow: '0 20px 40px rgba(168, 85, 247, 0.15)' }}
-          className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-3xl shadow-xl p-8 h-48 flex flex-col items-center justify-center text-white transform transition-all"
+          whileHover={{ y: -2, boxShadow: '0 16px 32px rgba(168, 85, 247, 0.12)' }}
+          className="rounded-2xl border border-purple-100 bg-white px-5 py-4 md:px-6 md:py-5 shadow-sm transition-all"
         >
-          <p className="text-sm md:text-base font-semibold uppercase tracking-widest opacity-90 mb-3">Session Time</p>
-          <div className="flex items-baseline gap-2">
-            <p className="text-5xl md:text-6xl font-bold">40</p>
-            <p className="text-2xl md:text-3xl font-semibold">mins</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 mb-2">
+            Session Time
+          </p>
+          <div className="flex items-end gap-2">
+            <p className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900">40</p>
+            <p className="pb-1 text-sm md:text-base font-medium text-gray-600">mins</p>
           </div>
         </motion.div>
 
@@ -39,14 +41,15 @@ export default function TherapistHeader({
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2 }}
-          whileHover={{ scale: 1.02, boxShadow: '0 20px 40px rgba(168, 85, 247, 0.15)' }}
-          className="bg-gradient-to-br from-purple-400 to-purple-500 rounded-3xl shadow-xl p-8 h-48 flex flex-col items-center justify-center text-white transform transition-all"
+          whileHover={{ y: -2, boxShadow: '0 16px 32px rgba(168, 85, 247, 0.12)' }}
+          className="rounded-2xl border border-purple-100 bg-purple-50 px-5 py-4 md:px-6 md:py-5 shadow-sm transition-all"
         >
-          <p className="text-sm md:text-base font-semibold uppercase tracking-widest opacity-90 mb-4">Languages</p>
-          <p className="text-2xl md:text-3xl font-bold text-center">{languagesText}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 mb-2">
+            Languages
+          </p>
+          <p className="text-lg md:text-xl font-semibold text-gray-900">{languagesText}</p>
         </motion.div>
       </div>
     </motion.div>
   );
 }
-

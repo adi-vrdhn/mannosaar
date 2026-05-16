@@ -77,7 +77,6 @@ const ProfilePage = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [sortOption, setSortOption] = useState<'recent' | 'oldest' | 'created'>('recent');
   const [rescheduleModal, setRescheduleModal] = useState<{ bookingId: string; sessionIndex?: number } | null>(null);
-  const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [noteModal, setNoteModal] = useState<{ title: string; note: string | null } | null>(null);
 
   // Redirect if not authenticated
@@ -217,7 +216,7 @@ const ProfilePage = () => {
         setError(null);
         
         // Try to fetch user, if not found create them
-        let { data: userData, error: userError } = await supabase
+        const { data: userData, error: userError } = await supabase
           .from('users')
           .select('id')
           .eq('email', session.user.email)
@@ -490,18 +489,24 @@ const ProfilePage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="mb-12"
+          className="mb-8 sm:mb-10"
         >
-          <motion.h1 variants={itemVariants} className="text-5xl font-bold text-gray-900 mb-4">
+          <motion.p
+            variants={itemVariants}
+            className="text-sm font-semibold uppercase tracking-[0.22em] text-purple-600 mb-2"
+          >
+            Account
+          </motion.p>
+          <motion.h1 variants={itemVariants} className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-gray-900 mb-3">
             My Profile
           </motion.h1>
-          <motion.p variants={itemVariants} className="text-xl text-gray-600">
+          <motion.p variants={itemVariants} className="max-w-2xl text-base sm:text-lg text-gray-600">
             Manage your therapy sessions and bookings
           </motion.p>
         </motion.div>
@@ -522,59 +527,78 @@ const ProfilePage = () => {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="bg-white rounded-2xl shadow-lg p-8 mb-12"
+          className="mb-10 rounded-3xl border border-gray-200 bg-white p-5 sm:p-6 lg:p-8 shadow-sm"
         >
-          <motion.div variants={itemVariants} className="flex items-center gap-4 mb-8">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center">
-              <User size={40} className="text-white" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-gray-600 uppercase mb-2">Full Name</p>
-              <p className="text-2xl font-bold text-gray-900">{userProfile?.name || session?.user?.name || 'User'}</p>
-              <p className="text-gray-600 mb-4">{userProfile?.email || session?.user?.email}</p>
-              {userProfile?.phone_number && (
-                <p className="text-gray-600 flex items-center gap-2">
-                  <Phone size={16} />
-                  {userProfile.phone_number}
+          <div className="grid gap-6 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center">
+            <motion.div variants={itemVariants} className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-600 to-fuchsia-600 shadow-md">
+                <User size={36} className="text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500 mb-2">
+                  Profile
                 </p>
-              )}
-              {!userProfile?.phone_number && (
-                <p className="text-amber-600 flex items-center gap-2 font-semibold">
-                  <AlertTriangle size={16} />
-                  Phone number required to book sessions
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 break-words">
+                  {userProfile?.name || session?.user?.name || 'User'}
+                </h2>
+                <p className="mt-2 text-sm sm:text-base text-gray-600 break-all">
+                  {userProfile?.email || session?.user?.email}
                 </p>
-              )}
-            </div>
-          </motion.div>
+                <div className="mt-3 flex flex-col gap-2 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                  {userProfile?.phone_number ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Phone size={16} />
+                      {userProfile.phone_number}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-2 font-semibold text-amber-600">
+                      <AlertTriangle size={16} />
+                      Phone number required to book sessions
+                    </span>
+                  )}
+                  {userProfile?.whatsapp_number && (
+                    <span className="text-gray-500 break-all">
+                      WhatsApp: {userProfile.whatsapp_number}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </motion.div>
 
-          <motion.div variants={itemVariants} className="flex gap-3 pt-8 border-t flex-wrap">
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center gap-2"
-            >
-              <Edit2 size={18} />
-              Edit Profile
-            </button>
-            <Link href="/appointment/type">
-              <button className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all">
-                + Book New Appointment
+            <motion.div variants={itemVariants} className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:max-w-2xl lg:justify-self-end">
+              <button
+                onClick={() => setShowEditModal(true)}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 font-semibold text-white transition-all hover:bg-blue-700 hover:shadow-md"
+              >
+                <Edit2 size={17} />
+                <span className="hidden sm:inline">Edit</span>
+                <span className="sm:hidden">Edit Profile</span>
               </button>
-            </Link>
-            <button
-              onClick={() => signOut({ callbackUrl: '/' })}
-              className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-semibold transition-all flex items-center gap-2"
-            >
-              <LogOut size={18} />
-              Logout
-            </button>
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              className="px-6 py-3 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-semibold transition-all flex items-center gap-2"
-            >
-              <Trash2 size={18} />
-              Delete Profile
-            </button>
-          </motion.div>
+              <Link
+                href="/appointment/type"
+                className="inline-flex h-12 items-center justify-center rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-4 font-semibold text-white transition-all hover:shadow-md text-center"
+              >
+                <span className="hidden sm:inline">Book New</span>
+                <span className="sm:hidden">Book Appointment</span>
+              </Link>
+              <button
+                onClick={() => signOut({ callbackUrl: '/' })}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 font-semibold text-gray-900 transition-all hover:bg-gray-200"
+              >
+                <LogOut size={17} />
+                <span className="hidden sm:inline">Logout</span>
+                <span className="sm:hidden">Logout</span>
+              </button>
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-red-50 px-4 font-semibold text-red-700 transition-all hover:bg-red-100"
+              >
+                <Trash2 size={17} />
+                <span className="hidden sm:inline">Delete</span>
+                <span className="sm:hidden">Delete</span>
+              </button>
+            </motion.div>
+          </div>
         </motion.div>
 
         {/* Edit Profile Modal */}
@@ -886,11 +910,16 @@ const ProfilePage = () => {
 
             {/* Sort Options - Only show for upcoming sessions */}
             {activeTab === 'upcoming' && upcomingBookings.length > 0 && (
-              <motion.div variants={itemVariants} className="mb-6 flex gap-3 flex-wrap">
-                <span className="text-gray-700 font-semibold flex items-center">Sort by:</span>
+              <motion.div
+                variants={itemVariants}
+                className="mb-6 flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 sm:flex-wrap sm:overflow-visible"
+              >
+                <span className="shrink-0 text-gray-700 font-semibold flex items-center">
+                  Sort by:
+                </span>
                 <button
                   onClick={() => setSortOption('recent')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                  className={`shrink-0 px-3 py-2 rounded-lg text-sm sm:text-base font-semibold transition-all ${
                     sortOption === 'recent'
                       ? 'bg-purple-600 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-600'
@@ -900,7 +929,7 @@ const ProfilePage = () => {
                 </button>
                 <button
                   onClick={() => setSortOption('oldest')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                  className={`shrink-0 px-3 py-2 rounded-lg text-sm sm:text-base font-semibold transition-all ${
                     sortOption === 'oldest'
                       ? 'bg-purple-600 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-600'
@@ -910,7 +939,7 @@ const ProfilePage = () => {
                 </button>
                 <button
                   onClick={() => setSortOption('created')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                  className={`shrink-0 px-3 py-2 rounded-lg text-sm sm:text-base font-semibold transition-all ${
                     sortOption === 'created'
                       ? 'bg-purple-600 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-600'
@@ -962,7 +991,7 @@ const ProfilePage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {getSortedUpcomingBookings().map((booking, idx) => {
+                        {getSortedUpcomingBookings().map((booking) => {
                           // Check if this is part of a bundle
                           const isBundle = booking.totalSessions && booking.totalSessions > 1;
                           const sessionIndex = isBundle ? (booking.sessionNumber ? booking.sessionNumber - 1 : 0) : undefined;

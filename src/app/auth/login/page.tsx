@@ -108,7 +108,7 @@ const LoginPage = () => {
             <p className="mb-2">By continuing, you agree to our</p>
             <div className="flex justify-center gap-2">
               <Link 
-                href="/legal" 
+                href="/terms" 
                 target="_blank"
                 className="text-purple-300 hover:text-white font-semibold underline transition"
               >
@@ -116,11 +116,19 @@ const LoginPage = () => {
               </Link>
               <span>and</span>
               <Link 
-                href="/legal" 
+                href="/privacy" 
                 target="_blank"
                 className="text-purple-300 hover:text-white font-semibold underline transition"
               >
                 Privacy Policy
+              </Link>
+              <span>and</span>
+              <Link 
+                href="/refund-policy" 
+                target="_blank"
+                className="text-purple-300 hover:text-white font-semibold underline transition"
+              >
+                Refund Policy
               </Link>
             </div>
           </motion.div>

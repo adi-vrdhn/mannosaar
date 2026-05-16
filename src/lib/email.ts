@@ -82,6 +82,20 @@ interface BookingEmailData {
   meetingPassword?: string;
 }
 
+interface SessionReminderEmailData {
+  recipientType: 'client' | 'therapist';
+  recipientEmail: string;
+  clientName: string;
+  therapistName: string;
+  sessionType: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  meetingLink?: string;
+  sessionNumber?: number;
+  totalSessions?: number;
+}
+
 export async function sendBookingConfirmationEmail(data: BookingEmailData) {
   const {
     clientEmail,
@@ -253,6 +267,101 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
   } catch (error) {
     console.error('❌ Failed to send booking emails:', error);
     // Don't throw - let booking succeed even if email fails
+    return false;
+  }
+}
+
+export async function sendSessionReminderEmail(data: SessionReminderEmailData) {
+  const {
+    recipientType,
+    recipientEmail,
+    clientName,
+    therapistName,
+    sessionType,
+    date,
+    startTime,
+    endTime,
+    meetingLink,
+    sessionNumber,
+    totalSessions,
+  } = data;
+
+  try {
+    await ensureTransporterReady();
+
+    const formattedDate = new Date(date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    const sessionLabel =
+      sessionNumber && totalSessions
+        ? `Session ${sessionNumber} of ${totalSessions}`
+        : 'Upcoming session';
+
+    const greeting = recipientType === 'client' ? `Hi ${clientName},` : `Hi ${therapistName},`;
+    const title =
+      recipientType === 'client'
+        ? 'Your session starts in 1 hour'
+        : `Upcoming session with ${clientName} starts in 1 hour`;
+    const intro =
+      recipientType === 'client'
+        ? `This is a reminder that your ${sessionType.toLowerCase()} session is coming up soon.`
+        : `This is a reminder for your ${sessionType.toLowerCase()} session with ${clientName}.`;
+
+    const details =
+      recipientType === 'client'
+        ? `
+          <p style="margin:10px 0;color:#0f172a;"><strong>Therapist:</strong> ${therapistName}</p>
+          <p style="margin:10px 0;color:#0f172a;"><strong>Date:</strong> ${formattedDate}</p>
+          <p style="margin:10px 0;color:#0f172a;"><strong>Time:</strong> ${startTime} - ${endTime}</p>
+        `
+        : `
+          <p style="margin:10px 0;color:#0f172a;"><strong>Client:</strong> ${clientName}</p>
+          <p style="margin:10px 0;color:#0f172a;"><strong>Date:</strong> ${formattedDate}</p>
+          <p style="margin:10px 0;color:#0f172a;"><strong>Time:</strong> ${startTime} - ${endTime}</p>
+        `;
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;padding:24px;background:linear-gradient(180deg,#f8fafc 0%,#ffffff 100%);">
+        <div style="background:#ffffff;padding:28px;border-radius:18px;border:1px solid #e2e8f0;box-shadow:0 12px 30px rgba(15,23,42,0.06);">
+          <div style="display:inline-block;background:${recipientType === 'client' ? '#ede9fe' : '#dbeafe'};color:${recipientType === 'client' ? '#6d28d9' : '#1d4ed8'};padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">
+            Session reminder
+          </div>
+          <h2 style="color:#111827;margin:18px 0 10px 0;font-size:28px;line-height:1.2;">${title}</h2>
+          <p style="color:#475569;font-size:16px;line-height:1.7;margin:0 0 14px 0;">${greeting}</p>
+          <p style="color:#475569;font-size:16px;line-height:1.7;margin:0 0 18px 0;">${intro}</p>
+
+          <div style="background:#f8fafc;padding:18px 20px;border-radius:14px;border:1px solid #e2e8f0;">
+            <p style="margin:0 0 14px 0;color:#6b7280;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">${sessionLabel}</p>
+            ${details}
+            <p style="margin:10px 0;color:#0f172a;"><strong>Therapist:</strong> ${therapistName}</p>
+            ${meetingLink ? `<p style="margin:10px 0;color:#0f172a;word-break:break-all;"><strong>Meeting link:</strong> <a href="${meetingLink}" style="color:#2563eb;">${meetingLink}</a></p>` : ''}
+          </div>
+
+          <p style="color:#64748b;font-size:14px;line-height:1.6;margin:22px 0 0 0;border-top:1px solid #e2e8f0;padding-top:16px;">
+            Please join a few minutes early so we can start on time.
+          </p>
+        </div>
+      </div>
+    `;
+
+    await getTransporter().sendMail({
+      from: getFromAddress(),
+      to: recipientEmail,
+      subject:
+        recipientType === 'client'
+          ? `⏰ Reminder: Your session is in 1 hour`
+          : `⏰ Reminder: Session with ${clientName} is in 1 hour`,
+      html,
+    });
+
+    console.log(`✅ Session reminder email sent to ${recipientEmail} (${recipientType})`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send session reminder email:', error);
     return false;
   }
 }

@@ -24,24 +24,22 @@ export default function Footer() {
 
         {/* Links */}
         <div className="text-center space-y-3 text-sm border-t border-purple-400 pt-6">
-          <div className="flex justify-center gap-6">
-            <Link 
-              href="/legal#terms" 
-              className="text-purple-100 hover:text-white transition-colors font-medium"
+          <div className="mx-auto flex max-w-2xl flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap sm:gap-6">
+            <Link
+              href="/terms"
+              className="text-purple-100 hover:text-white transition-colors font-medium underline underline-offset-4 decoration-purple-300/60"
             >
               Terms & Conditions
             </Link>
-            <span className="text-purple-400">|</span>
-            <Link 
-              href="/legal#privacy" 
-              className="text-purple-100 hover:text-white transition-colors font-medium"
+            <Link
+              href="/privacy"
+              className="text-purple-100 hover:text-white transition-colors font-medium underline underline-offset-4 decoration-purple-300/60"
             >
               Privacy Policy
             </Link>
-            <span className="text-purple-400">|</span>
-            <Link 
-              href="/legal#refund" 
-              className="text-purple-100 hover:text-white transition-colors font-medium"
+            <Link
+              href="/refund-policy"
+              className="text-purple-100 hover:text-white transition-colors font-medium underline underline-offset-4 decoration-purple-300/60"
             >
               Refund Policy
             </Link>

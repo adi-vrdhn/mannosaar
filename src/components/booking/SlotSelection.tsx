@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import TherapistHeader from './TherapistHeader';
 
 interface Slot {
   id: string;
@@ -55,6 +54,8 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   const [rescheduling, setRescheduling] = useState(false);
   const [rescheduleSuccess, setRescheduleSuccess] = useState(false);
   const [updatedBooking, setUpdatedBooking] = useState<any>(null);
+
+  const formatTime = (time: string) => time.slice(0, 5);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -276,34 +277,39 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Therapist Header */}
-        <TherapistHeader languages={['Hindi', 'English']} />
-
         {/* Progress Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-12"
+          className="mb-8 sm:mb-10"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-5xl font-bold text-gray-900">
-              {isReschedule
-                ? 'Reschedule Your Session'
-                : bundleParam === 1 
-                ? 'Select Date & Time'
-                : `Select Session ${currentSessionIndex + 1} of ${bundleParam}`}
-            </h1>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-purple-600 mb-2">
+                {isReschedule ? 'Reschedule' : 'Step 3'}
+              </p>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-gray-900">
+                {isReschedule
+                  ? 'Choose a new time'
+                  : bundleParam === 1
+                  ? 'Pick a date and time'
+                  : `Pick session ${currentSessionIndex + 1} of ${bundleParam}`}
+              </h1>
+              <p className="mt-2 text-sm sm:text-base text-gray-600">
+                Session type: <span className="font-semibold capitalize text-purple-600">{typeParam} Therapy</span>
+                {bundleParam > 1 && ` • Bundle: ${bundleParam} Sessions`}
+              </p>
+            </div>
+
             {bundleParam > 1 && !isReschedule && (
-              <div className="text-right">
-                <p className="text-sm text-gray-600">Progress</p>
-                <p className="text-2xl font-bold text-purple-600">{currentSessionIndex + 1} / {bundleParam}</p>
+              <div className="inline-flex items-center gap-3 self-start rounded-full border border-purple-100 bg-white/80 px-4 py-2 shadow-sm">
+                <span className="text-sm text-gray-600">Progress</span>
+                <span className="text-lg font-semibold text-purple-600">
+                  {currentSessionIndex + 1} / {bundleParam}
+                </span>
               </div>
             )}
           </div>
-          <p className="text-gray-600">
-            Session Type: <span className="font-semibold capitalize text-purple-600">{typeParam} Therapy</span>
-            {bundleParam > 1 && ` • Bundle: ${bundleParam} Sessions`}
-          </p>
         </motion.div>
 
         {/* Show previously selected sessions if bundle */}
@@ -414,45 +420,69 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
 
           {/* Slots */}
           <motion.div initial="hidden" animate="visible" variants={containerVariants} className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h3 className="text-2xl font-bold text-gray-900 mb-6">
-                Available Slots for {format(new Date(selectedDate), 'MMM dd, yyyy')}
-              </h3>
+            <div className="rounded-2xl border border-gray-200 bg-white p-3 sm:p-4 shadow-sm">
+              <div className="mb-4 sm:mb-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-purple-600 mb-2">
+                  Available slots
+                </p>
+                <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">
+                  {format(new Date(selectedDate), 'MMM dd, yyyy')}
+                </h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  Choose one time slot for this session.
+                </p>
+              </div>
 
               {loading ? (
-                <div className="text-center py-12 text-gray-500">Loading slots...</div>
+                <div className="text-center py-8 text-gray-500">Loading available slots...</div>
               ) : slots.length === 0 ? (
-                <div className="text-center py-12">
+                <div className="text-center py-8">
                   <p className="text-gray-500 mb-4">No available slots for this date</p>
                   <p className="text-sm text-gray-400">Please select another date</p>
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-5">
                     {slots.map((slot) => (
                       <motion.button
                         key={slot.id}
                         variants={itemVariants}
-                        whileHover={{ scale: 1.05 }}
+                        whileHover={{ y: -2 }}
                         onClick={() => handleSelectSlot(slot.id, slot)}
-                        className={`p-4 rounded-xl font-semibold transition-all border-2 ${
+                        className={`w-full rounded-lg border-2 px-2 py-2 sm:px-4 sm:py-4 text-left transition-all ${
                           selectedSlot === slot.id
-                            ? 'border-purple-600 bg-purple-50 text-purple-600'
-                            : 'border-gray-200 bg-white text-gray-900 hover:border-purple-400'
+                            ? 'border-purple-600 bg-purple-50 text-gray-900 shadow-sm'
+                            : 'border-gray-200 bg-white text-gray-900 hover:border-purple-300 hover:shadow-sm'
                         }`}
                       >
-                        <div className="text-lg">{slot.start_time}</div>
-                        <div className="text-xs text-gray-500">- {slot.end_time}</div>
+                        <div className="flex flex-col items-center justify-center gap-1 text-center">
+                          <div>
+                            <p className="text-[10px] font-medium text-gray-500">Time</p>
+                            <p className="text-sm sm:text-xl font-bold tracking-tight leading-none">
+                              {formatTime(slot.start_time)}
+                            </p>
+                          </div>
+                          <div className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            selectedSlot === slot.id
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            40 mins
+                          </div>
+                        </div>
+                        <div className="mt-1 text-[11px] sm:text-sm text-gray-600 text-center">
+                          {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                        </div>
                       </motion.button>
                     ))}
                   </div>
 
                   {/* Navigation Buttons */}
-                  <div className="flex gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       onClick={handleBack}
-                      className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-900 rounded-xl font-semibold hover:border-gray-400 transition-colors"
+                      className="w-full px-5 py-3 border-2 border-gray-300 text-gray-900 rounded-lg font-semibold hover:border-gray-400 transition-colors bg-white"
                     >
                       {currentSessionIndex > 0 ? 'Back' : 'Go Back'}
                     </motion.button>
@@ -460,7 +490,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                       whileHover={{ scale: 1.02 }}
                       onClick={handleConfirmSession}
                       disabled={!selectedSlot}
-                      className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all ${
+                      className={`w-full px-5 py-3 rounded-lg font-semibold transition-all ${
                         selectedSlot
                           ? 'bg-purple-600 text-white hover:bg-purple-700'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'

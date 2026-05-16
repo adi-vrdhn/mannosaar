@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
-import TherapistHeader from '@/components/booking/TherapistHeader';
 import { Suspense } from 'react';
 
 interface BundlePricing {
@@ -106,7 +105,7 @@ function AppointmentNotePageContent() {
   };
 
   const cardBase =
-    'relative rounded-2xl p-6 cursor-pointer border-2 transition-all shadow-lg bg-white';
+    'relative rounded-2xl px-4 py-4 sm:p-5 cursor-pointer border-2 transition-all bg-white shadow-sm';
 
   if (status === 'loading' || !isReady) {
     return (
@@ -122,26 +121,24 @@ function AppointmentNotePageContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <TherapistHeader languages={['Hindi', 'English']} />
-
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-xl border border-purple-100 p-6 sm:p-10"
+          className="space-y-8"
         >
-          <div className="text-center mb-10">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-purple-600 mb-3">
+          <div className="text-center space-y-3 pt-2 sm:pt-4">
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-purple-600">
               Step 2
             </p>
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-gray-900">
               Please tell your problem in brief
             </h1>
-            <p className="text-gray-600 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
               A short note helps us understand your situation before the session.
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] gap-8 items-stretch">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] items-start">
             <div className="flex h-full flex-col">
               <label className="block text-sm font-semibold text-gray-700 mb-3">
                 Your note
@@ -152,32 +149,24 @@ function AppointmentNotePageContent() {
                 rows={10}
                 maxLength={1000}
                 placeholder="Write a few lines about what you would like support with..."
-                className="w-full min-h-[420px] flex-1 rounded-2xl border border-gray-300 px-4 py-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
+                className="w-full min-h-[320px] sm:min-h-[380px] lg:min-h-[420px] rounded-2xl border border-gray-300 bg-white px-4 py-4 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
               />
-              <div className="flex items-center justify-between mt-2 text-sm text-gray-500">
+              <div className="mt-2 flex items-center justify-between gap-4 text-sm text-gray-500">
                 <span>Keep it brief and comfortable for you.</span>
                 <span>{note.length}/1000</span>
               </div>
 
-              <div className="mt-6">
-                <button
-                  onClick={handleContinue}
-                  className="w-full sm:w-auto px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-500 hover:shadow-lg transition-all"
-                >
-                  Continue to Slots
-                </button>
-              </div>
             </div>
 
             <div className="flex h-full flex-col">
               <div className="mb-4">
                 <h2 className="text-lg font-bold text-gray-900 mb-2">Choose bundle size</h2>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm sm:text-base text-gray-600">
                   Pick how many sessions you want to book for your {sessionType} therapy.
                 </p>
               </div>
 
-              <div className="space-y-4 flex-1">
+              <div className="space-y-3 flex-1">
                 {[1, 2, 3].map((size) => {
                   const active = bundleSize === size;
                   return (
@@ -185,7 +174,7 @@ function AppointmentNotePageContent() {
                       key={size}
                       type="button"
                       onClick={() => setBundleSize(size as 1 | 2 | 3)}
-                      className={`${cardBase} h-full min-h-[168px] flex flex-col justify-between text-left ${
+                      className={`${cardBase} w-full min-h-[124px] sm:min-h-[136px] flex flex-col justify-between text-left ${
                         active
                           ? 'border-purple-500 ring-2 ring-purple-200'
                           : 'border-gray-200 hover:border-purple-300'
@@ -194,7 +183,9 @@ function AppointmentNotePageContent() {
                       <div className="flex items-center justify-between gap-4">
                         <div>
                           <p className="text-sm text-gray-500">Bundle</p>
-                          <p className="text-2xl font-bold text-gray-900">{size} Session{size > 1 ? 's' : ''}</p>
+                          <p className="text-2xl font-bold text-gray-900">
+                            {size} Session{size > 1 ? 's' : ''}
+                          </p>
                         </div>
                         <div className="text-right">
                           <p className="text-xs text-gray-500 mb-1">Total price</p>
@@ -211,6 +202,15 @@ function AppointmentNotePageContent() {
                     </button>
                   );
                 })}
+              </div>
+
+              <div className="mt-5">
+                <button
+                  onClick={handleContinue}
+                  className="w-full px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-500 hover:shadow-lg transition-all"
+                >
+                  Continue to Slots
+                </button>
               </div>
             </div>
           </div>
