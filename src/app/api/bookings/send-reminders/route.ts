@@ -17,6 +17,7 @@ type BookingRecord = {
   user_email?: string | null;
   meeting_link?: string | null;
   meeting_links?: string[] | null;
+  slot_id?: string | null;
   slot_date?: string | null;
   slot_start_time?: string | null;
   slot_end_time?: string | null;
