@@ -216,11 +216,13 @@ const ProfilePage = () => {
         setError(null);
         
         // Try to fetch user, if not found create them
-        const { data: userData, error: userError } = await supabase
+        const userResult = await supabase
           .from('users')
           .select('id')
           .eq('email', session.user.email)
           .maybeSingle();
+        let userData = userResult.data;
+        const userError = userResult.error;
 
         // If user doesn't exist (no data returned), create them
         if (!userData && !userError) {
@@ -292,7 +294,7 @@ const ProfilePage = () => {
         const bookingsRes = await fetch('/api/bookings/user-bookings');
         const bookingsData = await bookingsRes.json();
 
-        const bookings = bookingsData.bookings || [];
+        const bookings = (bookingsData.bookings as Booking[]) || [];
         const role = bookingsData.role || 'user';
         const bookingsError = bookingsData.error;
 
@@ -300,7 +302,7 @@ const ProfilePage = () => {
           count: bookings.length,
           role: role,
           error: bookingsError,
-          bookings: bookings.map((b: any) => ({ id: b.id, user_id: b.user_id, slot_date: b.slot_date, status: b.status }))
+          bookings: bookings.map((b) => ({ id: b.id, user_id: b.user_id, slot_date: b.slot_date, status: b.status }))
         });
 
         setUserRole(role);
@@ -326,7 +328,7 @@ const ProfilePage = () => {
         // Map all bookings and expand bundle sessions
         const processedBookings: Booking[] = [];
         
-        bookings.forEach((b: any) => {
+        bookings.forEach((b) => {
           const baseBooking = {
             id: b.id,
             session_type: b.session_type,
@@ -347,7 +349,7 @@ const ProfilePage = () => {
 
           // If this is a bundle booking, expand each session into a separate row
           if (b.session_dates && Array.isArray(b.session_dates) && b.session_dates.length > 0) {
-            b.session_dates.forEach((sessionDate: any, index: number) => {
+            b.session_dates.forEach((sessionDate, index) => {
               processedBookings.push({
                 ...baseBooking,
                 slot_date: sessionDate.date,
