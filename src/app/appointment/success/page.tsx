@@ -38,6 +38,10 @@ function SuccessPageContent() {
   const [retryCount, setRetryCount] = useState(0);
 
   const formatTime = (time?: string) => (time ? time.slice(0, 5) : 'N/A');
+  const formatSessionType = (value?: string) => {
+    if (!value) return 'Therapy Session';
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  };
 
   useEffect(() => {
     if (!session) {
@@ -159,7 +163,9 @@ function SuccessPageContent() {
                 <div className="mt-4 space-y-3">
                   <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3">
                     <span className="text-sm text-gray-500">Session type</span>
-                    <span className="text-sm font-semibold capitalize text-gray-900">{booking.session_type || sessionType}</span>
+                    <span className="text-sm font-semibold capitalize text-gray-900">
+                      {formatSessionType(booking.session_type)}
+                    </span>
                   </div>
                   {booking.slot_date ? (
                     <>
