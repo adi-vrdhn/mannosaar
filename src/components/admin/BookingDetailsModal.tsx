@@ -18,6 +18,7 @@ interface BookingDetails {
     email: string;
     phone_number?: string;
   };
+  user_phone?: string;
   slot: {
     date: string;
     start_time: string;
@@ -26,6 +27,7 @@ interface BookingDetails {
   };
   session_type: string;
   status: string;
+  payment_status?: string;
   notes?: string | null;
   sessions_taken_before?: number | null;
   meeting_link?: string;
@@ -268,10 +270,10 @@ export default function BookingDetailsModal({
                         <p className="text-sm text-gray-600 mb-1">Email</p>
                         <p className="text-lg font-semibold text-gray-900 break-all">{booking.user.email}</p>
                       </div>
-                      {booking.user.phone_number && (
+                      {(booking.user.phone_number || booking.user_phone) && (
                         <div>
                           <p className="text-sm text-gray-600 mb-1">Phone</p>
-                          <p className="text-lg font-semibold text-gray-900">{booking.user.phone_number}</p>
+                          <p className="text-lg font-semibold text-gray-900">{booking.user.phone_number || booking.user_phone}</p>
                         </div>
                       )}
                     </div>
@@ -379,6 +381,14 @@ export default function BookingDetailsModal({
                           {booking.status.toUpperCase()}
                         </span>
                       </div>
+                      {booking.payment_status && (
+                        <div>
+                          <p className="text-sm text-gray-600 mb-2">Payment Status</p>
+                          <span className="inline-block rounded-full bg-indigo-100 px-4 py-2 text-sm font-semibold text-indigo-800 capitalize">
+                            {booking.payment_status}
+                          </span>
+                        </div>
+                      )}
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Booked On</p>
                         <p className="text-sm text-gray-900">

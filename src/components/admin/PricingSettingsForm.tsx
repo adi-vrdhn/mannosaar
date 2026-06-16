@@ -110,7 +110,12 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
       className="bg-white rounded-2xl shadow-lg p-8"
     >
       <h2 className="text-2xl font-bold text-gray-900 mb-2">💰 Session Bundle Pricing</h2>
-      <p className="text-gray-600 mb-6">Set the total price for 1, 2, and 3 session bundles (in Indian Rupees)</p>
+      <p className="text-gray-600 mb-2">
+        Set the combined total price for each bundle size.
+      </p>
+      <p className="text-sm text-gray-500 mb-6">
+        Example: if 2 sessions should cost ₹1900 in total, enter 1900 in the 2 Sessions field.
+      </p>
 
       {!canEdit && (
         <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -138,9 +143,9 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
           <thead>
             <tr className="bg-gradient-to-r from-purple-100 to-purple-50 border-b-2 border-purple-300">
               <th className="px-6 py-4 text-left font-semibold text-gray-900">Session Type</th>
-              <th className="px-6 py-4 text-center font-semibold text-gray-900">1 Session</th>
-              <th className="px-6 py-4 text-center font-semibold text-gray-900">2 Sessions</th>
-              <th className="px-6 py-4 text-center font-semibold text-gray-900">3 Sessions</th>
+              <th className="px-6 py-4 text-center font-semibold text-gray-900">1 Session Total</th>
+              <th className="px-6 py-4 text-center font-semibold text-gray-900">2 Sessions Total</th>
+              <th className="px-6 py-4 text-center font-semibold text-gray-900">3 Sessions Total</th>
             </tr>
           </thead>
           <tbody>
@@ -148,6 +153,7 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
             <tr className="border-b border-gray-200 hover:bg-gray-50">
               <td className="px-6 py-4 font-semibold text-gray-900">👤 Personal</td>
               <td className="px-6 py-4 text-center">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Combined total</p>
                 <div className="flex items-center justify-center gap-2">
                   <span className="text-lg font-bold text-gray-600">₹</span>
                   <input
@@ -162,6 +168,7 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
                 </div>
               </td>
               <td className="px-6 py-4 text-center">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Combined total</p>
                 <div className="flex items-center justify-center gap-2">
                   <span className="text-lg font-bold text-gray-600">₹</span>
                   <input
@@ -176,6 +183,7 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
                 </div>
               </td>
               <td className="px-6 py-4 text-center">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Combined total</p>
                 <div className="flex items-center justify-center gap-2">
                   <span className="text-lg font-bold text-gray-600">₹</span>
                   <input
@@ -195,6 +203,7 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
             <tr className="hover:bg-gray-50">
               <td className="px-6 py-4 font-semibold text-gray-900">👫 Couple</td>
               <td className="px-6 py-4 text-center">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Combined total</p>
                 <div className="flex items-center justify-center gap-2">
                   <span className="text-lg font-bold text-gray-600">₹</span>
                   <input
@@ -209,6 +218,7 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
                 </div>
               </td>
               <td className="px-6 py-4 text-center">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Combined total</p>
                 <div className="flex items-center justify-center gap-2">
                   <span className="text-lg font-bold text-gray-600">₹</span>
                   <input
@@ -223,6 +233,7 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
                 </div>
               </td>
               <td className="px-6 py-4 text-center">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Combined total</p>
                 <div className="flex items-center justify-center gap-2">
                   <span className="text-lg font-bold text-gray-600">₹</span>
                   <input
@@ -249,16 +260,16 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
             <p className="text-sm text-blue-700 mb-2">Personal Sessions</p>
             <div className="space-y-1 text-sm text-blue-900">
               <p>Single: ₹{pricing.personal_1.toFixed(0)}</p>
-              <p>2 Session total: ₹{pricing.personal_2.toFixed(0)} (save ₹{(pricing.personal_1 * 2 - pricing.personal_2).toFixed(0)})</p>
-              <p>3 Session total: ₹{pricing.personal_3.toFixed(0)} (save ₹{(pricing.personal_1 * 3 - pricing.personal_3).toFixed(0)})</p>
+              <p>2 Sessions combined total: ₹{pricing.personal_2.toFixed(0)} (save ₹{(pricing.personal_1 * 2 - pricing.personal_2).toFixed(0)})</p>
+              <p>3 Sessions combined total: ₹{pricing.personal_3.toFixed(0)} (save ₹{(pricing.personal_1 * 3 - pricing.personal_3).toFixed(0)})</p>
             </div>
           </div>
           <div>
             <p className="text-sm text-blue-700 mb-2">Couple Sessions</p>
             <div className="space-y-1 text-sm text-blue-900">
               <p>Single: ₹{pricing.couple_1.toFixed(0)}</p>
-              <p>2 Session total: ₹{pricing.couple_2.toFixed(0)} (save ₹{(pricing.couple_1 * 2 - pricing.couple_2).toFixed(0)})</p>
-              <p>3 Session total: ₹{pricing.couple_3.toFixed(0)} (save ₹{(pricing.couple_1 * 3 - pricing.couple_3).toFixed(0)})</p>
+              <p>2 Sessions combined total: ₹{pricing.couple_2.toFixed(0)} (save ₹{(pricing.couple_1 * 2 - pricing.couple_2).toFixed(0)})</p>
+              <p>3 Sessions combined total: ₹{pricing.couple_3.toFixed(0)} (save ₹{(pricing.couple_1 * 3 - pricing.couple_3).toFixed(0)})</p>
             </div>
           </div>
         </div>
@@ -280,7 +291,7 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
       {/* Info Box */}
       <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <p className="text-xs text-blue-800">
-          ℹ️ These bundle totals will be automatically applied when users select multi-session bookings and payment. Changes take effect immediately.
+          ℹ️ These bundle prices are stored and applied as the full package total for the selected session count. Changes take effect immediately.
         </p>
       </div>
     </motion.div>

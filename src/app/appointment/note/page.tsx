@@ -105,13 +105,13 @@ function AppointmentNotePageContent() {
   };
 
   const cardBase =
-    'relative rounded-2xl px-4 py-4 sm:p-5 cursor-pointer border-2 transition-all bg-white shadow-sm';
+    'relative rounded-none px-4 py-4 sm:p-5 cursor-pointer border-2 transition-all bg-white shadow-sm';
 
   if (status === 'loading' || !isReady) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <div className="animate-spin h-12 w-12 border-2 border-purple-600 border-b-transparent mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>
         </div>
       </div>
@@ -120,7 +120,7 @@ function AppointmentNotePageContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
@@ -138,7 +138,7 @@ function AppointmentNotePageContent() {
             </p>
           </div>
 
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] items-start">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)] items-start">
             <div className="flex h-full flex-col">
               <label className="block text-sm font-semibold text-gray-700 mb-3">
                 Your note
@@ -149,7 +149,7 @@ function AppointmentNotePageContent() {
                 rows={10}
                 maxLength={1000}
                 placeholder="Write a few lines about what you would like support with..."
-                className="w-full min-h-[320px] sm:min-h-[380px] lg:min-h-[420px] rounded-2xl border border-gray-300 bg-white px-4 py-4 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
+                className="w-full min-h-[320px] sm:min-h-[380px] lg:min-h-[420px] rounded-none border border-gray-300 bg-white px-4 py-4 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
               />
               <div className="mt-2 flex items-center justify-between gap-4 text-sm text-gray-500">
                 <span>Keep it brief and comfortable for you.</span>
@@ -158,7 +158,7 @@ function AppointmentNotePageContent() {
 
             </div>
 
-            <div className="flex h-full flex-col">
+            <div className="flex h-full flex-col lg:pt-8">
               <div className="mb-4">
                 <h2 className="text-lg font-bold text-gray-900 mb-2">Choose bundle size</h2>
                 <p className="text-sm sm:text-base text-gray-600">
@@ -207,7 +207,7 @@ function AppointmentNotePageContent() {
               <div className="mt-5">
                 <button
                   onClick={handleContinue}
-                  className="w-full px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-500 hover:shadow-lg transition-all"
+                  className="w-full px-6 py-3 rounded-none font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-500 hover:shadow-lg transition-all"
                 >
                   Continue to Slots
                 </button>
@@ -224,7 +224,7 @@ function AppointmentNoteLoadingFallback() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12 flex items-center justify-center">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+        <div className="animate-spin h-12 w-12 border-2 border-purple-600 border-b-transparent mx-auto mb-4"></div>
         <p className="text-gray-600">Loading...</p>
       </div>
     </div>

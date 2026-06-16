@@ -23,6 +23,26 @@ interface Booking {
   };
 }
 
+interface BookingRow {
+  id: string;
+  session_type: string;
+  meeting_link?: string;
+  meeting_password?: string;
+  google_calendar_event_id?: string;
+  notes?: string | null;
+  status: string;
+  created_at: string;
+  therapy_slots: Booking['slot'] | Booking['slot'][] | null;
+}
+
+function normalizeSlot(slot: BookingRow['therapy_slots']): Booking['slot'] {
+  if (Array.isArray(slot)) {
+    return slot[0];
+  }
+
+  return slot || { date: '', start_time: '', end_time: '' };
+}
+
 export default function UserBookings() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -32,6 +52,15 @@ export default function UserBookings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [noteModal, setNoteModal] = useState<{ title: string; note: string | null } | null>(null);
+
+  const getNotePreview = (note?: string | null) => {
+    const trimmedNote = note?.trim();
+    if (!trimmedNote) {
+      return 'No note added';
+    }
+
+    return trimmedNote.length > 140 ? `${trimmedNote.slice(0, 140)}...` : trimmedNote;
+  };
 
   useEffect(() => {
     if (!session) {
@@ -69,7 +98,7 @@ export default function UserBookings() {
         }
 
         // Map the response to match our interface
-        const mappedBookings = data?.map((booking: any) => ({
+        const mappedBookings = (data as BookingRow[] | null)?.map((booking) => ({
           id: booking.id,
           session_type: booking.session_type,
           meeting_link: booking.meeting_link,
@@ -78,7 +107,7 @@ export default function UserBookings() {
           notes: booking.notes,
           status: booking.status,
           created_at: booking.created_at,
-          slot: booking.therapy_slots,
+          slot: normalizeSlot(booking.therapy_slots),
         })) || [];
 
         setBookings(mappedBookings);
@@ -213,18 +242,26 @@ export default function UserBookings() {
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setNoteModal({
-                      title: 'Your Booking Note',
-                      note: booking.notes || null,
-                    })
-                  }
-                  className="inline-flex items-center gap-2 rounded-lg bg-purple-100 px-4 py-2 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-200"
-                >
-                  View Notes
-                </button>
+                <div className="mb-4 rounded-lg border border-purple-100 bg-purple-50 p-4">
+                  <p className="mb-1 text-sm font-semibold text-purple-800">Meeting Note</p>
+                  <p className={`whitespace-pre-wrap break-words text-sm ${booking.notes?.trim() ? 'text-gray-800' : 'italic text-gray-500'}`}>
+                    {getNotePreview(booking.notes)}
+                  </p>
+                  {booking.notes?.trim() && booking.notes.trim().length > 140 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNoteModal({
+                          title: 'Your Booking Note',
+                          note: booking.notes || null,
+                        })
+                      }
+                      className="mt-2 text-sm font-semibold text-purple-700 underline underline-offset-4 hover:text-purple-900"
+                    >
+                      View full note
+                    </button>
+                  )}
+                </div>
 
                 {/* Booking ID */}
                 <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 inline-block mt-2">

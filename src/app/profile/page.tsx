@@ -7,7 +7,26 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { User, Phone, Edit2, LogOut, Trash2, AlertTriangle, Check } from 'lucide-react';
+import {
+  AlertTriangle,
+  BarChart3,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  Edit2,
+  Filter,
+  FileText,
+  Link as LinkIcon,
+  Mail,
+  MoreHorizontal,
+  Phone,
+  Settings,
+  ShieldCheck,
+  StickyNote,
+  User,
+} from 'lucide-react';
 import NoteModal from '@/components/shared/NoteModal';
 
 interface Booking {
@@ -62,8 +81,6 @@ const ProfilePage = () => {
   const supabase = createClient();
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
   const [pastBookings, setPastBookings] = useState<Booking[]>([]);
-  const [allBookings, setAllBookings] = useState<Booking[]>([]);
-  const [userRole, setUserRole] = useState<string>('user');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +93,6 @@ const ProfilePage = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [sortOption, setSortOption] = useState<'recent' | 'oldest' | 'created'>('recent');
-  const [rescheduleModal, setRescheduleModal] = useState<{ bookingId: string; sessionIndex?: number } | null>(null);
   const [noteModal, setNoteModal] = useState<{ title: string; note: string | null } | null>(null);
 
   // Redirect if not authenticated
@@ -305,13 +321,10 @@ const ProfilePage = () => {
           bookings: bookings.map((b) => ({ id: b.id, user_id: b.user_id, slot_date: b.slot_date, status: b.status }))
         });
 
-        setUserRole(role);
-
         if (bookingsError && bookings.length === 0) {
           console.error('Error fetching bookings:', bookingsError);
           setUpcomingBookings([]);
           setPastBookings([]);
-          setAllBookings([]);
           setLoading(false);
           return;
         }
@@ -320,7 +333,6 @@ const ProfilePage = () => {
           console.log('⚠️ No bookings found');
           setUpcomingBookings([]);
           setPastBookings([]);
-          setAllBookings([]);
           setLoading(false);
           return;
         }
@@ -376,8 +388,7 @@ const ProfilePage = () => {
         // For admin/therapist, show all bookings in one view
         if (role === 'admin' || role === 'therapist') {
           console.log('👨‍💼 Admin/Therapist view - showing all', processedBookings.length, 'client bookings');
-          setAllBookings(processedBookings);
-          setUpcomingBookings([]);
+          setUpcomingBookings(processedBookings);
           setPastBookings([]);
         } else {
           // For regular users, separate upcoming and past bookings
@@ -395,7 +406,6 @@ const ProfilePage = () => {
           console.log('👤 User view - upcoming:', upcoming.length, 'past:', past.length);
           setUpcomingBookings(upcoming);
           setPastBookings(past);
-          setAllBookings([]);
         }
       } catch (err) {
         console.error('Error fetching bookings:', err);
@@ -444,6 +454,41 @@ const ProfilePage = () => {
     visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
   };
 
+  const getNotePreview = (note?: string | null) => {
+    const trimmedNote = note?.trim();
+    if (!trimmedNote) {
+      return 'No note added';
+    }
+
+    return trimmedNote.length > 90 ? `${trimmedNote.slice(0, 90)}...` : trimmedNote;
+  };
+
+  const renderNoteCell = (booking: Booking) => {
+    const hasNote = Boolean(booking.notes?.trim());
+
+    return (
+      <div className="max-w-xs">
+        <p className={`whitespace-pre-wrap break-words text-sm ${hasNote ? 'text-gray-800' : 'italic text-gray-400'}`}>
+          {getNotePreview(booking.notes)}
+        </p>
+        {hasNote && (
+          <button
+            type="button"
+            onClick={() =>
+              setNoteModal({
+                title: `Note for ${booking.user_name || 'booking'}`,
+                note: booking.notes || null,
+              })
+            }
+            className="mt-2 text-xs font-semibold text-purple-700 underline underline-offset-4 hover:text-purple-900"
+          >
+            View full note
+          </button>
+        )}
+      </div>
+    );
+  };
+
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -490,119 +535,280 @@ const ProfilePage = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="mb-8 sm:mb-10"
-        >
-          <motion.p
-            variants={itemVariants}
-            className="text-sm font-semibold uppercase tracking-[0.22em] text-purple-600 mb-2"
-          >
-            Account
-          </motion.p>
-          <motion.h1 variants={itemVariants} className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-gray-900 mb-3">
-            My Profile
-          </motion.h1>
-          <motion.p variants={itemVariants} className="max-w-2xl text-base sm:text-lg text-gray-600">
-            Manage your therapy sessions and bookings
-          </motion.p>
-        </motion.div>
+  const sortedUpcomingBookings = getSortedUpcomingBookings();
+  const soonestUpcomingBooking = [...upcomingBookings].sort((a, b) => {
+    const dateA = new Date(`${a.slot_date || ''}T${a.slot_start_time || '00:00:00'}`);
+    const dateB = new Date(`${b.slot_date || ''}T${b.slot_start_time || '00:00:00'}`);
+    return dateA.getTime() - dateB.getTime();
+  })[0];
+  const visibleBookings = activeTab === 'upcoming' ? sortedUpcomingBookings : pastBookings;
+  const totalSessions = upcomingBookings.length + pastBookings.length;
+  const completedSessions = pastBookings.length;
+  const progressPercent = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
+  const displayName = userProfile?.name || session?.user?.name || 'User';
+  const displayEmail = userProfile?.email || session?.user?.email || '';
+  const memberSinceDate = [...upcomingBookings, ...pastBookings]
+    .map((booking) => booking.created_at)
+    .filter(Boolean)
+    .sort()[0];
+  const memberSinceLabel = memberSinceDate ? format(new Date(memberSinceDate), 'MMM yyyy') : 'New member';
 
-        {/* Error Message */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mb-8 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700"
-          >
-            {error}
-          </motion.div>
-        )}
+  const formatTime = (time?: string) => (time ? time.slice(0, 5) : 'N/A');
+  const formatSessionDate = (date?: string) => (date ? format(new Date(date), 'MMM dd, yyyy') : 'N/A');
+  const getSessionDay = (date?: string) => (date ? format(new Date(date), 'EEEE') : 'Session');
 
-        {/* User Info */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="mb-10 rounded-3xl border border-gray-200 bg-white p-5 sm:p-6 lg:p-8 shadow-sm"
-        >
-          <div className="grid gap-6 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center">
-            <motion.div variants={itemVariants} className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-600 to-fuchsia-600 shadow-md">
-                <User size={36} className="text-white" />
+  const navItems = [
+    { label: 'My Profile', icon: User, href: '#profile', active: true },
+    { label: 'My Sessions', icon: CalendarDays, href: '#sessions' },
+    { label: 'Book Session', icon: CalendarDays, href: '/appointment/type' },
+    { label: 'Notes', icon: StickyNote, href: '#notes' },
+    { label: 'Payments', icon: CreditCard, href: '#payments' },
+    { label: 'Documents', icon: FileText, href: '#documents' },
+    { label: 'Settings', icon: Settings, href: '#settings' },
+  ];
+
+  const tabItems = [
+    { key: 'upcoming' as const, label: 'Upcoming Sessions', icon: CalendarDays, count: upcomingBookings.length },
+    { key: 'past' as const, label: 'Past Sessions', icon: CheckCircle2, count: pastBookings.length },
+  ];
+
+  const renderSessionCard = (booking: Booking, muted = false) => {
+    const isBundle = booking.totalSessions && booking.totalSessions > 1;
+    const hasMeetingLink = Boolean(booking.meeting_link);
+
+    return (
+      <motion.article
+        key={`${booking.id}-${muted ? 'past' : 'upcoming'}-${booking.sessionNumber || 0}`}
+        variants={itemVariants}
+        className={`group rounded-3xl border border-purple-100/80 bg-white/85 p-4 shadow-[0_14px_45px_rgba(88,28,135,0.08)] backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_55px_rgba(88,28,135,0.14)] ${
+          muted ? 'opacity-75' : ''
+        }`}
+      >
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+          <div className="flex gap-4">
+            <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-50 to-purple-100 text-purple-900 shadow-inner">
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-purple-500">
+                {booking.slot_date ? format(new Date(booking.slot_date), 'MMM') : '---'}
+              </span>
+              <span className="text-xl font-black leading-none">
+                {booking.slot_date ? format(new Date(booking.slot_date), 'dd') : '--'}
+              </span>
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-gray-500">{getSessionDay(booking.slot_date)}</p>
+                {isBundle && (
+                  <span className="rounded-full bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-700">
+                    Session {booking.sessionNumber} of {booking.totalSessions}
+                  </span>
+                )}
+                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-bold capitalize text-indigo-700">
+                  {booking.session_type || 'personal'}
+                </span>
               </div>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500 mb-2">
-                  Profile
-                </p>
-                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 break-words">
-                  {userProfile?.name || session?.user?.name || 'User'}
-                </h2>
-                <p className="mt-2 text-sm sm:text-base text-gray-600 break-all">
-                  {userProfile?.email || session?.user?.email}
-                </p>
-                <div className="mt-3 flex flex-col gap-2 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-                  {userProfile?.phone_number ? (
-                    <span className="inline-flex items-center gap-2">
-                      <Phone size={16} />
-                      {userProfile.phone_number}
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-2 font-semibold text-amber-600">
-                      <AlertTriangle size={16} />
-                      Phone number required to book sessions
-                    </span>
-                  )}
-                  {userProfile?.whatsapp_number && (
-                    <span className="text-gray-500 break-all">
-                      WhatsApp: {userProfile.whatsapp_number}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </motion.div>
 
-            <motion.div variants={itemVariants} className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:max-w-2xl lg:justify-self-end">
-              <button
-                onClick={() => setShowEditModal(true)}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 font-semibold text-white transition-all hover:bg-blue-700 hover:shadow-md"
-              >
-                <Edit2 size={17} />
-                <span className="hidden sm:inline">Edit</span>
-                <span className="sm:hidden">Edit Profile</span>
-              </button>
-              <Link
-                href="/appointment/type"
-                className="inline-flex h-12 items-center justify-center rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-4 font-semibold text-white transition-all hover:shadow-md text-center"
-              >
-                <span className="hidden sm:inline">Book New</span>
-                <span className="sm:hidden">Book Appointment</span>
-              </Link>
-              <button
-                onClick={() => signOut({ callbackUrl: '/' })}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 font-semibold text-gray-900 transition-all hover:bg-gray-200"
-              >
-                <LogOut size={17} />
-                <span className="hidden sm:inline">Logout</span>
-                <span className="sm:hidden">Logout</span>
-              </button>
-              <button
-                onClick={() => setShowDeleteModal(true)}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-red-50 px-4 font-semibold text-red-700 transition-all hover:bg-red-100"
-              >
-                <Trash2 size={17} />
-                <span className="hidden sm:inline">Delete</span>
-                <span className="sm:hidden">Delete</span>
-              </button>
-            </motion.div>
+              <h3 className="mt-2 flex items-center gap-2 text-base font-black text-gray-950 sm:text-lg">
+                <Clock3 size={18} className="text-purple-500" />
+                {formatTime(booking.slot_start_time)} - {formatTime(booking.slot_end_time)}
+              </h3>
+
+              <div className="mt-3 border-l-2 border-purple-200 pl-3">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-600">Meeting Note</p>
+                <div className="mt-1 text-sm">{renderNoteCell(booking)}</div>
+              </div>
+            </div>
           </div>
-        </motion.div>
+
+          <div className="flex flex-wrap items-center gap-3 md:justify-end">
+            {hasMeetingLink ? (
+              <a
+                href={booking.meeting_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-purple-700 shadow-sm ring-1 ring-purple-100 transition hover:bg-purple-50"
+              >
+                <LinkIcon size={16} />
+                Join Meeting
+              </a>
+            ) : (
+              <span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-bold text-gray-500">Not available</span>
+            )}
+            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-black ${
+              muted ? 'bg-gray-100 text-gray-500' : 'bg-emerald-50 text-emerald-700'
+            }`}>
+              <CheckCircle2 size={15} />
+              {muted ? 'Completed' : 'Confirmed'}
+            </span>
+          </div>
+        </div>
+      </motion.article>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#f4eaff_0,#fbf8ff_34%,#ffffff_72%)] pt-20 text-slate-950">
+      <div className="mx-auto grid w-full max-w-[1560px] gap-6 px-4 pb-10 sm:px-6 lg:grid-cols-[250px_minmax(0,1fr)] lg:px-8">
+        <aside className="hidden rounded-[1.75rem] border border-purple-100 bg-white/85 p-4 shadow-[0_18px_60px_rgba(88,28,135,0.07)] backdrop-blur-xl lg:sticky lg:top-24 lg:block lg:h-[calc(100vh-7rem)]">
+          <div className="mb-6 rounded-3xl bg-gradient-to-br from-purple-50 to-white p-4">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-purple-500">Mannosaar</p>
+            <p className="mt-1 text-sm font-semibold text-slate-500">Heal • Grow • Transform</p>
+          </div>
+
+          <nav className="space-y-2">
+            {navItems.map(({ label, icon: Icon, href, active }) => (
+              <a
+                key={label}
+                href={href}
+                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black transition ${
+                  active
+                    ? 'bg-gradient-to-r from-purple-100 to-fuchsia-50 text-purple-700 shadow-sm'
+                    : 'text-slate-500 hover:bg-purple-50 hover:text-purple-700'
+                }`}
+              >
+                <Icon size={18} />
+                {label}
+              </a>
+            ))}
+          </nav>
+        </aside>
+
+        <main className="min-w-0">
+          <div className="mb-4 flex gap-2 overflow-x-auto pb-2 lg:hidden">
+            {navItems.map(({ label, icon: Icon, href, active }) => (
+              <a
+                key={label}
+                href={href}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-black ${
+                  active ? 'bg-purple-600 text-white' : 'bg-white text-slate-600 ring-1 ring-purple-100'
+                }`}
+              >
+                <Icon size={16} />
+                {label}
+              </a>
+            ))}
+          </div>
+
+          <div className="mb-5 flex items-center justify-between gap-4 rounded-[1.5rem] border border-purple-100 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-xl">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-purple-500">Profile dashboard</p>
+              <p className="truncate text-sm font-semibold text-slate-500">Manage bookings, notes, and upcoming sessions</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => signOut({ callbackUrl: '/' })}
+                className="hidden rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-600 shadow-sm ring-1 ring-purple-100 transition hover:bg-purple-50 sm:inline-flex"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700"
+            >
+              {error}
+            </motion.div>
+          )}
+
+          <motion.section
+            id="profile"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="relative mb-6 overflow-hidden rounded-[2rem] border border-purple-100 bg-white/85 p-5 shadow-[0_20px_70px_rgba(88,28,135,0.1)] backdrop-blur-xl sm:p-7 lg:p-8"
+          >
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_25%,rgba(168,85,247,0.12),transparent_28%)]" />
+
+            <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-center">
+              <motion.div variants={itemVariants} className="grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+                <div className="relative mx-auto flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 via-purple-500 to-fuchsia-500 text-white shadow-[0_22px_45px_rgba(147,51,234,0.35)] ring-8 ring-white sm:mx-0">
+                  <User size={58} strokeWidth={1.8} />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(true)}
+                    className="absolute -bottom-1 -right-1 rounded-full bg-white p-3 text-purple-700 shadow-xl ring-1 ring-purple-100"
+                    aria-label="Edit profile"
+                  >
+                    <Edit2 size={17} />
+                  </button>
+                </div>
+
+                <div className="text-center sm:text-left">
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-purple-100 px-3 py-1 text-xs font-black text-purple-700">
+                    <ShieldCheck size={15} />
+                    Verified
+                  </div>
+                  <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl lg:text-5xl">
+                    {displayName}
+                  </h1>
+                  <div className="mt-4 grid gap-2 text-sm font-semibold text-slate-500 sm:text-base">
+                    <span className="inline-flex min-w-0 items-center justify-center gap-2 sm:justify-start">
+                      <Mail size={17} className="shrink-0" />
+                      <span className="truncate">{displayEmail}</span>
+                    </span>
+                    <span className={`inline-flex items-center justify-center gap-2 sm:justify-start ${
+                      userProfile?.phone_number ? '' : 'text-amber-600'
+                    }`}>
+                      {userProfile?.phone_number ? <Phone size={17} /> : <AlertTriangle size={17} />}
+                      {userProfile?.phone_number || 'Phone number required to book sessions'}
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div variants={itemVariants} className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                <Link
+                  href="/appointment/type"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-purple-600 to-fuchsia-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-purple-200 transition hover:-translate-y-0.5"
+                >
+                  <CalendarDays size={18} />
+                  Book New Session
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(true)}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-700 shadow-sm ring-1 ring-purple-100 transition hover:bg-purple-50"
+                >
+                  <Edit2 size={18} />
+                  Edit Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteModal(true)}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/85 px-5 py-4 text-sm font-black text-slate-500 shadow-sm ring-1 ring-purple-100 transition hover:bg-red-50 hover:text-red-700"
+                >
+                  <MoreHorizontal size={18} />
+                  More
+                </button>
+              </motion.div>
+            </div>
+
+            <motion.div variants={itemVariants} className="relative mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                { label: 'Member Since', value: memberSinceLabel, icon: CalendarDays },
+                { label: 'Total Sessions', value: totalSessions, icon: BarChart3 },
+                { label: 'Completed', value: completedSessions, icon: CheckCircle2 },
+                { label: 'Upcoming', value: upcomingBookings.length, icon: Clock3 },
+              ].map(({ label, value, icon: Icon }) => (
+                <div key={label} className="rounded-3xl border border-purple-100 bg-white/80 p-4 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="rounded-2xl bg-purple-100 p-3 text-purple-700">
+                      <Icon size={20} />
+                    </span>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500">{label}</p>
+                      <p className="text-lg font-black text-slate-950">{value}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          </motion.section>
 
         {/* Edit Profile Modal */}
         <AnimatePresence>
@@ -763,407 +969,238 @@ const ProfilePage = () => {
           )}
         </AnimatePresence>
 
-        {/* Bookings Section - Different views for users vs admin/therapist */}
-        {userRole === 'admin' || userRole === 'therapist' ? (
-          // ADMIN/THERAPIST VIEW - Show all client bookings
+        <section id="sessions" className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
           <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
+            className="overflow-hidden rounded-[2rem] border border-purple-100 bg-white/85 shadow-[0_20px_70px_rgba(88,28,135,0.07)] backdrop-blur-xl"
           >
-            <motion.h2 variants={itemVariants} className="text-2xl font-bold text-gray-900 mb-6">
-              {userRole === 'admin' ? 'All Client Bookings' : 'Your Client Bookings'}
-            </motion.h2>
+            <span id="notes" className="sr-only">Notes</span>
+            <div className="flex gap-1 overflow-x-auto border-b border-purple-100 px-4 pt-4 sm:px-6">
+              {tabItems.map(({ key, label, icon: Icon, count }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveTab(key)}
+                  className={`relative inline-flex shrink-0 items-center gap-2 px-4 py-3 text-sm font-black transition ${
+                    activeTab === key ? 'text-purple-700' : 'text-slate-500 hover:text-purple-700'
+                  }`}
+                >
+                  <Icon size={17} />
+                  {label}
+                  <span className="rounded-full bg-purple-50 px-2 py-0.5 text-xs text-purple-700">{count}</span>
+                  {activeTab === key && (
+                    <span className="absolute inset-x-2 bottom-0 h-1 rounded-full bg-purple-600" />
+                  )}
+                </button>
+              ))}
+            </div>
 
-            {/* Bookings List */}
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="space-y-6"
-            >
-              {loading ? (
-                <div className="text-center py-12">
-                  <div className="inline-block">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mb-4"></div>
-                  </div>
-                  <p>Loading bookings...</p>
+            <div className="p-4 sm:p-6">
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-950">
+                    {activeTab === 'upcoming' ? `Upcoming Sessions (${upcomingBookings.length})` : `Past Sessions (${pastBookings.length})`}
+                  </h2>
+                  <p className="mt-1 text-sm font-medium text-slate-500">
+                    Notes, meeting links, and booking details in one place.
+                  </p>
                 </div>
-              ) : allBookings.length === 0 ? (
-                <motion.div variants={itemVariants} className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
-                  <p className="text-lg">No bookings found</p>
-                </motion.div>
-              ) : (
-                <motion.div variants={itemVariants} className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b-2 border-purple-600 bg-purple-50">
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Client Name</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Phone</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Date</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Time</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Type</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Notes</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Sessions Before</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Meeting Link</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allBookings.map((booking) => (
-                        <tr 
-                          key={`${booking.id}-admin-${booking.sessionNumber || 0}`}
-                          className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
-                        >
-                          <td className="px-4 py-3 text-gray-800 font-medium">
-                            <div className="flex flex-col">
-                              <span>{booking.user_name || 'N/A'}</span>
-                              {booking.totalSessions && booking.totalSessions > 1 && (
-                                <span className="text-xs font-semibold text-purple-600 mt-1">
-                                  Session {booking.sessionNumber} of {booking.totalSessions}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-gray-700">{booking.user_email || 'N/A'}</td>
-                          <td className="px-4 py-3 text-gray-700">{booking.user_phone || 'N/A'}</td>
-                          <td className="px-4 py-3 text-gray-800">
-                            {booking.slot_date ? format(new Date(booking.slot_date), 'MMM dd, yyyy') : 'N/A'}
-                          </td>
-                          <td className="px-4 py-3 text-gray-800">
-                            {booking.slot_start_time && booking.slot_end_time ? `${booking.slot_start_time} - ${booking.slot_end_time}` : 'N/A'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                              booking.session_type === 'personal' 
-                                ? 'bg-blue-100 text-blue-800' 
-                                : 'bg-pink-100 text-pink-800'
-                            }`}>
-                              {booking.session_type === 'personal' ? 'Personal' : 'Couple'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-gray-700">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setNoteModal({
-                                  title: `Note for ${booking.user_name || 'booking'}`,
-                                  note: booking.notes || null,
-                                })
-                              }
-                              className="inline-flex items-center rounded-lg bg-purple-100 px-3 py-2 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-200"
-                            >
-                              View Notes
-                            </button>
-                          </td>
-                          <td className="px-4 py-3 text-gray-800 font-semibold">
-                            {booking.sessions_taken_before ?? 0}
-                          </td>
-                          <td className="px-4 py-3">
-                            {booking.meeting_link ? (
-                              <a 
-                                href={booking.meeting_link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-purple-600 hover:text-purple-800 font-medium text-sm underline"
-                              >
-                                View
-                              </a>
-                            ) : (
-                              <span className="text-gray-400 text-sm">N/A</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </motion.div>
-              )}
-            </motion.div>
-          </motion.div>
-        ) : (
-          // REGULAR USER VIEW - Show upcoming and past tabs
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-          >
-            <motion.div variants={itemVariants} className="flex gap-4 mb-8">
-              <button
-                onClick={() => setActiveTab('upcoming')}
-                className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                  activeTab === 'upcoming'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300'
-                }`}
-              >
-                Upcoming Sessions ({upcomingBookings.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('past')}
-                className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                  activeTab === 'past'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300'
-                }`}
-              >
-                Past Sessions ({pastBookings.length})
-              </button>
-            </motion.div>
 
-            {/* Sort Options - Only show for upcoming sessions */}
-            {activeTab === 'upcoming' && upcomingBookings.length > 0 && (
-              <motion.div
-                variants={itemVariants}
-                className="mb-6 flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 sm:flex-wrap sm:overflow-visible"
-              >
-                <span className="shrink-0 text-gray-700 font-semibold flex items-center">
-                  Sort by:
-                </span>
-                <button
-                  onClick={() => setSortOption('recent')}
-                  className={`shrink-0 px-3 py-2 rounded-lg text-sm sm:text-base font-semibold transition-all ${
-                    sortOption === 'recent'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-600'
-                  }`}
-                >
-                  Most Recent
-                </button>
-                <button
-                  onClick={() => setSortOption('oldest')}
-                  className={`shrink-0 px-3 py-2 rounded-lg text-sm sm:text-base font-semibold transition-all ${
-                    sortOption === 'oldest'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-600'
-                  }`}
-                >
-                  Oldest First
-                </button>
-                <button
-                  onClick={() => setSortOption('created')}
-                  className={`shrink-0 px-3 py-2 rounded-lg text-sm sm:text-base font-semibold transition-all ${
-                    sortOption === 'created'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-600'
-                  }`}
-                >
-                  Date Booked
-                </button>
-              </motion.div>
-            )}
-
-            {/* Bookings List */}
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="space-y-6"
-            >
-              {loading ? (
-                <div className="text-center py-12">
-                  <div className="inline-block">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mb-4"></div>
-                  </div>
-                  <p>Loading your bookings...</p>
-                </div>
-              ) : activeTab === 'upcoming' ? (
-                upcomingBookings.length === 0 ? (
-                  <motion.div variants={itemVariants} className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
-                    <p className="text-lg mb-4">No upcoming sessions</p>
-                    <p className="text-sm mb-6">You haven't booked any therapy sessions yet.</p>
-                    <Link href="/appointment/type">
-                      <button className="px-6 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-all">
-                        Book Your First Appointment
+                {activeTab === 'upcoming' && upcomingBookings.length > 0 && (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                    <span className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-purple-50 px-3 py-2 text-sm font-black text-purple-700">
+                      <Filter size={16} />
+                      Sort
+                    </span>
+                    {[
+                      ['recent', 'Recent'],
+                      ['oldest', 'Oldest'],
+                      ['created', 'Booked'],
+                    ].map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setSortOption(key as typeof sortOption)}
+                        className={`shrink-0 rounded-2xl px-3 py-2 text-sm font-black transition ${
+                          sortOption === key
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-white text-slate-500 ring-1 ring-purple-100 hover:bg-purple-50'
+                        }`}
+                      >
+                        {label}
                       </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {loading ? (
+                <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl bg-purple-50/70 p-8 text-center">
+                  <div className="mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-purple-600" />
+                  <p className="font-bold text-slate-600">Loading your sessions...</p>
+                </div>
+              ) : visibleBookings.length === 0 ? (
+                <motion.div variants={itemVariants} className="rounded-3xl border border-dashed border-purple-200 bg-purple-50/70 p-8 text-center">
+                  <p className="text-lg font-black text-slate-800">
+                    {activeTab === 'upcoming' ? 'No upcoming sessions' : 'No past sessions yet'}
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-slate-500">
+                    {activeTab === 'upcoming'
+                      ? "You haven't booked any therapy sessions yet."
+                      : 'Completed sessions will show here.'}
+                  </p>
+                  {activeTab === 'upcoming' && (
+                    <Link
+                      href="/appointment/type"
+                      className="mt-5 inline-flex items-center justify-center rounded-full bg-purple-600 px-5 py-3 text-sm font-black text-white transition hover:bg-purple-700"
+                    >
+                      Book Your First Appointment
                     </Link>
-                  </motion.div>
-                ) : (
-                  <motion.div variants={itemVariants} className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="border-b-2 border-purple-600 bg-purple-50">
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">User Name</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Date</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Time</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Type of Session</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Notes</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Sessions Before</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Meeting Link</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {getSortedUpcomingBookings().map((booking) => {
-                          // Check if this is part of a bundle
-                          const isBundle = booking.totalSessions && booking.totalSessions > 1;
-                          const sessionIndex = isBundle ? (booking.sessionNumber ? booking.sessionNumber - 1 : 0) : undefined;
-                          
-                          return (
-                            <tr 
-                              key={`${booking.id}-${booking.sessionNumber || 0}`}
-                              className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
-                            >
-                              <td className="px-4 py-3 text-gray-800">
-                                <div className="flex flex-col">
-                                  <span>{booking.user_name || 'N/A'}</span>
-                                  {isBundle && (
-                                    <span className="text-xs font-semibold text-purple-600 mt-1">
-                                      Session {booking.sessionNumber} of {booking.totalSessions}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-gray-800">
-                                {booking.slot_date ? format(new Date(booking.slot_date), 'MMM dd, yyyy') : 'N/A'}
-                              </td>
-                              <td className="px-4 py-3 text-gray-800">
-                                {booking.slot_start_time && booking.slot_end_time ? `${booking.slot_start_time} - ${booking.slot_end_time}` : 'N/A'}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                  booking.session_type === 'personal' 
-                                    ? 'bg-blue-100 text-blue-800' 
-                                    : 'bg-pink-100 text-pink-800'
-                                }`}>
-                                  {booking.session_type === 'personal' ? 'Personal' : 'Couple'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-gray-700">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setNoteModal({
-                                      title: `Note for ${booking.user_name || 'booking'}`,
-                                      note: booking.notes || null,
-                                    })
-                                  }
-                                  className="inline-flex items-center rounded-lg bg-purple-100 px-3 py-2 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-200"
-                                >
-                                  View Notes
-                                </button>
-                              </td>
-                              <td className="px-4 py-3 text-gray-800 font-semibold">
-                                {booking.sessions_taken_before ?? 0}
-                              </td>
-                              <td className="px-4 py-3">
-                                {booking.meeting_link ? (
-                                  <a 
-                                    href={booking.meeting_link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-purple-600 hover:text-purple-800 font-medium underline"
-                                  >
-                                    Join Meeting
-                                  </a>
-                                ) : (
-                                  <span className="text-gray-400">Not available</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3">
-                                <button
-                                  onClick={() => setRescheduleModal({ bookingId: booking.id, sessionIndex })}
-                                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all"
-                                >
-                                  Reschedule
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </motion.div>
-                )
-              ) : pastBookings.length === 0 ? (
-                <motion.div variants={itemVariants} className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
-                  <p className="text-lg">No past sessions yet</p>
+                  )}
                 </motion.div>
               ) : (
-                <motion.div variants={itemVariants} className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b-2 border-purple-600 bg-purple-50">
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">User Name</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Date</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Session Time</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Type of Session</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Notes</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Sessions Before</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Meeting Link</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                      {pastBookings.map((booking) => (
-                        <tr 
-                          key={`${booking.id}-past-${booking.sessionNumber || 0}`}
-                          className="border-b border-gray-200 hover:bg-gray-50 transition-colors opacity-75"
-                        >
-                          <td className="px-4 py-3 text-gray-800">
-                            <div className="flex flex-col">
-                              <span>{booking.user_name || 'N/A'}</span>
-                              {booking.totalSessions && booking.totalSessions > 1 && (
-                                <span className="text-xs font-semibold text-purple-600 mt-1">
-                                  Session {booking.sessionNumber} of {booking.totalSessions}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-gray-800">
-                            {booking.slot_date ? format(new Date(booking.slot_date), 'MMM dd, yyyy') : 'N/A'}
-                          </td>
-                          <td className="px-4 py-3 text-gray-800">
-                            {booking.slot_start_time && booking.slot_end_time ? `${booking.slot_start_time} - ${booking.slot_end_time}` : 'N/A'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                              booking.session_type === 'personal' 
-                                ? 'bg-blue-100 text-blue-800' 
-                                : 'bg-pink-100 text-pink-800'
-                            }`}>
-                              {booking.session_type === 'personal' ? 'Personal' : 'Couple'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-gray-700">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setNoteModal({
-                                  title: `Note for ${booking.user_name || 'booking'}`,
-                                  note: booking.notes || null,
-                                })
-                              }
-                              className="inline-flex items-center rounded-lg bg-purple-100 px-3 py-2 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-200"
-                            >
-                              View Notes
-                            </button>
-                          </td>
-                          <td className="px-4 py-3 text-gray-800 font-semibold">
-                            {booking.sessions_taken_before ?? 0}
-                          </td>
-                          <td className="px-4 py-3">
-                            {booking.meeting_link ? (
-                              <a 
-                                href={booking.meeting_link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-purple-600 hover:text-purple-800 font-medium underline"
-                              >
-                                Join Meeting
-                              </a>
-                            ) : (
-                              <span className="text-gray-400">Not available</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <motion.div variants={containerVariants} className="space-y-4">
+                  {visibleBookings.map((booking) => renderSessionCard(booking, activeTab === 'past'))}
                 </motion.div>
               )}
-            </motion.div>
+            </div>
           </motion.div>
-        )}
+
+          <aside className="space-y-5">
+            <motion.div
+              variants={itemVariants}
+              initial="hidden"
+              animate="visible"
+              className="rounded-[2rem] border border-purple-100 bg-white/85 p-5 shadow-[0_20px_70px_rgba(88,28,135,0.07)] backdrop-blur-xl"
+            >
+              <p className="text-base font-black text-slate-950">Progress</p>
+              <div className="mt-5 grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center xl:grid-cols-1">
+                <div className="relative mx-auto flex h-32 w-32 items-center justify-center rounded-full">
+                  <div
+                    className="absolute inset-0 rounded-full"
+                    style={{
+                      background: `conic-gradient(#7c3aed ${progressPercent * 3.6}deg, #ede9fe 0deg)`,
+                    }}
+                  />
+                  <div className="relative flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white shadow-inner">
+                    <span className="text-2xl font-black text-slate-950">{progressPercent}%</span>
+                    <span className="text-center text-[11px] font-bold leading-tight text-slate-500">Complete</span>
+                  </div>
+                </div>
+
+                <div className="grid gap-3">
+                  {[
+                    { label: 'Completed', value: completedSessions, icon: CheckCircle2 },
+                    { label: 'Upcoming', value: upcomingBookings.length, icon: Clock3 },
+                    { label: 'Total Sessions', value: totalSessions, icon: BarChart3 },
+                  ].map(({ label, value, icon: Icon }) => (
+                    <div key={label} className="flex items-center gap-3 rounded-2xl bg-purple-50/70 p-3">
+                      <span className="rounded-2xl bg-white p-3 text-purple-700 shadow-sm">
+                        <Icon size={18} />
+                      </span>
+                      <div>
+                        <p className="text-lg font-black text-slate-950">{value}</p>
+                        <p className="text-xs font-bold text-slate-500">{label}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              variants={itemVariants}
+              initial="hidden"
+              animate="visible"
+              className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-purple-600 via-fuchsia-500 to-violet-500 p-5 text-white shadow-[0_18px_55px_rgba(147,51,234,0.22)]"
+            >
+              <p className="text-lg font-black">Next Session</p>
+              {soonestUpcomingBooking ? (
+                <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center xl:flex-col xl:items-stretch">
+                  <div className="flex items-center gap-4">
+                    <div className="rounded-2xl bg-white/18 p-3 text-center backdrop-blur">
+                      <p className="text-xs font-black uppercase tracking-[0.16em]">
+                        {soonestUpcomingBooking.slot_date ? format(new Date(soonestUpcomingBooking.slot_date), 'MMM') : '---'}
+                      </p>
+                      <p className="text-3xl font-black leading-none">
+                        {soonestUpcomingBooking.slot_date ? format(new Date(soonestUpcomingBooking.slot_date), 'dd') : '--'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="font-black">
+                        {formatTime(soonestUpcomingBooking.slot_start_time)} - {formatTime(soonestUpcomingBooking.slot_end_time)}
+                      </p>
+                      <p className="text-sm font-medium text-white/75">{formatSessionDate(soonestUpcomingBooking.slot_date)}</p>
+                    </div>
+                  </div>
+                  {soonestUpcomingBooking.meeting_link ? (
+                    <a
+                      href={soonestUpcomingBooking.meeting_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-purple-700"
+                    >
+                      <LinkIcon size={16} />
+                      Join Meeting
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center justify-center rounded-full bg-white/18 px-5 py-3 text-sm font-black text-white">
+                      Link pending
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-4 text-sm font-medium text-white/80">Book a session to see your next appointment here.</p>
+              )}
+            </motion.div>
+          </aside>
+        </section>
+
+        <section className="mt-5 grid gap-4 md:grid-cols-3">
+          <div id="payments" className="rounded-[1.75rem] border border-purple-100 bg-white/85 p-5 shadow-[0_16px_55px_rgba(88,28,135,0.06)]">
+            <div className="flex items-center gap-3">
+              <span className="rounded-2xl bg-purple-100 p-3 text-purple-700">
+                <CreditCard size={20} />
+              </span>
+              <div>
+                <h3 className="font-black text-slate-950">Payments</h3>
+                <p className="text-sm font-medium text-slate-500">PayU payments are attached to confirmed bookings.</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="documents" className="rounded-[1.75rem] border border-purple-100 bg-white/85 p-5 shadow-[0_16px_55px_rgba(88,28,135,0.06)]">
+            <div className="flex items-center gap-3">
+              <span className="rounded-2xl bg-purple-100 p-3 text-purple-700">
+                <FileText size={20} />
+              </span>
+              <div>
+                <h3 className="font-black text-slate-950">Documents</h3>
+                <p className="text-sm font-medium text-slate-500">Session documents will appear here when available.</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="settings" className="rounded-[1.75rem] border border-purple-100 bg-white/85 p-5 shadow-[0_16px_55px_rgba(88,28,135,0.06)]">
+            <div className="flex items-center gap-3">
+              <span className="rounded-2xl bg-purple-100 p-3 text-purple-700">
+                <Settings size={20} />
+              </span>
+              <div>
+                <h3 className="font-black text-slate-950">Preferences</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(true)}
+                  className="mt-1 text-sm font-black text-purple-700 underline underline-offset-4"
+                >
+                  Edit profile details
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <NoteModal
           isOpen={!!noteModal}
@@ -1171,57 +1208,7 @@ const ProfilePage = () => {
           title={noteModal?.title}
           onClose={() => setNoteModal(null)}
         />
-
-        {/* Reschedule Modal */}
-        <AnimatePresence>
-          {rescheduleModal && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setRescheduleModal(null)}
-              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-            >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4"
-              >
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Reschedule Session</h2>
-                
-                <p className="text-gray-700 mb-6">
-                  You'll be redirected to select a new date and time for your session. No charges will apply.
-                </p>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setRescheduleModal(null)}
-                    className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-semibold transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      const params = new URLSearchParams({
-                        reschedule: rescheduleModal.bookingId,
-                      });
-                      if (rescheduleModal.sessionIndex !== undefined) {
-                        params.append('sessionIndex', rescheduleModal.sessionIndex.toString());
-                      }
-                      router.push(`/appointment/slots?${params.toString()}`);
-                      setRescheduleModal(null);
-                    }}
-                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
-                  >
-                    Continue to Select Slots
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </main>
       </div>
     </div>
   );

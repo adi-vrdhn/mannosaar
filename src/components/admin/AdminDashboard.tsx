@@ -1,11 +1,39 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { Calendar, Clock, Users, Lock, Settings } from 'lucide-react';
-import { format, addDays, startOfDay } from 'date-fns';
-import SessionCard from './SessionCard';
+import Image from 'next/image';
+import { useSession } from 'next-auth/react';
+import {
+  BarChart3,
+  Calendar,
+  CalendarCheck,
+  CalendarDays,
+  CalendarPlus,
+  ChevronRight,
+  ChevronLeft,
+  Clock3,
+  CreditCard,
+  Home,
+  IndianRupee,
+  LayoutDashboard,
+  MoreVertical,
+  Settings,
+  ShieldBan,
+  UserPlus,
+  Users,
+} from 'lucide-react';
+import {
+  addDays,
+  eachDayOfInterval,
+  endOfMonth,
+  format,
+  getDay,
+  isSameDay,
+  startOfDay,
+  startOfMonth,
+} from 'date-fns';
 
 interface Booking {
   id: string;
@@ -17,347 +45,492 @@ interface Booking {
   slot_start_time: string;
   slot_end_time: string;
   meeting_link?: string;
-  payment_status: string;
+  payment_status?: string;
   status: string;
+  number_of_sessions?: number;
 }
 
-interface StatsData {
-  todayCount: number;
-  upcomingCount: number;
-  todayBookings: Booking[];
-  upcomingBookings: Booking[];
+interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  total_sessions?: number;
 }
+
+type PricingMap = Record<string, number>;
+
+const navItems = [
+  { label: 'Dashboard', href: '/admin', icon: Home },
+  { label: 'Appointments', href: '/admin/bookings', icon: CalendarDays },
+  { label: 'Calendar', href: '/admin/calendar', icon: Calendar },
+  { label: 'Clients', href: '/admin/users', icon: Users },
+  { label: 'Slots', href: '/admin/slots', icon: Clock3 },
+  { label: 'Payments', href: '/admin/payments', icon: CreditCard },
+  { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+  { label: 'Settings', href: '/admin/settings', icon: Settings },
+];
+
+const quickActions = [
+  { label: 'Create Slot', href: '/admin/slots', icon: CalendarPlus, className: 'from-purple-50 to-violet-50 text-purple-700' },
+  { label: 'Block Date', href: '/admin/block-schedule', icon: ShieldBan, className: 'from-rose-50 to-red-50 text-rose-700' },
+  { label: 'Add Session', href: '/admin/bookings', icon: UserPlus, className: 'from-blue-50 to-sky-50 text-blue-700' },
+  { label: 'View Clients', href: '/admin/users', icon: Users, className: 'from-emerald-50 to-green-50 text-emerald-700' },
+  { label: 'Analytics', href: '/admin/analytics', icon: BarChart3, className: 'from-violet-50 to-purple-50 text-violet-700' },
+];
+
+const defaultPrices: PricingMap = {
+  personal_1: 2500,
+  personal_2: 4500,
+  personal_3: 6000,
+  couple_1: 3500,
+  couple_2: 6500,
+  couple_3: 9000,
+};
+
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+};
+
+const getInitial = (name?: string | null) => (name?.trim()?.charAt(0) || 'A').toUpperCase();
+
+const formatTime = (time?: string) => (time ? time.slice(0, 5) : 'N/A');
+
+const getBookingAmount = (booking: Booking, prices: PricingMap) => {
+  const sessions = booking.number_of_sessions || 1;
+  const key = `${booking.session_type || 'personal'}_${sessions}`;
+  return prices[key] || prices[`${booking.session_type || 'personal'}_1`] || 0;
+};
 
 const AdminDashboard = () => {
-  const [stats, setStats] = useState<StatsData>({
-    todayCount: 0,
-    upcomingCount: 0,
-    todayBookings: [],
-    upcomingBookings: [],
-  });
+  const { data: session } = useSession();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [prices, setPrices] = useState<PricingMap>(defaultPrices);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchDashboardData = async () => {
       try {
-        const today = startOfDay(new Date());
-        const today_string = format(today, 'yyyy-MM-dd');
-        const in7Days = format(addDays(today, 7), 'yyyy-MM-dd');
+        setLoading(true);
 
-        // Fetch all confirmed bookings using API endpoint (bypasses RLS)
-        const response = await fetch('/api/bookings/user-bookings');
-        if (!response.ok) {
-          console.error('Error fetching bookings:', response.status);
-          setLoading(false);
-          return;
+        const [bookingsResponse, usersResponse, pricingResponse] = await Promise.all([
+          fetch('/api/bookings/user-bookings', { cache: 'no-store' }),
+          fetch('/api/admin/users', { cache: 'no-store' }),
+          fetch('/api/admin/pricing', { cache: 'no-store' }),
+        ]);
+
+        if (bookingsResponse.ok) {
+          const data = await bookingsResponse.json();
+          setBookings(Array.isArray(data.bookings) ? data.bookings : []);
         }
 
-        const { bookings } = await response.json();
-        
-        if (!bookings || !Array.isArray(bookings)) {
-          console.error('Invalid bookings data:', bookings);
-          setLoading(false);
-          return;
+        if (usersResponse.ok) {
+          const data = await usersResponse.json();
+          setUsers(Array.isArray(data.users) ? data.users : []);
         }
 
-        // Count today's sessions
-        const todayCount = bookings.filter((b: Booking) => b.slot_date === today_string).length || 0;
-
-        // Count upcoming sessions (next 7 days)
-        const upcomingCount = bookings.filter((b: Booking) => 
-          b.slot_date > today_string && b.slot_date <= in7Days
-        ).length || 0;
-
-        // Get today's bookings
-        const todayBookings = bookings
-          .filter((b: Booking) => b.slot_date === today_string)
-          .sort((a: Booking, b: Booking) => {
-            return (a.slot_start_time || '').localeCompare(b.slot_start_time || '');
-          });
-
-        // Get next 7 days bookings
-        const upcomingBookings = bookings
-          .filter((b: Booking) => b.slot_date > today_string && b.slot_date <= in7Days)
-          .sort((a: Booking, b: Booking) => {
-            const dateCompare = a.slot_date.localeCompare(b.slot_date);
-            if (dateCompare !== 0) return dateCompare;
-            return (a.slot_start_time || '').localeCompare(b.slot_start_time || '');
-          });
-
-        setStats({
-          todayCount,
-          upcomingCount,
-          todayBookings,
-          upcomingBookings,
-        });
-
-        console.log('📊 Admin stats:', { todayCount, upcomingCount, totalBookings: bookings.length });
-      } catch (err) {
-        console.error('Error in fetchStats:', err);
+        if (pricingResponse.ok) {
+          const data = await pricingResponse.json();
+          if (data.pricing) {
+            setPrices(data.pricing);
+          }
+        }
+      } catch (error) {
+        console.error('Admin dashboard data error:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchStats();
+    fetchDashboardData();
   }, []);
 
-  // Fetch all users with their session counts
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await fetch('/api/admin/users');
-        if (!response.ok) {
-          console.error('Error fetching users:', response.status);
-          return;
-        }
-        const data = await response.json();
-        // Users count will be fetched when user navigates to users page
-        console.log('👥 Users data available');
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
+  const today = startOfDay(new Date());
+  const todayString = format(today, 'yyyy-MM-dd');
+  const tomorrowString = format(addDays(today, 1), 'yyyy-MM-dd');
+  const monthStart = startOfMonth(today);
+  const monthEnd = endOfMonth(today);
+
+  const dashboardData = useMemo(() => {
+    const normalizedBookings = bookings.filter((booking) => booking.slot_date);
+    const todayBookings = normalizedBookings
+      .filter((booking) => booking.slot_date === todayString)
+      .sort((a, b) => (a.slot_start_time || '').localeCompare(b.slot_start_time || ''));
+
+    const upcomingBookings = normalizedBookings
+      .filter((booking) => booking.slot_date > todayString)
+      .sort((a, b) => {
+        const dateCompare = a.slot_date.localeCompare(b.slot_date);
+        if (dateCompare !== 0) return dateCompare;
+        return (a.slot_start_time || '').localeCompare(b.slot_start_time || '');
+      });
+
+    const thisMonthRevenue = normalizedBookings
+      .filter((booking) => {
+        const bookingDate = new Date(booking.slot_date);
+        return bookingDate >= monthStart && bookingDate <= monthEnd;
+      })
+      .reduce((sum, booking) => sum + getBookingAmount(booking, prices), 0);
+
+    return {
+      todayBookings,
+      upcomingBookings,
+      thisMonthRevenue,
+      nextSessionTomorrow: upcomingBookings.some((booking) => booking.slot_date === tomorrowString),
     };
+  }, [bookings, monthEnd, monthStart, prices, todayString, tomorrowString]);
 
-    fetchUsers();
-  }, []);
+  const calendarDays = useMemo(() => {
+    const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    const leadingBlanks = Array.from({ length: getDay(monthStart) });
+    return { days, leadingBlanks };
+  }, [monthEnd, monthStart]);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 },
+  const adminName = session?.user?.name || 'Nitu Rathore';
+  const upcomingPreview = dashboardData.upcomingBookings.slice(0, 4);
+  const monthSessionCount = bookings.filter((booking) => {
+    if (!booking.slot_date) return false;
+    const bookingDate = new Date(booking.slot_date);
+    return bookingDate >= monthStart && bookingDate <= monthEnd;
+  }).length;
+  const summaryCards = [
+    {
+      label: "Today's Sessions",
+      value: dashboardData.todayBookings.length,
+      caption: dashboardData.todayBookings.length ? 'Sessions scheduled today' : 'No sessions today',
+      icon: CalendarDays,
+      color: 'bg-violet-100 text-violet-700',
+      href: '/admin/bookings?view=today',
     },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-  };
+    {
+      label: 'Upcoming Sessions',
+      value: dashboardData.upcomingBookings.length,
+      caption: dashboardData.nextSessionTomorrow ? 'Next session tomorrow' : 'No session tomorrow',
+      icon: CalendarCheck,
+      color: 'bg-emerald-100 text-emerald-700',
+      href: '/admin/bookings?view=upcoming',
+    },
+    {
+      label: 'This Month Revenue',
+      value: `₹${dashboardData.thisMonthRevenue.toLocaleString('en-IN')}`,
+      caption: `From ${monthSessionCount} sessions`,
+      icon: IndianRupee,
+      color: 'bg-amber-100 text-amber-700',
+    },
+    {
+      label: 'Total Clients',
+      value: users.length,
+      caption: 'Active clients',
+      icon: Users,
+      color: 'bg-blue-100 text-blue-700',
+    },
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="text-5xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
-          <p className="text-xl text-gray-600">Manage therapy sessions and bookings</p>
-        </motion.div>
-
-        {/* Main Grid: Left (70%) and Right (30%) */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-        >
-          {/* LEFT SIDE - 70% */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Stats Row */}
-            <motion.div variants={itemVariants} className="grid grid-cols-2 gap-6">
-              {/* Today's Sessions Card */}
-              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg p-8 text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-blue-100 text-sm font-semibold uppercase tracking-wide">Today's Sessions</p>
-                    <p className="text-5xl font-bold mt-2">{stats.todayCount}</p>
-                  </div>
-                  <Clock size={48} className="text-blue-200 opacity-50" />
-                </div>
-              </div>
-
-              {/* Upcoming Sessions Card */}
-              <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-lg p-8 text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-green-100 text-sm font-semibold uppercase tracking-wide">Upcoming Sessions</p>
-                    <p className="text-5xl font-bold mt-2">{stats.upcomingCount}</p>
-                  </div>
-                  <Calendar size={48} className="text-green-200 opacity-50" />
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Blocks Grid */}
-            <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Manage Slots Block */}
-              <Link href="/admin/slots">
-                <motion.div
-                  whileHover={{ scale: 1.05, y: -5 }}
-                  className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-lg p-6 text-white cursor-pointer h-full"
-                >
-                  <Calendar size={40} className="mb-4" />
-                  <h3 className="text-2xl font-bold mb-2">Manage Slots</h3>
-                  <p className="text-purple-100">Create and manage therapy slots</p>
-                </motion.div>
-              </Link>
-
-              {/* Block Dates Block */}
-              <Link href="/admin/block-schedule">
-                <motion.div
-                  whileHover={{ scale: 1.05, y: -5 }}
-                  className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl shadow-lg p-6 text-white cursor-pointer h-full"
-                >
-                  <Lock size={40} className="mb-4" />
-                  <h3 className="text-2xl font-bold mb-2">Block Dates</h3>
-                  <p className="text-red-100">Block time periods and dates</p>
-                </motion.div>
-              </Link>
-            </motion.div>
-
-            {/* Users Management Block */}
-            <motion.div variants={itemVariants}>
-              <Link href="/admin/users">
-                <motion.div
-                  whileHover={{ scale: 1.02, y: -5 }}
-                  className="bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-2xl shadow-lg p-8 text-white cursor-pointer h-full"
-                >
-                  <Users size={40} className="mb-4" />
-                  <h3 className="text-2xl font-bold mb-2">Users Management</h3>
-                  <p className="text-cyan-100">View all users and their booking history</p>
-                </motion.div>
-              </Link>
-            </motion.div>
-
-            {/* Analytics Block */}
-            <motion.div variants={itemVariants}>
-              <Link href="/admin/analytics">
-                <motion.div
-                  whileHover={{ scale: 1.02, y: -5 }}
-                  className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl shadow-lg p-8 text-white cursor-pointer"
-                >
-                  <Users size={40} className="mb-4" />
-                  <h3 className="text-2xl font-bold mb-2">Analytics</h3>
-                  <p className="text-indigo-100">View all sessions and detailed analytics</p>
-                </motion.div>
-              </Link>
-            </motion.div>
-
-            {/* Users List Block - Now Links to Full Page */}
-            <motion.div variants={itemVariants}>
-              <Link href="/admin/users">
-                <motion.div
-                  whileHover={{ scale: 1.02, y: -5 }}
-                  className="bg-white rounded-2xl shadow-lg p-6 cursor-pointer h-full border-2 border-cyan-200"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-2xl font-bold text-gray-900">All Users</h2>
-                    <Users size={24} className="text-cyan-600" />
-                  </div>
-                  <p className="text-gray-600">
-                    Click to view and manage all users and their sessions
-                  </p>
-                </motion.div>
-              </Link>
-            </motion.div>
-
-            {/* Settings Block */}
-            <motion.div variants={itemVariants}>
-              <Link href="/admin/settings">
-                <motion.div
-                  whileHover={{ scale: 1.02, y: -5 }}
-                  className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-lg p-8 text-white cursor-pointer"
-                >
-                  <Settings size={40} className="mb-4" />
-                  <h3 className="text-2xl font-bold mb-2">Settings</h3>
-                  <p className="text-orange-100">Manage integrations and preferences</p>
-                </motion.div>
-              </Link>
-            </motion.div>
+    <div className="min-h-screen bg-[#f8f7ff] text-slate-950">
+      <div className="grid min-h-screen lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-slate-200 bg-white/90 lg:flex lg:flex-col">
+          <div className="flex h-24 items-center gap-3 border-b border-slate-100 px-7">
+            <Image src="/images/mannosaar-logo.png" alt="Mannosaar" width={48} height={48} className="object-contain" />
+            <div>
+              <p className="text-xl font-black tracking-tight text-slate-900">Mannosaar</p>
+              <p className="text-xs font-semibold text-slate-500">Heal • Grow • Transform</p>
+            </div>
           </div>
 
-          {/* RIGHT SIDE - 30% Sessions */}
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl shadow-lg p-6 h-fit">
-            {/* Today's Sessions */}
-            <div className="mb-8">
-              <Link href="/admin/sessions/today">
-                <h2 className="text-xl font-bold text-gray-900 mb-4 hover:text-blue-600 transition cursor-pointer">
-                  Today's Sessions →
-                </h2>
-              </Link>
-              
-              {loading ? (
-                <div className="space-y-3">
-                  <div className="h-24 bg-gray-200 rounded-lg animate-pulse"></div>
-                  <div className="h-24 bg-gray-200 rounded-lg animate-pulse"></div>
-                </div>
-              ) : stats.todayBookings.length === 0 ? (
-                <p className="text-center text-gray-500 py-6 text-sm">No sessions today</p>
-              ) : (
-                <motion.div variants={containerVariants} className="space-y-3 max-h-64 overflow-y-auto">
-                  {stats.todayBookings.slice(0, 3).map((booking) => (
-                    <SessionCard
-                      key={booking.id}
-                      id={booking.id}
-                      userName={booking.user_name}
-                      userEmail={booking.user_email}
-                      userPhone={booking.user_phone}
-                      sessionType={booking.session_type}
-                      slotDate={booking.slot_date}
-                      slotStartTime={booking.slot_start_time}
-                      slotEndTime={booking.slot_end_time}
-                      meetingLink={booking.meeting_link}
-                      paymentStatus={booking.payment_status}
-                    />
-                  ))}
-                  {stats.todayBookings.length > 3 && (
-                    <Link href="/admin/sessions/today">
-                      <p className="text-center text-blue-600 hover:text-blue-800 font-semibold py-2">
-                        View all {stats.todayBookings.length} sessions →
-                      </p>
-                    </Link>
-                  )}
-                </motion.div>
-              )}
-            </div>
+          <nav className="flex-1 space-y-2 px-5 py-7">
+            {navItems.map(({ label, href, icon: Icon }) => {
+              const active = href === '/admin';
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`flex items-center gap-4 rounded-2xl px-4 py-3 text-sm font-bold transition ${
+                    active
+                      ? 'bg-gradient-to-r from-violet-50 to-purple-50 text-violet-700 shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-violet-700'
+                  }`}
+                >
+                  <Icon size={20} />
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
 
-            {/* Divider */}
-            <div className="border-t border-gray-200 my-6"></div>
-
-            {/* Upcoming Sessions (7 days) */}
-            <div>
-              <Link href="/admin/sessions/upcoming">
-                <h2 className="text-xl font-bold text-gray-900 mb-4 hover:text-green-600 transition cursor-pointer">
-                  Upcoming Sessions →
-                </h2>
-              </Link>
-              
-              {loading ? (
-                <div className="space-y-3">
-                  <div className="h-24 bg-gray-200 rounded-lg animate-pulse"></div>
-                  <div className="h-24 bg-gray-200 rounded-lg animate-pulse"></div>
-                </div>
-              ) : stats.upcomingBookings.length === 0 ? (
-                <p className="text-center text-gray-500 py-6 text-sm">No upcoming sessions</p>
-              ) : (
-                <motion.div variants={containerVariants} className="space-y-3 max-h-64 overflow-y-auto">
-                  {stats.upcomingBookings.slice(0, 3).map((booking) => (
-                    <SessionCard
-                      key={booking.id}
-                      id={booking.id}
-                      userName={booking.user_name}
-                      userEmail={booking.user_email}
-                      userPhone={booking.user_phone}
-                      sessionType={booking.session_type}
-                      slotDate={booking.slot_date}
-                      slotStartTime={booking.slot_start_time}
-                      slotEndTime={booking.slot_end_time}
-                      meetingLink={booking.meeting_link}
-                      paymentStatus={booking.payment_status}
-                    />
-                  ))}
-                  {stats.upcomingBookings.length > 3 && (
-                    <Link href="/admin/sessions/upcoming">
-                      <p className="text-center text-green-600 hover:text-green-800 font-semibold py-2">
-                        View all {stats.upcomingBookings.length} sessions →
-                      </p>
-                    </Link>
-                  )}
-                </motion.div>
-              )}
+          <div className="m-5 rounded-3xl border border-violet-100 bg-gradient-to-br from-white to-violet-50 p-5 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-violet-100 text-violet-700">
+              <LayoutDashboard size={28} />
             </div>
-          </motion.div>
-        </motion.div>
+            <p className="font-black text-slate-900">You are doing great</p>
+            <p className="mt-1 text-sm text-slate-500">{dashboardData.upcomingBookings.length} upcoming sessions</p>
+            <div className="mt-4 h-2 rounded-full bg-violet-100">
+              <div className="h-2 w-4/5 rounded-full bg-violet-600" />
+            </div>
+          </div>
+        </aside>
+
+        <main className="min-w-0">
+          <div className="px-4 py-7 sm:px-6 lg:px-10">
+            <section className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                  {getGreeting()}, {adminName.split(' ')[0]}
+                </h1>
+                <p className="mt-2 text-base font-medium text-slate-500">Here is what is happening with your sessions today.</p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-slate-600 shadow-sm ring-1 ring-slate-200">
+                <CalendarDays size={18} />
+                {format(new Date(), 'EEE, MMM dd, yyyy')}
+              </div>
+            </section>
+
+            <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {summaryCards.map(({ label, value, caption, icon: Icon, color, href }) =>
+                href ? (
+                  <Link
+                    key={label}
+                    href={href}
+                    className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-violet-200"
+                  >
+                    <div className="flex items-center gap-4">
+                      <span className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${color}`}>
+                        <Icon size={28} />
+                      </span>
+                      <div>
+                        <p className="text-sm font-bold text-slate-500">{label}</p>
+                        <p className="mt-1 text-3xl font-black text-slate-950">{loading ? '...' : value}</p>
+                        <p className="mt-1 text-sm font-medium text-slate-500">{caption}</p>
+                      </div>
+                    </div>
+                  </Link>
+                ) : (
+                  <motion.div
+                    key={label}
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]"
+                  >
+                    <div className="flex items-center gap-4">
+                      <span className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${color}`}>
+                        <Icon size={28} />
+                      </span>
+                      <div>
+                        <p className="text-sm font-bold text-slate-500">{label}</p>
+                        <p className="mt-1 text-3xl font-black text-slate-950">{loading ? '...' : value}</p>
+                        <p className="mt-1 text-sm font-medium text-slate-500">{caption}</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              )}
+            </section>
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+              <div className="space-y-6">
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:p-7">
+                  <div className="mb-5 flex items-center justify-between">
+                    <h2 className="text-xl font-black text-slate-950">Today's Schedule</h2>
+                    <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+                      {['Day', 'Week', 'Month'].map((label, index) => (
+                        <button
+                          key={label}
+                          className={`rounded-lg px-4 py-2 text-sm font-bold ${
+                            index === 0 ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500'
+                          }`}
+                          type="button"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {loading ? (
+                    <div className="h-48 animate-pulse rounded-3xl bg-slate-100" />
+                  ) : dashboardData.todayBookings.length === 0 ? (
+                    <div className="flex min-h-52 flex-col items-center justify-center rounded-3xl bg-gradient-to-br from-white to-violet-50 text-center">
+                      <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-violet-100 text-violet-700">
+                        <Clock3 size={38} />
+                      </div>
+                      <p className="text-xl font-black text-slate-950">No sessions today</p>
+                      <p className="mt-2 text-sm font-medium text-slate-500">Enjoy your free time.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {dashboardData.todayBookings.map((booking) => (
+                        <Link
+                          href="/admin/bookings?view=today"
+                          key={booking.id}
+                          className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-4 transition hover:border-violet-200 hover:bg-violet-50/60 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div>
+                            <p className="font-black text-slate-950">{booking.user_name || 'Client'}</p>
+                            <p className="text-sm font-medium text-slate-500">
+                              {formatTime(booking.slot_start_time)} - {formatTime(booking.slot_end_time)}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black capitalize text-emerald-700">
+                            {booking.status || 'confirmed'}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:p-7">
+                  <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="text-xl font-black text-slate-950">Upcoming Sessions</h2>
+                    <Link
+                      href="/admin/bookings?view=upcoming"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 px-4 py-2 text-sm font-bold text-violet-700 transition hover:bg-violet-50"
+                    >
+                      <Calendar size={16} />
+                      View Bookings
+                    </Link>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[760px] border-collapse text-left">
+                      <thead>
+                        <tr className="border-y border-slate-200 bg-slate-50 text-sm text-slate-500">
+                          <th className="px-4 py-3 font-black">Date</th>
+                          <th className="px-4 py-3 font-black">Time</th>
+                          <th className="px-4 py-3 font-black">Client</th>
+                          <th className="px-4 py-3 font-black">Session Type</th>
+                          <th className="px-4 py-3 font-black">Status</th>
+                          <th className="px-4 py-3 font-black">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loading ? (
+                          Array.from({ length: 4 }).map((_, index) => (
+                            <tr key={index} className="border-b border-slate-100">
+                              <td colSpan={6} className="px-4 py-4">
+                                <div className="h-8 animate-pulse rounded-xl bg-slate-100" />
+                              </td>
+                            </tr>
+                          ))
+                        ) : upcomingPreview.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">
+                              No upcoming sessions yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          upcomingPreview.map((booking) => (
+                            <tr key={booking.id} className="border-b border-slate-100 text-sm">
+                              <td className="px-4 py-4 font-semibold text-slate-700">
+                                {format(new Date(booking.slot_date), 'EEE, MMM dd yyyy')}
+                              </td>
+                              <td className="px-4 py-4 font-semibold text-slate-700">
+                                {formatTime(booking.slot_start_time)} - {formatTime(booking.slot_end_time)}
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="flex items-center gap-3">
+                                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 text-xs font-black text-amber-700">
+                                    {getInitial(booking.user_name)}
+                                  </span>
+                                  <span className="font-bold text-slate-800">{booking.user_name || 'Client'}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <span className="rounded-lg bg-violet-100 px-3 py-1 text-xs font-black capitalize text-violet-700">
+                                  {booking.session_type || 'Personal'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4">
+                                <span className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-black capitalize text-emerald-700">
+                                  {booking.status || 'confirmed'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4">
+                                <Link href="/admin/bookings" className="text-slate-500 hover:text-violet-700">
+                                  <MoreVertical size={18} />
+                                </Link>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <Link
+                    href="/admin/bookings"
+                    className="mt-5 inline-flex w-full items-center justify-center gap-2 text-sm font-black text-violet-700"
+                  >
+                    View all sessions
+                    <ChevronRight size={16} />
+                  </Link>
+                </section>
+              </div>
+
+              <aside className="space-y-6">
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+                  <h2 className="text-xl font-black text-slate-950">Quick Actions</h2>
+                  <div className="mt-5 space-y-3">
+                    {quickActions.map(({ label, href, icon: Icon, className }) => (
+                      <Link
+                        key={href + label}
+                        href={href}
+                        className={`flex items-center gap-4 rounded-2xl bg-gradient-to-r px-4 py-3 text-sm font-black transition hover:-translate-y-0.5 ${className}`}
+                      >
+                        <Icon size={18} />
+                        {label}
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+                  <div className="mb-5 flex items-center justify-between">
+                    <h2 className="text-xl font-black text-slate-950">Calendar Overview</h2>
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <ChevronLeft size={18} />
+                      <ChevronRight size={18} />
+                    </div>
+                  </div>
+                  <p className="mb-4 text-center text-sm font-bold text-slate-500">{format(today, 'MMMM yyyy')}</p>
+                  <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-400">
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                      <span key={`${day}-${index}`}>{day}</span>
+                    ))}
+                  </div>
+                  <div className="mt-3 grid grid-cols-7 gap-2 text-center text-sm font-semibold text-slate-700">
+                    {calendarDays.leadingBlanks.map((_, index) => (
+                      <span key={`blank-${index}`} />
+                    ))}
+                    {calendarDays.days.map((day) => {
+                      const hasSession = bookings.some((booking) => booking.slot_date === format(day, 'yyyy-MM-dd'));
+                      const active = isSameDay(day, today);
+
+                      return (
+                        <Link
+                          key={day.toISOString()}
+                          href="/admin/calendar"
+                          className={`flex h-9 items-center justify-center rounded-full transition ${
+                            active
+                              ? 'bg-violet-600 font-black text-white'
+                              : hasSession
+                                ? 'bg-violet-50 text-violet-700'
+                                : 'hover:bg-slate-100'
+                          }`}
+                        >
+                          {format(day, 'd')}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </section>
+              </aside>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );

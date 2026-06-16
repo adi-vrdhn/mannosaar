@@ -29,6 +29,15 @@ interface SessionDate {
   endTime: string;
 }
 
+interface StoredSlotInfo {
+  slotId?: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
+const CONFIRMATION_SLOT_INFO_STORAGE_KEY = 'pendingConfirmationSlotInfo';
+
 const BookingConfirmation = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -37,6 +46,9 @@ const BookingConfirmation = () => {
 
   const sessionType = searchParams.get('type') || 'personal';
   const slotId = searchParams.get('slotId');
+  const selectedDate = searchParams.get('date');
+  const selectedStartTime = searchParams.get('startTime');
+  const selectedEndTime = searchParams.get('endTime');
   const bundle = searchParams.get('bundle') ? parseInt(searchParams.get('bundle')!) : null;
 
   // Price state - now supports bundle pricing
@@ -50,6 +62,7 @@ const BookingConfirmation = () => {
   });
 
   const [slotInfo, setSlotInfo] = useState<SlotInfo | null>(null);
+  const [cachedSlotInfo, setCachedSlotInfo] = useState<SlotInfo | null>(null);
   const [sessionSlots, setSessionSlots] = useState<SessionDate[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,6 +76,23 @@ const BookingConfirmation = () => {
   // Load sessionDates from sessionStorage (set by SlotSelection)
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const storedSingleSlotInfo = sessionStorage.getItem(CONFIRMATION_SLOT_INFO_STORAGE_KEY);
+      if (storedSingleSlotInfo) {
+        try {
+          const parsed = JSON.parse(storedSingleSlotInfo) as StoredSlotInfo;
+          if (parsed?.date && parsed?.startTime && parsed?.endTime) {
+            setCachedSlotInfo({
+              id: parsed.slotId || slotId || 'confirmation-slot',
+              date: parsed.date,
+              start_time: parsed.startTime,
+              end_time: parsed.endTime,
+            });
+          }
+        } catch (err) {
+          console.error('Failed to parse confirmation slot info:', err);
+        }
+      }
+
       const storedSessions = sessionStorage.getItem('pendingSessionDates');
       if (storedSessions) {
         try {
@@ -83,6 +113,16 @@ const BookingConfirmation = () => {
   const sessionPrice = prices[priceKey] || 0;
   const totalPrice = sessionPrice;
   const formatTime = (time?: string) => (time ? time.slice(0, 5) : '');
+  const singleSlotFallback =
+    slotId && selectedDate && selectedStartTime && selectedEndTime
+      ? {
+          id: slotId,
+          date: selectedDate,
+          start_time: selectedStartTime,
+          end_time: selectedEndTime,
+        }
+      : null;
+  const resolvedSingleSlotInfo = slotInfo || cachedSlotInfo || singleSlotFallback;
 
   // Fetch pricing settings
   useEffect(() => {
@@ -108,7 +148,13 @@ const BookingConfirmation = () => {
   // Fetch slot details (for single bookings)
   useEffect(() => {
     const fetchSlotInfo = async () => {
-      if (!slotId) return;
+    if (!slotId) {
+      if (resolvedSingleSlotInfo) {
+        setSlotInfo(resolvedSingleSlotInfo);
+      }
+      setLoading(false);
+      return;
+      }
 
       setLoading(true);
       const { data, error: fetchError } = await supabase
@@ -119,8 +165,14 @@ const BookingConfirmation = () => {
 
       if (fetchError) {
         setError('Failed to load slot information');
+        if (resolvedSingleSlotInfo) {
+          setSlotInfo(resolvedSingleSlotInfo);
+          setError('');
+        }
       } else if (data) {
         setSlotInfo(data);
+      } else if (resolvedSingleSlotInfo) {
+        setSlotInfo(resolvedSingleSlotInfo);
       }
       setLoading(false);
     };
@@ -132,12 +184,23 @@ const BookingConfirmation = () => {
     }
 
     // Otherwise, fetch single slot
-    if (slotId) {
+    if (slotId || resolvedSingleSlotInfo) {
       fetchSlotInfo();
     } else {
       setLoading(false);
     }
-  }, [slotId, sessionSlots.length, supabase]);
+  }, [
+    slotId,
+    selectedDate,
+    selectedStartTime,
+    selectedEndTime,
+    sessionSlots.length,
+    supabase,
+    cachedSlotInfo?.id,
+    cachedSlotInfo?.date,
+    cachedSlotInfo?.start_time,
+    cachedSlotInfo?.end_time,
+  ]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -265,19 +328,40 @@ const BookingConfirmation = () => {
 
     try {
       if (isBundleBooking) {
-        // Bundle booking - pass sessionSlots to payment
+        // Bundle booking - persist sessions for the payment page and still
+        // include them in the URL as a fallback for direct links.
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('pendingPaymentSessionDates', JSON.stringify(sessionSlots));
+          window.sessionStorage.removeItem('pendingPaymentSlotInfo');
+        }
+
         const params = new URLSearchParams({
           type: sessionType,
           bundle: bundle!.toString(),
-          sessionDates: encodeURIComponent(JSON.stringify(sessionSlots)),
+          sessionDates: JSON.stringify(sessionSlots),
         });
         router.push(`/appointment/payment?${params.toString()}`);
       } else {
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem(
+            'pendingPaymentSlotInfo',
+            JSON.stringify({
+              slotId: slotId!,
+              date: slotInfo!.date,
+              startTime: slotInfo!.start_time,
+              endTime: slotInfo!.end_time,
+            })
+          );
+          window.sessionStorage.removeItem('pendingPaymentSessionDates');
+        }
+
         // Single booking - pass slotId to payment
         const params = new URLSearchParams({
           type: sessionType,
           slotId: slotId!,
           date: slotInfo!.date,
+          startTime: slotInfo!.start_time,
+          endTime: slotInfo!.end_time,
         });
         router.push(`/appointment/payment?${params.toString()}`);
       }
@@ -366,18 +450,18 @@ const BookingConfirmation = () => {
                 <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
                   Appointment details
                 </p>
-                {slotInfo ? (
+                {resolvedSingleSlotInfo ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-sm text-gray-500">Date</span>
                       <span className="text-sm font-semibold text-gray-900">
-                        {format(new Date(slotInfo.date), 'MMM dd, yyyy')}
+                        {format(new Date(resolvedSingleSlotInfo.date), 'MMM dd, yyyy')}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-sm text-gray-500">Time</span>
                       <span className="text-sm font-semibold text-gray-900">
-                        {formatTime(slotInfo.start_time)} - {formatTime(slotInfo.end_time)}
+                        {formatTime(resolvedSingleSlotInfo.start_time)} - {formatTime(resolvedSingleSlotInfo.end_time)}
                       </span>
                     </div>
                   </div>

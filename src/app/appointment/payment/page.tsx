@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useState, Suspense } from 'react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
-import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import PaymentAgreement from '@/components/booking/PaymentAgreement';
 
@@ -14,6 +13,14 @@ interface SlotInfo {
   date: string;
   start_time: string;
   end_time: string;
+}
+
+interface StoredSlotInfo {
+  id?: string;
+  slotId?: string;
+  date: string;
+  startTime: string;
+  endTime: string;
 }
 
 interface SessionDate {
@@ -30,10 +37,58 @@ interface UserProfile {
   phone_number?: string;
 }
 
-declare global {
-  interface Window {
-    Razorpay: any;
+interface PayUPaymentPayload {
+  paymentUrl?: string;
+  fields?: Record<string, unknown>;
+  error?: string;
+}
+
+const PAYMENT_SESSION_DATES_STORAGE_KEY = 'pendingPaymentSessionDates';
+const PAYMENT_SLOT_INFO_STORAGE_KEY = 'pendingPaymentSlotInfo';
+
+function parseSessionDates(value: string | null): SessionDate[] {
+  if (!value) {
+    return [];
   }
+
+  let attempt = value;
+
+  for (let depth = 0; depth < 4; depth += 1) {
+    const normalizedAttempt = attempt.replace(/\+/g, ' ');
+
+    try {
+      const parsed = JSON.parse(normalizedAttempt);
+
+      if (Array.isArray(parsed)) {
+        return parsed as SessionDate[];
+      }
+
+      if (typeof parsed === 'string') {
+        attempt = parsed;
+        continue;
+      }
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) {
+        break;
+      }
+    }
+
+    try {
+      const decoded = decodeURIComponent(normalizedAttempt);
+
+      if (decoded === attempt) {
+        break;
+      }
+
+      attempt = decoded;
+      continue;
+    } catch {
+      break;
+    }
+  }
+
+  console.error('Failed to parse sessionDates:', value);
+  return [];
 }
 
 function PaymentPageContent() {
@@ -45,23 +100,20 @@ function PaymentPageContent() {
   const sessionType = searchParams.get('type') || 'personal';
   const slotId = searchParams.get('slotId');
   const selectedDate = searchParams.get('date');
+  const selectedStartTime = searchParams.get('startTime');
+  const selectedEndTime = searchParams.get('endTime');
+  const paymentStatus = searchParams.get('paymentStatus');
+  const paymentError = searchParams.get('paymentError');
   const bundle = searchParams.get('bundle') ? parseInt(searchParams.get('bundle')!) : null;
-  const sessionDatesParam = searchParams.get('sessionDates');
+  const hasBundleContext = Boolean(bundle || searchParams.get('sessionDates'));
+  const [sessionDates, setSessionDates] = useState<SessionDate[]>([]);
+  const [sessionDatesLoaded, setSessionDatesLoaded] = useState(false);
 
-  // Parse sessionDates if present (for bundle bookings)
-  let sessionDates: SessionDate[] = [];
-  if (sessionDatesParam) {
-    try {
-      sessionDates = JSON.parse(decodeURIComponent(sessionDatesParam));
-    } catch (err) {
-      console.error('Failed to parse sessionDates:', err);
-    }
-  }
-
-  const isBundleBooking = sessionDates.length > 0;
+  const isBundleBooking = sessionDatesLoaded ? sessionDates.length > 0 : false;
   const bundleSize = isBundleBooking ? sessionDates.length : 1;
 
   const [slotInfo, setSlotInfo] = useState<SlotInfo | null>(null);
+  const [cachedSlotInfo, setCachedSlotInfo] = useState<SlotInfo | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [prices, setPrices] = useState({
     personal_1: 2500,
@@ -75,13 +127,23 @@ function PaymentPageContent() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [agreementChecked, setAgreementChecked] = useState(false);
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState('');
 
   // Calculate price based on bundle size
   const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
   const sessionPrice = prices[priceKey] || 0;
   const totalPrice = sessionPrice;
+  const resolvedSingleSlotInfo =
+    slotInfo ||
+    cachedSlotInfo ||
+    (slotId && selectedDate && selectedStartTime && selectedEndTime
+      ? {
+          id: slotId,
+          date: selectedDate,
+          start_time: selectedStartTime,
+          end_time: selectedEndTime,
+        }
+      : null);
 
   // Debug logging
   useEffect(() => {
@@ -97,6 +159,56 @@ function PaymentPageContent() {
       error,
     });
   }, [sessionType, slotId, selectedDate, isBundleBooking, bundleSize, slotInfo, userProfile, loading, error]);
+
+  // Load bundle session dates from sessionStorage first, then fall back to the URL.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (!hasBundleContext) {
+      setSessionDates([]);
+      setSessionDatesLoaded(true);
+      return;
+    }
+
+    const storedSessionDates = window.sessionStorage.getItem(PAYMENT_SESSION_DATES_STORAGE_KEY);
+    const parsedStoredSessionDates = parseSessionDates(storedSessionDates);
+
+    if (parsedStoredSessionDates.length > 0) {
+      setSessionDates(parsedStoredSessionDates);
+      setSessionDatesLoaded(true);
+      return;
+    }
+
+    setSessionDates(parseSessionDates(searchParams.get('sessionDates')));
+    setSessionDatesLoaded(true);
+  }, [hasBundleContext, searchParams]);
+
+  // Load cached single-slot details so we can recover if the slot row is no longer readable.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (hasBundleContext || !slotId) return;
+
+    const storedSlotInfo = window.sessionStorage.getItem(PAYMENT_SLOT_INFO_STORAGE_KEY);
+    if (!storedSlotInfo) return;
+
+    try {
+      const parsed = JSON.parse(storedSlotInfo) as StoredSlotInfo;
+      if (parsed?.slotId === slotId || parsed?.id === slotId) {
+        const fallbackSlotInfo = {
+          id: parsed.id || parsed.slotId || slotId,
+          date: parsed.date,
+          start_time: parsed.startTime,
+          end_time: parsed.endTime,
+        };
+        setCachedSlotInfo(fallbackSlotInfo);
+        if (!slotInfo) {
+          setSlotInfo(fallbackSlotInfo);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to parse cached single-slot payment info:', error);
+    }
+  }, [hasBundleContext, slotId, slotInfo]);
 
   // Fetch pricing settings
   useEffect(() => {
@@ -167,8 +279,18 @@ function PaymentPageContent() {
     setAppointmentNote(storedNote);
   }, []);
 
+  useEffect(() => {
+    if (paymentStatus === 'failed') {
+      setError(paymentError || 'Payment failed. Please try again.');
+    }
+  }, [paymentStatus, paymentError]);
+
   // Fetch slot details (for single bookings only)
   useEffect(() => {
+    if (!sessionDatesLoaded) {
+      return;
+    }
+
     if (isBundleBooking) {
       // For bundles, we don't fetch a single slot - just mark as loaded
       setLoading(false);
@@ -194,16 +316,37 @@ function PaymentPageContent() {
 
         if (fetchError) {
           console.error('Slot fetch error:', fetchError);
+          if (resolvedSingleSlotInfo) {
+            console.warn('Using fallback slot info after fetch failure:', slotId);
+            setSlotInfo(resolvedSingleSlotInfo);
+            setError('');
+            return;
+          }
+
           setError('Failed to load slot information: ' + JSON.stringify(fetchError));
         } else if (data) {
           console.log('Slot loaded:', data);
           setSlotInfo(data);
         } else {
           console.warn('No slot data and no error');
+          if (resolvedSingleSlotInfo) {
+            console.warn('Using fallback slot info after empty fetch result:', slotId);
+            setSlotInfo(resolvedSingleSlotInfo);
+            setError('');
+            return;
+          }
+
           setError('Slot not found');
         }
       } catch (err) {
         console.error('Error fetching slot:', err);
+        if (resolvedSingleSlotInfo) {
+          console.warn('Using fallback slot info after exception:', slotId);
+          setSlotInfo(resolvedSingleSlotInfo);
+          setError('');
+          return;
+        }
+
         setError('Error loading slot information');
       } finally {
         setLoading(false);
@@ -211,24 +354,9 @@ function PaymentPageContent() {
     };
 
     fetchSlotInfo();
-  }, [slotId, isBundleBooking, supabase]);
+  }, [slotId, isBundleBooking, sessionDatesLoaded, supabase]);
 
-  // Load Razorpay script
-  // COMMENTED OUT FOR NOW - Using QR Code payment instead
-  // useEffect(() => {
-  //   const script = document.createElement('script');
-  //   script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-  //   script.async = true;
-  //   document.body.appendChild(script);
-  //   return () => {
-  //     document.body.removeChild(script);
-  //   };
-  // }, []);
-
-  // RAZORPAY PAYMENT - COMMENTED OUT FOR NOW
-  // Will be re-enabled later
-  /*
-  const handleRazorpayPayment = async () => {
+  const handlePayUPayment = async () => {
     if (loading) {
       setError('Still loading booking details. Please wait...');
       return;
@@ -248,9 +376,15 @@ function PaymentPageContent() {
     if (isBundleBooking && !slotInfo) {
       console.warn('Slot info not loaded for bundle booking, but continuing...');
       // For bundles, slotInfo is not needed
-    } else if (!isBundleBooking && !slotInfo) {
-      setError('Slot information not loaded');
-      return;
+    } else if (!isBundleBooking) {
+      if (!resolvedSingleSlotInfo) {
+        setError('Slot information not loaded');
+        return;
+      }
+
+      if (!slotInfo) {
+        setSlotInfo(resolvedSingleSlotInfo);
+      }
     }
 
     // Allow payment even if user profile is still loading - we'll use session user data
@@ -278,9 +412,9 @@ function PaymentPageContent() {
 
       console.log('✅ User ID:', userId);
 
-      // Step 2: Create Razorpay order
+      // Step 2: Create PayU payment payload
       const totalAmount = totalPrice;
-      console.log('🔵 Step 2: Creating payment order with:', {
+      console.log('🔵 Step 2: Creating PayU payment payload with:', {
         amount: totalAmount,
         sessionType,
         userEmail: session.user.email,
@@ -290,11 +424,16 @@ function PaymentPageContent() {
         slotId,
       });
 
-      const orderPayload: any = {
+      const orderPayload: Record<string, unknown> = {
         amount: totalPrice,
         sessionType,
         userEmail: session.user.email,
         userId,
+        userName: userProfile?.name || session.user?.name || 'User',
+        userPhone: userProfile?.phone_number || '',
+        notes:
+          appointmentNote ||
+          (typeof window !== 'undefined' ? window.sessionStorage.getItem('appointmentNote') || undefined : undefined),
       };
 
       if (isBundleBooking) {
@@ -302,245 +441,78 @@ function PaymentPageContent() {
         orderPayload.sessionDates = sessionDates;
       } else {
         orderPayload.slotId = slotId;
-        orderPayload.date = slotInfo?.date;
+        orderPayload.date = resolvedSingleSlotInfo?.date;
+        orderPayload.startTime = resolvedSingleSlotInfo?.start_time;
+        orderPayload.endTime = resolvedSingleSlotInfo?.end_time;
       }
 
-      const orderResponse = await fetch('/api/payments/create-order', {
+      const returnUrl = typeof window !== 'undefined'
+        ? (() => {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('paymentStatus');
+            url.searchParams.delete('paymentError');
+            return url.toString();
+          })()
+        : '';
+
+      orderPayload.returnUrl = returnUrl;
+
+      const paymentResponse = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderPayload),
       });
 
-      const orderText = await orderResponse.text();
-      console.log('Order response:', { status: orderResponse.status, body: orderText });
+      const paymentText = await paymentResponse.text();
+      console.log('PayU response:', { status: paymentResponse.status, body: paymentText });
 
-      if (!orderResponse.ok) {
-        let orderError = 'Failed to create payment order';
-        try {
-          const errorData = JSON.parse(orderText);
-          orderError = errorData.error || orderError;
-        } catch {
-          orderError = orderText || orderError;
-        }
-        throw new Error(orderError);
+      const responseText = paymentText.trim();
+      if (!responseText) {
+        throw new Error('Empty response from payment server');
       }
 
-      let orderData;
+      let paymentData: PayUPaymentPayload;
       try {
-        orderData = JSON.parse(orderText);
+        paymentData = JSON.parse(responseText);
       } catch {
-        throw new Error('Invalid order response from server');
+        throw new Error('Invalid PayU response from server');
       }
 
-      // Step 3: Open Razorpay checkout
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        order_id: orderData.orderId,
-        name: 'Mental Health Platform',
-        description: `${sessionType === 'couple' ? 'Couple' : 'Personal'} Therapy ${bundleSize > 1 ? `Bundle (${bundleSize} sessions)` : 'Session'}`,
-        prefill: {
-          name: userProfile?.name || session.user?.name || 'User',
-          email: userProfile?.email || session.user?.email || '',
-          contact: userProfile?.phone_number || '',
-        },
-        handler: async (response: any) => {
-          try {
-            // Step 4: Verify payment
-            const verifyPayload: any = {
-              orderId: orderData.orderId,
-              paymentId: response.razorpay_payment_id,
-              signature: response.razorpay_signature,
-              userId,
-              userEmail: session.user.email,
-              sessionType,
-              userName: userProfile?.name || session.user?.name || 'User',
-              userPhone: userProfile?.phone_number || '',
-            };
+      if (!paymentResponse.ok) {
+        let paymentError = 'Failed to create PayU payment';
+        paymentError = paymentData?.error || responseText || paymentError;
+        throw new Error(paymentError);
+      }
 
-            if (isBundleBooking) {
-              verifyPayload.bundle = bundle;
-              verifyPayload.sessionDates = sessionDates;
-            } else {
-              verifyPayload.slotId = slotId;
-            }
+      if (!paymentData.paymentUrl || !paymentData.fields) {
+        throw new Error('Invalid PayU checkout payload');
+      }
 
-            const verifyResponse = await fetch('/api/payments/verify-payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(verifyPayload),
-            });
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem('appointmentNote');
+        window.sessionStorage.removeItem('appointmentSessionType');
+        window.sessionStorage.removeItem('appointmentBundleSize');
+        window.sessionStorage.removeItem(PAYMENT_SLOT_INFO_STORAGE_KEY);
+      }
 
-            const verifyText = await verifyResponse.text();
-            console.log('Verify response:', { status: verifyResponse.status, body: verifyText });
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = paymentData.paymentUrl;
+      form.style.display = 'none';
 
-            if (!verifyResponse.ok) {
-              let verifyError = 'Payment verification failed';
-              try {
-                const errorData = JSON.parse(verifyText);
-                verifyError = errorData.error || verifyError;
-              } catch {
-                verifyError = verifyText || verifyError;
-              }
-              throw new Error(verifyError);
-            }
+      Object.entries(paymentData.fields).forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = String(value ?? '');
+        form.appendChild(input);
+      });
 
-            let verifyData;
-            try {
-              verifyData = JSON.parse(verifyText);
-            } catch {
-              throw new Error('Invalid verification response');
-            }
-
-            if (verifyData.success) {
-              // Redirect to success page
-              console.log('✅ Payment verified, redirecting to success...');
-              if (typeof window !== 'undefined') {
-                window.sessionStorage.removeItem('appointmentNote');
-                window.sessionStorage.removeItem('appointmentSessionType');
-                window.sessionStorage.removeItem('appointmentBundleSize');
-              }
-              // Add a small delay to ensure modal closes before redirecting
-              await new Promise(resolve => setTimeout(resolve, 500));
-              // Use replace instead of push to avoid going back to payment page
-              router.replace(`/appointment/success?bookingId=${verifyData.booking.id}`);
-            } else {
-              throw new Error(verifyData.error || 'Payment verification failed');
-            }
-          } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : 'Payment verification failed';
-            console.error('Payment verification error:', errorMsg, err);
-            setError(errorMsg);
-            setProcessing(false);
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            setProcessing(false);
-            setError('Payment cancelled. Please try again.');
-          },
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.open();
+      document.body.appendChild(form);
+      form.submit();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'An error occurred';
       console.error('Payment error:', errorMsg, err);
-      setError(errorMsg);
-      setProcessing(false);
-    }
-  };
-  */
-
-  // QR Code Payment Handler
-  const handleQRPaymentConfirmation = async () => {
-    if (loading) {
-      setError('Still loading booking details. Please wait...');
-      return;
-    }
-
-    if (!session?.user?.email) {
-      setError('Not authenticated');
-      return;
-    }
-
-    // Validate we have either slotId (single) or sessionDates (bundle)
-    if (!isBundleBooking && !slotId) {
-      setError('No booking information provided');
-      return;
-    }
-
-    setProcessing(true);
-    setError('');
-
-    try {
-      // Step 1: Get user ID
-      console.log('🔵 Step 1: Getting user ID...');
-      const userResponse = await fetch('/api/user/get-id');
-      if (!userResponse.ok) {
-        throw new Error('User not found');
-      }
-      const userData = await userResponse.json();
-      const { userId } = userData;
-
-      if (!userId) {
-        throw new Error('User not found');
-      }
-
-      console.log('✅ User ID:', userId);
-
-      // Step 2: Create booking directly (QR payment is manual)
-      const totalAmount = totalPrice;
-      console.log('🔵 Step 2: Creating booking with manual QR payment:', {
-        amount: totalAmount,
-        sessionType,
-        userEmail: session.user.email,
-        userId,
-        isBundleBooking,
-        bundleSize,
-      });
-
-      const bookingPayload: any = {
-        userId,
-        userEmail: session.user.email,
-        userName: userProfile?.name || session.user?.name || 'User',
-        userPhone: userProfile?.phone_number || '',
-        sessionType,
-        amount: totalAmount,
-        paymentMethod: 'qr',
-        notes:
-          appointmentNote ||
-          (typeof window !== 'undefined' ? window.sessionStorage.getItem('appointmentNote') || undefined : undefined),
-      };
-
-      if (isBundleBooking) {
-        bookingPayload.bundle = bundle;
-        bookingPayload.sessionDates = sessionDates;
-      } else {
-        bookingPayload.slotId = slotId;
-        bookingPayload.date = slotInfo?.date;
-      }
-
-      const bookingResponse = await fetch('/api/bookings/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bookingPayload),
-      });
-
-      const bookingText = await bookingResponse.text();
-      console.log('Booking response:', { status: bookingResponse.status, body: bookingText });
-
-      if (!bookingResponse.ok) {
-        let bookingError = 'Failed to create booking';
-        try {
-          const errorData = JSON.parse(bookingText);
-          bookingError = errorData.error || bookingError;
-        } catch {
-          bookingError = bookingText || bookingError;
-        }
-        throw new Error(bookingError);
-      }
-
-      let bookingData;
-      try {
-        bookingData = JSON.parse(bookingText);
-      } catch {
-        throw new Error('Invalid booking response from server');
-      }
-
-      if (bookingData.success) {
-        console.log('✅ Booking created, redirecting to success...');
-        // Add a small delay to ensure modal closes before redirecting
-        await new Promise(resolve => setTimeout(resolve, 500));
-        router.replace(`/appointment/success?bookingId=${bookingData.booking.id}`);
-      } else {
-        throw new Error(bookingData.error || 'Failed to create booking');
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'An error occurred';
-      console.error('Booking error:', errorMsg, err);
       setError(errorMsg);
       setProcessing(false);
     }
@@ -619,6 +591,38 @@ function PaymentPageContent() {
                 </div>
               )}
 
+              {!isBundleBooking && !slotInfo && resolvedSingleSlotInfo && (
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 mb-8">
+                  <h2 className="text-lg font-bold text-gray-900 mb-6">Order Summary</h2>
+                  <div className="space-y-4 mb-6">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Session Date</span>
+                      <span className="font-semibold text-gray-900">
+                        {format(new Date(resolvedSingleSlotInfo.date), 'MMM dd, yyyy')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Session Time</span>
+                      <span className="font-semibold text-gray-900">
+                        {resolvedSingleSlotInfo.start_time} - {resolvedSingleSlotInfo.end_time}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Session Type</span>
+                      <span className="font-semibold text-gray-900 capitalize">{sessionType}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Duration</span>
+                      <span className="font-semibold text-gray-900">40 mins</span>
+                    </div>
+                    <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
+                      <span className="text-lg font-bold text-gray-900">Total Amount</span>
+                      <span className="text-2xl font-bold text-purple-600">₹{sessionPrice}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Order Summary - Bundle Booking */}
               {isBundleBooking && (
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 mb-8">
@@ -663,29 +667,37 @@ function PaymentPageContent() {
                 className="p-6 bg-blue-50 border border-blue-200 rounded-2xl mb-8"
               >
                 <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> Scan the QR code below to make the payment. Once payment is complete, click "I've Paid" to proceed.
+                  <strong>Note:</strong> You will be redirected to PayU secure checkout to complete the payment.
                 </p>
               </motion.div>
 
-              {/* QR Code Section */}
+              {/* PayU Section */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                className="p-8 bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-dashed border-purple-300 rounded-2xl mb-8 text-center"
+                className="p-6 md:p-8 bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-dashed border-purple-300 rounded-2xl mb-8"
               >
-                <p className="text-sm text-gray-600 mb-4 font-semibold">Scan to pay ₹{totalPrice}</p>
-                <div className="bg-white p-6 rounded-xl inline-block border-2 border-purple-200">
-                  <Image
-                    src="/payment-qr.png"
-                    alt="Payment QR Code"
-                    width={256}
-                    height={256}
-                    className="rounded-lg"
-                    priority
-                  />
+                <div className="mx-auto max-w-3xl">
+                  <div className="border border-purple-100 bg-white px-6 py-6 shadow-sm">
+                    <p className="text-sm font-semibold tracking-wide text-slate-500 uppercase">Pay by PayU</p>
+                    <p className="mt-2 text-2xl font-semibold text-slate-900">₹{totalPrice}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      You will be redirected to PayU secure checkout to complete the payment.
+                      PayU will show the available methods on the next screen.
+                    </p>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
+                        <p className="mt-1 text-sm font-medium text-slate-900">Ready to pay</p>
+                      </div>
+                      <div className="border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Method</p>
+                        <p className="mt-1 text-sm font-medium text-slate-900">PayU checkout</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-4">Amount: ₹{totalPrice}</p>
               </motion.div>
 
               {/* Payment Agreement */}
@@ -699,7 +711,7 @@ function PaymentPageContent() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
-                className="flex gap-4"
+                className="flex flex-col gap-4 sm:flex-row"
               >
                 <button
                   onClick={() => router.back()}
@@ -709,11 +721,11 @@ function PaymentPageContent() {
                   Back
                 </button>
                 <button
-                  onClick={handleQRPaymentConfirmation}
+                  onClick={handlePayUPayment}
                   disabled={processing || !agreementChecked}
                   className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
                 >
-                  {processing ? 'Processing...' : `✓ I've Paid`}
+                  {processing ? 'Redirecting...' : 'Pay by PayU'}
                 </button>
               </motion.div>
             </>

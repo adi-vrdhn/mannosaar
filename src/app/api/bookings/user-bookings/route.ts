@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server';
 export async function GET(request: Request) {
   try {
     const session = await auth();
+    const url = new URL(request.url);
+    const includeAllStatuses = url.searchParams.get('status') === 'all';
 
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -33,14 +35,17 @@ export async function GET(request: Request) {
     let query = supabase
       .from('bookings')
       .select('*')
-      .eq('status', 'confirmed')
       .order('slot_date', { ascending: false, nullsFirst: false });
 
     // If user is NOT admin/therapist, only show their own bookings
     if (userData.role !== 'admin' && userData.role !== 'therapist') {
       query = query.eq('user_id', userData.id);
+      query = query.eq('status', 'confirmed');
       console.log('👤 User role - showing only own bookings');
     } else {
+      if (!includeAllStatuses) {
+        query = query.eq('status', 'confirmed');
+      }
       console.log('👨‍💼 Admin/Therapist role - showing all client bookings');
     }
 

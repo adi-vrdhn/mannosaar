@@ -54,6 +54,28 @@ function patchNextEslintPlugin() {
   }
 }
 
+function stripSourceMapComments(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = join(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      stripSourceMapComments(entryPath);
+      continue;
+    }
+
+    if (!entry.isFile() || !entry.name.endsWith('.mjs')) {
+      continue;
+    }
+
+    const original = readFileSync(entryPath, 'utf8');
+    const patched = original.replace(/\n?\/\/# sourceMappingURL=.*$/gm, '');
+
+    if (patched !== original) {
+      writeFileSync(entryPath, patched.endsWith('\n') ? patched : `${patched}\n`, 'utf8');
+    }
+  }
+}
+
 if (!existsSync(packageRoot)) {
   console.warn('[patch-framer-motion] framer-motion package not found, skipping');
 } else {
@@ -61,6 +83,8 @@ if (!existsSync(packageRoot)) {
     mkdirSync(dirname(file.path), { recursive: true });
     writeFileSync(file.path, file.content, 'utf8');
   }
+
+  stripSourceMapComments(packageRoot);
 }
 
 patchNextEslintPlugin();

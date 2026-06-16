@@ -27,7 +27,7 @@ interface Booking {
 }
 
 function SuccessPageContent() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const bookingId = searchParams.get('bookingId');
@@ -44,9 +44,25 @@ function SuccessPageContent() {
   };
 
   useEffect(() => {
-    if (!session) {
+    if (status === 'loading') {
+      return;
+    }
+
+    if (status === 'unauthenticated') {
       router.push('/auth/login');
       return;
+    }
+
+    if (!session) {
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem('appointmentNote');
+      window.sessionStorage.removeItem('appointmentSessionType');
+      window.sessionStorage.removeItem('appointmentBundleSize');
+      window.sessionStorage.removeItem('pendingPaymentSessionDates');
+      window.sessionStorage.removeItem('pendingPaymentSlotInfo');
     }
 
     const fetchBooking = async () => {
@@ -109,10 +125,10 @@ function SuccessPageContent() {
     };
 
     fetchBooking();
-  }, [session, bookingId, router, retryCount]);
+  }, [session, status, bookingId, router, retryCount]);
 
-  if (!session) {
-    return null;
+  if (status === 'loading' || !session) {
+    return <SuccessLoadingFallback />;
   }
 
   return (
