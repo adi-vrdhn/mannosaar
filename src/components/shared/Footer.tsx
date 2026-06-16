@@ -20,6 +20,9 @@ export default function Footer() {
           <p className="text-purple-100 text-sm mt-2">
             Phone: <a href="tel:+917080633396" className="hover:text-white transition-colors font-medium">+91 70806 33396</a>
           </p>
+          <p className="text-purple-100 text-sm mt-2">
+            Address: E-224 KARDHANI YOJANA, GOVINDPURA, Jhotwara, kardhani Jaipur- 302012, Rajasthan, India
+          </p>
         </div>
 
         {/* Links */}
