@@ -24,7 +24,7 @@ export default function PaymentAgreement({ isChecked, onCheck }: PaymentAgreemen
             <ul className="text-sm text-gray-700 space-y-2">
               <li className="flex items-start gap-2">
                 <span className="text-purple-600 font-bold">✓</span>
-                <span>Payment will be processed through Razorpay securely</span>
+                <span>Payment will be processed through PayU securely</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-purple-600 font-bold">✓</span>

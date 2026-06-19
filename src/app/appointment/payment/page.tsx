@@ -38,13 +38,88 @@ interface UserProfile {
 }
 
 interface PayUPaymentPayload {
+  acsTemplate?: string;
+  deepLink?: string;
   paymentUrl?: string;
   fields?: Record<string, unknown>;
+  flow?: 'hosted_checkout' | 'upi_intent' | 'upi_qr';
+  error?: string;
+  intentUriData?: string;
+  merchantName?: string;
+  merchantVpa?: string;
+  otpPostUrl?: string;
+  paymentId?: string;
+  txnid?: string;
+}
+
+interface BookingCreateResponse {
+  booking?: {
+    id: string;
+  };
   error?: string;
 }
 
 const PAYMENT_SESSION_DATES_STORAGE_KEY = 'pendingPaymentSessionDates';
 const PAYMENT_SLOT_INFO_STORAGE_KEY = 'pendingPaymentSlotInfo';
+const PAYU_PENDING_TXN_STORAGE_KEY = 'payuPendingTxnId';
+
+type PaymentDeviceKind = 'desktop' | 'android' | 'ios' | 'other-mobile';
+type UpiAppOption = 'any' | 'gpay' | 'phonepe' | 'paytm' | 'bhim' | 'qr';
+
+const ANDROID_UPI_APP_PACKAGES: Record<Exclude<UpiAppOption, 'any' | 'qr'>, string> = {
+  bhim: 'in.org.npci.upiapp',
+  gpay: 'com.google.android.apps.nbu.paisa.user',
+  paytm: 'net.one97.paytm',
+  phonepe: 'com.phonepe.app',
+};
+
+const UPI_APP_LABELS: Record<UpiAppOption, string> = {
+  any: 'Pay with any UPI app',
+  bhim: 'BHIM',
+  gpay: 'Google Pay',
+  paytm: 'Paytm',
+  phonepe: 'PhonePe',
+  qr: 'Dynamic QR',
+};
+
+const IOS_UPI_APP_PREFIXES: Record<Exclude<UpiAppOption, 'any' | 'qr'>, string> = {
+  bhim: 'bhim://upi/pay?',
+  gpay: 'gpay://upi/pay?',
+  paytm: 'paytm://upi/pay?',
+  phonepe: 'phonepe://upi/pay?',
+};
+
+function getPaymentDeviceKind(userAgent: string): PaymentDeviceKind {
+  const normalizedUserAgent = userAgent.toLowerCase();
+
+  if (/android/.test(normalizedUserAgent)) {
+    return 'android';
+  }
+
+  if (/iphone|ipad|ipod/.test(normalizedUserAgent)) {
+    return 'ios';
+  }
+
+  if (/mobile/.test(normalizedUserAgent)) {
+    return 'other-mobile';
+  }
+
+  return 'desktop';
+}
+
+function buildAndroidIntentTarget(deepLink: string, upiApp: UpiAppOption) {
+  if (upiApp === 'any' || upiApp === 'qr') {
+    return deepLink;
+  }
+
+  const packageName = ANDROID_UPI_APP_PACKAGES[upiApp];
+  const query = deepLink.replace(/^upi:\/\/pay\?/, '');
+  return `intent://pay?${query}#Intent;scheme=upi;package=${packageName};end`;
+}
+
+function buildIosIntentTarget(intentUriData: string, upiApp: Exclude<UpiAppOption, 'any' | 'qr'>) {
+  return `${IOS_UPI_APP_PREFIXES[upiApp]}${intentUriData.replace(/^upi:\/\/pay\?/, '')}`;
+}
 
 function parseSessionDates(value: string | null): SessionDate[] {
   if (!value) {
@@ -125,14 +200,23 @@ function PaymentPageContent() {
   });
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [processingMode, setProcessingMode] = useState<'card' | 'upi' | 'test' | null>(null);
   const [error, setError] = useState('');
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState('');
+  const [paymentDevice, setPaymentDevice] = useState<PaymentDeviceKind>('desktop');
+  const [qrPaymentHtml, setQrPaymentHtml] = useState('');
+  const [qrTxnId, setQrTxnId] = useState('');
 
   // Calculate price based on bundle size
   const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
   const sessionPrice = prices[priceKey] || 0;
   const totalPrice = sessionPrice;
+  const supportsAndroidSmartIntent = paymentDevice === 'android';
+  const supportsIosSpecificIntent = paymentDevice === 'ios';
+  const showsDesktopQrFlow = paymentDevice === 'desktop';
+  const showUpiButtons = supportsAndroidSmartIntent;
+  const showIosUpiButtons = supportsIosSpecificIntent;
   const resolvedSingleSlotInfo =
     slotInfo ||
     cachedSlotInfo ||
@@ -280,6 +364,14 @@ function PaymentPageContent() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    setPaymentDevice(getPaymentDeviceKind(window.navigator.userAgent));
+  }, []);
+
+  useEffect(() => {
     if (paymentStatus === 'failed') {
       setError(paymentError || 'Payment failed. Please try again.');
     }
@@ -356,30 +448,137 @@ function PaymentPageContent() {
     fetchSlotInfo();
   }, [slotId, isBundleBooking, sessionDatesLoaded, supabase]);
 
-  const handlePayUPayment = async () => {
+  const getBookingPayload = (userId: string) => {
+    const payload: Record<string, unknown> = {
+      userId,
+      sessionType,
+      notes:
+        appointmentNote ||
+        (typeof window !== 'undefined' ? window.sessionStorage.getItem('appointmentNote') || undefined : undefined),
+    };
+
+    if (isBundleBooking) {
+      payload.bundle = bundle;
+      payload.sessionDates = sessionDates;
+    } else {
+      payload.slotId = slotId;
+    }
+
+    return payload;
+  };
+
+  const clearPendingBookingStorage = () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.sessionStorage.removeItem('appointmentNote');
+    window.sessionStorage.removeItem('appointmentSessionType');
+    window.sessionStorage.removeItem('appointmentBundleSize');
+    window.sessionStorage.removeItem(PAYMENT_SLOT_INFO_STORAGE_KEY);
+    window.sessionStorage.removeItem(PAYMENT_SESSION_DATES_STORAGE_KEY);
+    window.sessionStorage.removeItem(PAYU_PENDING_TXN_STORAGE_KEY);
+  };
+
+  const getPayUOrderPayload = (userId: string, paymentMode: string, upiAppName?: UpiAppOption) => {
+    const orderPayload: Record<string, unknown> = {
+      amount: totalPrice,
+      sessionType,
+      userEmail: session?.user?.email,
+      userId,
+      userName: userProfile?.name || session?.user?.name || 'User',
+      userPhone: userProfile?.phone_number || '',
+      notes: getBookingPayload(userId).notes,
+      paymentMode,
+      upiAppName,
+    };
+
+    if (isBundleBooking) {
+      orderPayload.bundle = bundle;
+      orderPayload.sessionDates = sessionDates;
+    } else {
+      orderPayload.slotId = slotId;
+      orderPayload.date = resolvedSingleSlotInfo?.date;
+      orderPayload.startTime = resolvedSingleSlotInfo?.start_time;
+      orderPayload.endTime = resolvedSingleSlotInfo?.end_time;
+    }
+
+    if (typeof window !== 'undefined') {
+      const returnUrl = new URL(window.location.href);
+      returnUrl.searchParams.delete('paymentStatus');
+      returnUrl.searchParams.delete('paymentError');
+      orderPayload.returnUrl = returnUrl.toString();
+    }
+
+    return orderPayload;
+  };
+
+  const createPayUOrder = async (paymentMode: string, upiAppName?: UpiAppOption) => {
+    const userResponse = await fetch('/api/user/get-id');
+    if (!userResponse.ok) {
+      throw new Error('User not found');
+    }
+
+    const userData = await userResponse.json();
+    const { userId } = userData;
+
+    if (!userId) {
+      throw new Error('User not found');
+    }
+
+    const paymentResponse = await fetch('/api/payments/create-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(getPayUOrderPayload(userId, paymentMode, upiAppName)),
+    });
+
+    const paymentText = await paymentResponse.text();
+    const responseText = paymentText.trim();
+
+    if (!responseText) {
+      throw new Error('Empty response from payment server');
+    }
+
+    let paymentData: PayUPaymentPayload;
+    try {
+      paymentData = JSON.parse(responseText);
+    } catch {
+      throw new Error('Invalid PayU response from server');
+    }
+
+    if (!paymentResponse.ok) {
+      throw new Error(paymentData?.error || responseText || 'Failed to create PayU payment');
+    }
+
+    if (typeof window !== 'undefined' && paymentData.txnid) {
+      window.sessionStorage.setItem(PAYU_PENDING_TXN_STORAGE_KEY, paymentData.txnid);
+    }
+
+    return paymentData;
+  };
+
+  const validatePaymentReadiness = () => {
     if (loading) {
       setError('Still loading booking details. Please wait...');
-      return;
+      return false;
     }
 
     if (!session?.user?.email) {
       setError('Not authenticated');
-      return;
+      return false;
     }
 
-    // Validate we have either slotId (single) or sessionDates (bundle)
     if (!isBundleBooking && !slotId) {
       setError('No booking information provided');
-      return;
+      return false;
     }
 
     if (isBundleBooking && !slotInfo) {
       console.warn('Slot info not loaded for bundle booking, but continuing...');
-      // For bundles, slotInfo is not needed
     } else if (!isBundleBooking) {
       if (!resolvedSingleSlotInfo) {
         setError('Slot information not loaded');
-        return;
+        return false;
       }
 
       if (!slotInfo) {
@@ -387,113 +586,28 @@ function PaymentPageContent() {
       }
     }
 
-    // Allow payment even if user profile is still loading - we'll use session user data
-    // if (userProfile) {
-    //   setError('User profile not loaded');
-    //   return;
-    // }
+    return true;
+  };
+
+  const handleCardPayment = async () => {
+    if (!validatePaymentReadiness()) {
+      return;
+    }
 
     setProcessing(true);
+    setProcessingMode('card');
     setError('');
+    setQrPaymentHtml('');
+    setQrTxnId('');
 
     try {
-      // Step 1: Get user ID
-      console.log('🔵 Step 1: Getting user ID...');
-      const userResponse = await fetch('/api/user/get-id');
-      if (!userResponse.ok) {
-        throw new Error('User not found');
-      }
-      const userData = await userResponse.json();
-      const { userId } = userData;
+      const paymentData = await createPayUOrder('cards');
 
-      if (!userId) {
-        throw new Error('User not found');
+      if (paymentData.flow !== 'hosted_checkout' || !paymentData.paymentUrl || !paymentData.fields) {
+        throw new Error('Invalid PayU hosted checkout payload');
       }
 
-      console.log('✅ User ID:', userId);
-
-      // Step 2: Create PayU payment payload
-      const totalAmount = totalPrice;
-      console.log('🔵 Step 2: Creating PayU payment payload with:', {
-        amount: totalAmount,
-        sessionType,
-        userEmail: session.user.email,
-        userId,
-        isBundleBooking,
-        bundleSize,
-        slotId,
-      });
-
-      const orderPayload: Record<string, unknown> = {
-        amount: totalPrice,
-        sessionType,
-        userEmail: session.user.email,
-        userId,
-        userName: userProfile?.name || session.user?.name || 'User',
-        userPhone: userProfile?.phone_number || '',
-        notes:
-          appointmentNote ||
-          (typeof window !== 'undefined' ? window.sessionStorage.getItem('appointmentNote') || undefined : undefined),
-      };
-
-      if (isBundleBooking) {
-        orderPayload.bundle = bundle;
-        orderPayload.sessionDates = sessionDates;
-      } else {
-        orderPayload.slotId = slotId;
-        orderPayload.date = resolvedSingleSlotInfo?.date;
-        orderPayload.startTime = resolvedSingleSlotInfo?.start_time;
-        orderPayload.endTime = resolvedSingleSlotInfo?.end_time;
-      }
-
-      const returnUrl = typeof window !== 'undefined'
-        ? (() => {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('paymentStatus');
-            url.searchParams.delete('paymentError');
-            return url.toString();
-          })()
-        : '';
-
-      orderPayload.returnUrl = returnUrl;
-
-      const paymentResponse = await fetch('/api/payments/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderPayload),
-      });
-
-      const paymentText = await paymentResponse.text();
-      console.log('PayU response:', { status: paymentResponse.status, body: paymentText });
-
-      const responseText = paymentText.trim();
-      if (!responseText) {
-        throw new Error('Empty response from payment server');
-      }
-
-      let paymentData: PayUPaymentPayload;
-      try {
-        paymentData = JSON.parse(responseText);
-      } catch {
-        throw new Error('Invalid PayU response from server');
-      }
-
-      if (!paymentResponse.ok) {
-        let paymentError = 'Failed to create PayU payment';
-        paymentError = paymentData?.error || responseText || paymentError;
-        throw new Error(paymentError);
-      }
-
-      if (!paymentData.paymentUrl || !paymentData.fields) {
-        throw new Error('Invalid PayU checkout payload');
-      }
-
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.removeItem('appointmentNote');
-        window.sessionStorage.removeItem('appointmentSessionType');
-        window.sessionStorage.removeItem('appointmentBundleSize');
-        window.sessionStorage.removeItem(PAYMENT_SLOT_INFO_STORAGE_KEY);
-      }
+      clearPendingBookingStorage();
 
       const form = document.createElement('form');
       form.method = 'POST';
@@ -512,9 +626,157 @@ function PaymentPageContent() {
       form.submit();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'An error occurred';
-      console.error('Payment error:', errorMsg, err);
+      console.error('Card payment error:', errorMsg, err);
       setError(errorMsg);
       setProcessing(false);
+      setProcessingMode(null);
+    }
+  };
+
+  const handleDesktopQrPayment = async () => {
+    if (!validatePaymentReadiness()) {
+      return;
+    }
+
+    setProcessing(true);
+    setProcessingMode('upi');
+    setError('');
+
+    try {
+      const paymentData = await createPayUOrder('upi_qr', 'qr');
+
+      if (paymentData.flow !== 'upi_qr' || !paymentData.acsTemplate) {
+        throw new Error('Invalid PayU QR payload');
+      }
+
+      setQrPaymentHtml(window.atob(paymentData.acsTemplate));
+      setQrTxnId(paymentData.txnid || '');
+      setProcessing(false);
+      setProcessingMode(null);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'An error occurred';
+      console.error('Desktop QR payment error:', errorMsg, err);
+      setError(errorMsg);
+      setProcessing(false);
+      setProcessingMode(null);
+    }
+  };
+
+  const handleAndroidUpiIntent = async (upiApp: UpiAppOption) => {
+    if (!validatePaymentReadiness()) {
+      return;
+    }
+
+    setProcessing(true);
+    setProcessingMode('upi');
+    setError('');
+    setQrPaymentHtml('');
+    setQrTxnId('');
+
+    try {
+      const paymentData = await createPayUOrder('upi_intent', upiApp);
+
+      if (paymentData.flow !== 'upi_intent' || !paymentData.deepLink) {
+        throw new Error('Invalid PayU Smart Intent payload');
+      }
+
+      window.location.href = buildAndroidIntentTarget(paymentData.deepLink, upiApp);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'An error occurred';
+      console.error('Android UPI intent error:', errorMsg, err);
+      setError(errorMsg);
+      setProcessing(false);
+      setProcessingMode(null);
+    }
+  };
+
+  const handleIosUpiIntent = async (upiApp: Exclude<UpiAppOption, 'any' | 'qr'>) => {
+    if (!validatePaymentReadiness()) {
+      return;
+    }
+
+    setProcessing(true);
+    setProcessingMode('upi');
+    setError('');
+    setQrPaymentHtml('');
+    setQrTxnId('');
+
+    try {
+      const paymentData = await createPayUOrder('upi_intent', upiApp);
+      const intentUriData = paymentData.intentUriData || paymentData.deepLink?.replace(/^upi:\/\/pay\?/, '') || '';
+
+      if (paymentData.flow !== 'upi_intent' || !intentUriData) {
+        throw new Error('Invalid PayU iPhone UPI payload');
+      }
+
+      window.location.href = buildIosIntentTarget(intentUriData, upiApp);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'An error occurred';
+      console.error('iOS UPI intent error:', errorMsg, err);
+      setError(errorMsg);
+      setProcessing(false);
+      setProcessingMode(null);
+    }
+  };
+
+  const handleTestModeBooking = async () => {
+    if (loading) {
+      setError('Still loading booking details. Please wait...');
+      return;
+    }
+
+    if (!session?.user?.email) {
+      setError('Not authenticated');
+      return;
+    }
+
+    if (!isBundleBooking && !slotId) {
+      setError('No booking information provided');
+      return;
+    }
+
+    if (!isBundleBooking && !resolvedSingleSlotInfo) {
+      setError('Slot information not loaded');
+      return;
+    }
+
+    setProcessing(true);
+    setProcessingMode('test');
+    setError('');
+
+    try {
+      const userResponse = await fetch('/api/user/get-id');
+      if (!userResponse.ok) {
+        throw new Error('User not found');
+      }
+
+      const userData = await userResponse.json();
+      const { userId } = userData;
+
+      if (!userId) {
+        throw new Error('User not found');
+      }
+
+      const bookingResponse = await fetch('/api/bookings/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(getBookingPayload(userId)),
+      });
+
+      const bookingData = (await bookingResponse.json()) as BookingCreateResponse;
+
+      if (!bookingResponse.ok || !bookingData.booking?.id) {
+        throw new Error(bookingData.error || 'Failed to create test booking');
+      }
+
+      clearPendingBookingStorage();
+      router.push(`/appointment/success?bookingId=${bookingData.booking.id}`);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'An error occurred';
+      console.error('Test booking error:', errorMsg, err);
+      setError(errorMsg);
+      setProcessing(false);
+      setProcessingMode(null);
     }
   };
 
@@ -667,7 +929,17 @@ function PaymentPageContent() {
                 className="p-6 bg-blue-50 border border-blue-200 rounded-2xl mb-8"
               >
                 <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> You will be redirected to PayU secure checkout to complete the payment.
+                  <strong>UPI mode:</strong>{' '}
+                  {showsDesktopQrFlow
+                    ? 'Desktop uses PayU dynamic QR only.'
+                    : supportsAndroidSmartIntent
+                    ? 'Android mobile web uses PayU Smart Intent.'
+                    : supportsIosSpecificIntent
+                    ? 'iPhone web uses app-specific UPI deeplinks with limited availability.'
+                    : 'UPI app intents are enabled on Android mobile web, while desktop uses dynamic QR.'}
+                </p>
+                <p className="mt-2 text-xs text-blue-700">
+                  Card payments continue through PayU hosted checkout. For local testing, you can still use Test Mode below.
                 </p>
               </motion.div>
 
@@ -679,29 +951,108 @@ function PaymentPageContent() {
                 className="p-6 md:p-8 bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-dashed border-purple-300 rounded-2xl mb-8"
               >
                 <div className="mx-auto max-w-3xl">
-                  <div className="border border-purple-100 bg-white px-6 py-6 shadow-sm">
-                    <p className="text-sm font-semibold tracking-wide text-slate-500 uppercase">Pay by PayU</p>
-                    <p className="mt-2 text-2xl font-semibold text-slate-900">₹{totalPrice}</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                      You will be redirected to PayU secure checkout to complete the payment.
-                      PayU will show the available methods on the next screen.
-                    </p>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="border border-slate-200 bg-slate-50 px-4 py-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
-                        <p className="mt-1 text-sm font-medium text-slate-900">Ready to pay</p>
-                      </div>
-                      <div className="border border-slate-200 bg-slate-50 px-4 py-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Method</p>
-                        <p className="mt-1 text-sm font-medium text-slate-900">PayU checkout</p>
-                      </div>
+                  <div className="grid gap-6">
+                    <div className="border border-purple-100 bg-white px-6 py-6 shadow-sm">
+                      <p className="text-sm font-semibold tracking-wide text-slate-500 uppercase">Pay by Card</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-900">₹{totalPrice}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        Debit and credit card payments continue on PayU hosted checkout.
+                      </p>
+                      <button
+                        onClick={handleCardPayment}
+                        disabled={processing || !agreementChecked}
+                        className="mt-4 w-full rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-3 font-semibold text-white transition-all hover:shadow-lg disabled:opacity-50"
+                      >
+                        {processingMode === 'card' ? 'Redirecting to PayU...' : 'Pay by Card'}
+                      </button>
+                    </div>
+
+                    <div className="border border-slate-200 bg-white px-6 py-6 shadow-sm">
+                      <p className="text-sm font-semibold tracking-wide text-slate-500 uppercase">Pay by UPI</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-900">₹{totalPrice}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        {showsDesktopQrFlow
+                          ? 'Generate a dynamic QR and scan it from any UPI app.'
+                          : supportsAndroidSmartIntent
+                          ? 'Open the payment directly in your preferred UPI app using PayU Smart Intent.'
+                          : supportsIosSpecificIntent
+                          ? 'Open the payment in a supported iPhone UPI app using the app-specific deeplink PayU documents for iOS.'
+                          : 'UPI intent buttons are available on Android mobile web. On desktop, this flow uses a dynamic QR.'}
+                      </p>
+
+                      {showsDesktopQrFlow && (
+                        <div className="mt-4 space-y-4">
+                          <button
+                            onClick={handleDesktopQrPayment}
+                            disabled={processing || !agreementChecked}
+                            className="w-full rounded-xl border border-slate-300 px-6 py-3 font-semibold text-slate-900 transition-colors hover:border-slate-400 disabled:opacity-50"
+                          >
+                            {processingMode === 'upi' ? 'Generating QR...' : 'Generate Dynamic UPI QR'}
+                          </button>
+
+                          {qrPaymentHtml && (
+                            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                              <div className="border-b border-slate-200 px-4 py-3 text-sm text-slate-600">
+                                Scan this dynamic QR using any UPI app. Do not close this page until the payment returns.
+                                {qrTxnId ? ` Txn ID: ${qrTxnId}` : ''}
+                              </div>
+                              <iframe
+                                title="PayU Dynamic UPI QR"
+                                srcDoc={qrPaymentHtml}
+                                className="h-[520px] w-full bg-white"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {showUpiButtons && (
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          {(['any', 'phonepe', 'gpay', 'paytm', 'bhim'] as UpiAppOption[]).map((upiApp) => (
+                            <button
+                              key={upiApp}
+                              onClick={() => handleAndroidUpiIntent(upiApp)}
+                              disabled={processing || !agreementChecked}
+                              className="rounded-xl border border-slate-300 px-4 py-3 text-left font-semibold text-slate-900 transition-colors hover:border-slate-400 disabled:opacity-50"
+                            >
+                              {processingMode === 'upi' ? 'Opening UPI app...' : UPI_APP_LABELS[upiApp]}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {showIosUpiButtons && (
+                        <div className="mt-4 space-y-4">
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                            PayU marks iPhone app deeplinks as limited availability. The selected UPI app must be installed on the iPhone.
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {(['phonepe', 'gpay', 'paytm', 'bhim'] as Array<Exclude<UpiAppOption, 'any' | 'qr'>>).map((upiApp) => (
+                              <button
+                                key={upiApp}
+                                onClick={() => handleIosUpiIntent(upiApp)}
+                                disabled={processing || !agreementChecked}
+                                className="rounded-xl border border-slate-300 px-4 py-3 text-left font-semibold text-slate-900 transition-colors hover:border-slate-400 disabled:opacity-50"
+                              >
+                                {processingMode === 'upi' ? 'Opening UPI app...' : UPI_APP_LABELS[upiApp]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {!showsDesktopQrFlow && !showUpiButtons && !showIosUpiButtons && (
+                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                          Use this page on Android mobile web for PayU Smart Intent, or switch to desktop to pay with dynamic QR.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               </motion.div>
 
               {/* Payment Agreement */}
-              <PaymentAgreement 
+              <PaymentAgreement
                 isChecked={agreementChecked}
                 onCheck={setAgreementChecked}
               />
@@ -711,22 +1062,24 @@ function PaymentPageContent() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
-                className="flex flex-col gap-4 sm:flex-row"
+                className="flex flex-col gap-4"
               >
-                <button
-                  onClick={() => router.back()}
-                  disabled={processing}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-900 rounded-xl font-semibold hover:border-gray-400 transition-colors disabled:opacity-50"
-                >
-                  Back
-                </button>
-                <button
-                  onClick={handlePayUPayment}
-                  disabled={processing || !agreementChecked}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-                >
-                  {processing ? 'Redirecting...' : 'Pay by PayU'}
-                </button>
+                <div className="flex flex-col gap-4 sm:flex-row">
+                  <button
+                    onClick={() => router.back()}
+                    disabled={processing}
+                    className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-900 rounded-xl font-semibold hover:border-gray-400 transition-colors disabled:opacity-50"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleTestModeBooking}
+                    disabled={processing || !agreementChecked}
+                    className="flex-1 px-6 py-3 border-2 border-dashed border-purple-300 text-purple-700 rounded-xl font-semibold hover:border-purple-400 hover:bg-purple-50 transition-colors disabled:opacity-50"
+                  >
+                    {processingMode === 'test' ? 'Creating Test Booking...' : 'Test Mode: Skip Payment'}
+                  </button>
+                </div>
               </motion.div>
             </>
           )}
