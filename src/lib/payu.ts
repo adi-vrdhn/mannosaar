@@ -131,7 +131,7 @@ export function getPayUProductInfo(sessionType: string, bundleSize: number) {
 export function getPayUPaymentModeFields(paymentMode?: PayUPaymentMode): PayUPaymentModeFields {
   switch (paymentMode) {
     case 'upi':
-      return { pg: 'UPI', bankcode: 'UPI' };
+      return { pg: 'UPI' };
     case 'cards':
       return { pg: 'CC' };
     case 'netbanking':
