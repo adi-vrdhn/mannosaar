@@ -65,7 +65,7 @@ const sections = [
     body: [
       'Approved refunds are generally processed within 5 to 10 business days.',
       'Actual credit timelines may vary depending on banks, card issuers, payment providers, or UPI or wallet services.',
-      'Payments are processed securely through Razorpay.',
+      'Payments are processed securely through PayU.',
     ],
   },
   {

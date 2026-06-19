@@ -35,7 +35,7 @@ const sections = [
   {
     title: '4. Payment Information',
     body: [
-      'Payments are processed securely through Razorpay.',
+      'Payments are processed securely through PayU.',
       'We do not store full debit/credit card details, CVV numbers, or banking passwords.',
       'Payment processing is handled directly by certified third-party payment providers.',
     ],
@@ -123,7 +123,7 @@ const sections = [
     list: [
       'Google Sign-In',
       'Google Analytics',
-      'Razorpay',
+      'PayU',
     ],
     extra: ['We are not responsible for the privacy practices of third-party services. Users are encouraged to review their respective privacy policies.'],
   },

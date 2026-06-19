@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { PayUPaymentMode, PayUSessionDate, createPayUPaymentFields } from '@/lib/payu';
+import {
+  PayUPaymentMode,
+  PayUSessionDate,
+  PayUUpiAppName,
+  createPayUPaymentFields,
+} from '@/lib/payu';
 
 interface CreatePayUOrderBody {
   amount?: number;
@@ -18,7 +23,26 @@ interface CreatePayUOrderBody {
   notes?: string;
   returnUrl?: string;
   paymentMode?: PayUPaymentMode;
-  vpa?: string;
+  upiAppName?: PayUUpiAppName;
+}
+
+interface PayUSmartIntentResponse {
+  metaData?: {
+    message?: string | null;
+    statusCode?: string | null;
+    txnId?: string;
+    txnStatus?: string;
+    unmappedStatus?: string;
+  };
+  result?: {
+    acsTemplate?: string;
+    amount?: string;
+    intentURIData?: string;
+    merchantName?: string;
+    merchantVpa?: string;
+    otpPostUrl?: string;
+    paymentId?: string;
+  };
 }
 
 function getErrorField(error: unknown, field: 'code' | 'message') {
@@ -38,6 +62,60 @@ function isMissingPayUContextTableError(error: unknown) {
     message.includes("Could not find the table 'public.payu_payment_contexts'") ||
     message.includes('schema cache')
   );
+}
+
+function isSmartIntentMode(paymentMode?: PayUPaymentMode) {
+  return paymentMode === 'upi_intent' || paymentMode === 'upi_qr';
+}
+
+function parsePayUSmartIntentResponse(responseText: string) {
+  try {
+    return JSON.parse(responseText) as PayUSmartIntentResponse;
+  } catch {
+    return null;
+  }
+}
+
+async function initiateSmartIntentPayment(payment: ReturnType<typeof createPayUPaymentFields>) {
+  const response = await fetch(payment.paymentUrl, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams(payment.fields).toString(),
+  });
+
+  const responseText = await response.text();
+  const parsed = parsePayUSmartIntentResponse(responseText);
+  const intentUriData = parsed?.result?.intentURIData || '';
+  const txnStatus = parsed?.metaData?.txnStatus || '';
+  const unmappedStatus = parsed?.metaData?.unmappedStatus || '';
+  const providerMessage = parsed?.metaData?.message || parsed?.metaData?.statusCode || '';
+
+  if (!response.ok) {
+    throw new Error(providerMessage || `PayU Smart Intent request failed with status ${response.status}`);
+  }
+
+  if (!parsed) {
+    throw new Error('PayU Smart Intent returned a non-JSON response');
+  }
+
+  if (!intentUriData || unmappedStatus.toLowerCase() !== 'pending') {
+    throw new Error(providerMessage || txnStatus || 'PayU did not return a valid intent payload');
+  }
+
+  return {
+    acsTemplate: parsed.result?.acsTemplate || '',
+    deepLink: `upi://pay?${intentUriData}`,
+    flow: payment.paymentMode,
+    intentUriData,
+    merchantName: parsed.result?.merchantName || '',
+    merchantVpa: parsed.result?.merchantVpa || '',
+    otpPostUrl: parsed.result?.otpPostUrl || '',
+    paymentId: parsed.result?.paymentId || '',
+    txnid: payment.txnid,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -71,14 +149,12 @@ export async function POST(request: NextRequest) {
       notes,
       returnUrl,
       paymentMode,
-      vpa,
+      upiAppName,
     } = body;
 
     const forwardedFor = request.headers.get('x-forwarded-for') || '';
     const s2sClientIp = forwardedFor.split(',')[0]?.trim() || request.headers.get('x-real-ip') || '';
     const s2sDeviceInfo = request.headers.get('user-agent') || '';
-
-    const normalizedVpa = typeof vpa === 'string' ? vpa.trim().toLowerCase() : '';
 
     console.log('Create PayU request:', {
       amount,
@@ -89,7 +165,7 @@ export async function POST(request: NextRequest) {
       date,
       bundle,
       paymentMode,
-      hasVpa: Boolean(normalizedVpa),
+      upiAppName: upiAppName || null,
     });
 
     if (!amount || !sessionType || !userEmail || !userId || !userName) {
@@ -100,12 +176,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (paymentMode === 'upi' && !normalizedVpa) {
-      return NextResponse.json(
-        { error: 'UPI ID is required for UPI payments' },
-        { status: 400 }
-      );
-    }
+    const callbackUrl = new URL('/api/payments/payu/response', request.url).toString();
 
     const payment = createPayUPaymentFields({
       amount,
@@ -123,10 +194,13 @@ export async function POST(request: NextRequest) {
       notes,
       returnUrl,
       paymentMode,
-      vpa: normalizedVpa || undefined,
       s2sClientIp,
       s2sDeviceInfo,
+      upiAppName,
     });
+
+    payment.fields.surl = callbackUrl;
+    payment.fields.furl = callbackUrl;
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -147,17 +221,17 @@ export async function POST(request: NextRequest) {
                 endTime: endTime || null,
                 notes: notes || null,
                 returnUrl: returnUrl || null,
-                paymentMode: paymentMode || 'auto',
+                paymentMode: payment.paymentMode,
                 s2sClientIp: s2sClientIp || null,
                 s2sDeviceInfo: s2sDeviceInfo || null,
                 sessionDates: sessionDates || [],
                 sessionType,
                 slotId: slotId || null,
+                upiAppName: upiAppName || null,
                 userEmail,
                 userId,
                 userName,
                 userPhone: userPhone || null,
-                vpa: normalizedVpa || null,
               },
             },
             { onConflict: 'txnid' }
@@ -175,11 +249,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const callbackUrl = new URL('/api/payments/payu/response', request.url).toString();
-    payment.fields.surl = callbackUrl;
-    payment.fields.furl = callbackUrl;
+    if (isSmartIntentMode(payment.paymentMode)) {
+      return NextResponse.json(await initiateSmartIntentPayment(payment));
+    }
 
-    return NextResponse.json(payment);
+    return NextResponse.json({
+      flow: 'hosted_checkout',
+      paymentUrl: payment.paymentUrl,
+      fields: payment.fields,
+      txnid: payment.txnid,
+    });
   } catch (error) {
     console.error('Error creating PayU payment payload:', error);
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';

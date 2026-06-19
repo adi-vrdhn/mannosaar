@@ -7,6 +7,9 @@ export interface PayUSessionDate {
   endTime: string;
 }
 
+export type PayUPaymentMode = 'auto' | 'cards' | 'netbanking' | 'wallets' | 'upi_intent' | 'upi_qr';
+export type PayUUpiAppName = 'any' | 'gpay' | 'phonepe' | 'paytm' | 'bhim' | 'qr';
+
 export interface PayUBookingContext {
   userId: string;
   userEmail: string;
@@ -25,12 +28,10 @@ export interface PayUBookingContext {
   paymentMode?: PayUPaymentMode;
   s2sClientIp?: string;
   s2sDeviceInfo?: string;
-  vpa?: string;
+  upiAppName?: PayUUpiAppName | null;
 }
 
 export type PayUInitiationInput = PayUBookingContext;
-
-export type PayUPaymentMode = 'auto' | 'upi' | 'cards' | 'netbanking' | 'wallets';
 
 interface PayUPaymentModeFields {
   pg?: string;
@@ -43,6 +44,35 @@ export interface PayUInitiationResult {
   paymentUrl: string;
   fields: Record<string, string>;
   txnid: string;
+  paymentMode: PayUPaymentMode;
+}
+
+export interface PayUVerifiedTransaction {
+  amount: string;
+  mihpayid: string;
+  raw: Record<string, unknown>;
+  status: string;
+  txnid: string;
+  unmappedStatus: string;
+}
+
+export interface PayUVerifyPaymentResult {
+  isSuccess: boolean;
+  message: string;
+  raw: Record<string, unknown> | null;
+  transaction: PayUVerifiedTransaction | null;
+}
+
+function isTestPaymentUrl(paymentUrl: string) {
+  return paymentUrl.includes('test.payu.in');
+}
+
+function toRecord(value: unknown) {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+}
+
+function toStringValue(value: unknown) {
+  return typeof value === 'string' ? value : value == null ? '' : String(value);
 }
 
 export function getPayUConfig() {
@@ -116,7 +146,7 @@ export function deserializePayUSessionDates(serialized?: string | null): PayUSes
 }
 
 export function generatePayUTxnId() {
-  return `payu_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  return `payu_${Date.now()}_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 }
 
 export function normalizePayUAmount(amount: number) {
@@ -128,10 +158,41 @@ export function getPayUProductInfo(sessionType: string, bundleSize: number) {
   return bundleSize > 1 ? `${typeLabel} Bundle x${bundleSize}` : `${typeLabel} Session`;
 }
 
-export function getPayUPaymentModeFields(paymentMode?: PayUPaymentMode): PayUPaymentModeFields {
+export function getPayUUpiAppCode(upiAppName?: PayUUpiAppName | null) {
+  switch (upiAppName) {
+    case 'gpay':
+      return 'gpay';
+    case 'phonepe':
+      return 'phonepe';
+    case 'paytm':
+      return 'paytm';
+    case 'bhim':
+      return 'bhim';
+    case 'qr':
+      return 'qr';
+    case 'any':
+    default:
+      return 'gpay/phonepe/paytm/bhim';
+  }
+}
+
+export function getPayUPaymentModeFields(
+  paymentMode?: PayUPaymentMode,
+  upiAppName?: PayUUpiAppName | null
+): PayUPaymentModeFields {
   switch (paymentMode) {
-    case 'upi':
-      return { pg: 'UPI' };
+    case 'upi_intent':
+      return {
+        pg: 'UPI',
+        bankcode: 'INTENT',
+        upiAppName: getPayUUpiAppCode(upiAppName),
+      };
+    case 'upi_qr':
+      return {
+        pg: 'UPI',
+        bankcode: 'INTENT',
+        upiAppName: 'qr',
+      };
     case 'cards':
       return { pg: 'CC' };
     case 'netbanking':
@@ -180,27 +241,42 @@ export function buildPayUInitiationHash(params: {
   return crypto.createHash('sha512').update(hashSequence.join('|')).digest('hex');
 }
 
-export function buildPayUValidateVPAHash(params: {
+export function buildPayUCommandHash(params: {
   key: string;
-  command?: string;
-  vpa: string;
+  command: string;
   salt: string;
+  var1: string;
 }) {
-  const command = params.command || 'validateVPA';
-  const hashSequence = [params.key, command, params.vpa, params.salt];
+  const hashSequence = [params.key, params.command, params.var1, params.salt];
   return crypto.createHash('sha512').update(hashSequence.join('|')).digest('hex');
 }
 
-export function getPayUValidateVPAUrl() {
-  const explicitUrl = process.env.PAYU_VALIDATE_VPA_URL;
+export function getPayUCommandUrl(explicitUrl?: string) {
   if (explicitUrl) {
     return explicitUrl;
   }
 
   const paymentUrl = getPayUConfig().paymentUrl;
-  return paymentUrl.includes('test.payu.in')
+  return isTestPaymentUrl(paymentUrl)
     ? 'https://test.payu.in/merchant/postservice.php?form=2'
     : 'https://secure.payu.in/merchant/postservice?form=2';
+}
+
+export function getPayUVerifyPaymentUrl() {
+  return getPayUCommandUrl(process.env.PAYU_VERIFY_PAYMENT_URL);
+}
+
+export function buildPayUVerifyPaymentHash(params: {
+  key: string;
+  txnid: string;
+  salt: string;
+}) {
+  return buildPayUCommandHash({
+    key: params.key,
+    command: 'verify_payment',
+    salt: params.salt,
+    var1: params.txnid,
+  });
 }
 
 export function buildPayUResponseHash(params: {
@@ -247,6 +323,82 @@ export function buildPayUResponseHash(params: {
   return crypto.createHash('sha512').update(finalHashSegments.join('|')).digest('hex');
 }
 
+export async function verifyPayUPayment(txnid: string): Promise<PayUVerifyPaymentResult> {
+  const { key, salt } = getPayUConfig();
+  if (!key || !salt) {
+    return {
+      isSuccess: false,
+      message: 'PayU credentials are not configured',
+      raw: null,
+      transaction: null,
+    };
+  }
+
+  const endpoint = getPayUVerifyPaymentUrl();
+  const payload = new URLSearchParams({
+    form: '2',
+    key,
+    command: 'verify_payment',
+    var1: txnid,
+    hash: buildPayUVerifyPaymentHash({ key, txnid, salt }),
+  });
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: payload.toString(),
+  });
+
+  const responseText = await response.text();
+  let raw: Record<string, unknown> | null = null;
+
+  try {
+    raw = responseText ? (JSON.parse(responseText) as Record<string, unknown>) : null;
+  } catch {
+    raw = null;
+  }
+
+  if (!response.ok) {
+    return {
+      isSuccess: false,
+      message: `Verify payment request failed with status ${response.status}`,
+      raw,
+      transaction: null,
+    };
+  }
+
+  const detailsContainer = toRecord(raw?.transaction_details);
+  const transaction = toRecord(detailsContainer?.[txnid]);
+
+  if (!transaction) {
+    return {
+      isSuccess: false,
+      message: 'Verify payment response did not include the requested transaction',
+      raw,
+      transaction: null,
+    };
+  }
+
+  const normalizedTransaction: PayUVerifiedTransaction = {
+    amount: toStringValue(transaction.amt || transaction.amount || transaction.transaction_amount),
+    mihpayid: toStringValue(transaction.mihpayid || transaction.paymentId),
+    raw: transaction,
+    status: toStringValue(transaction.status).toLowerCase(),
+    txnid: toStringValue(transaction.txnid || txnid),
+    unmappedStatus: toStringValue(transaction.unmappedstatus || transaction.unmappedStatus).toLowerCase(),
+  };
+
+  return {
+    isSuccess: normalizedTransaction.status === 'success',
+    message: toStringValue(raw?.msg || raw?.message) || 'Verify payment response received',
+    raw,
+    transaction: normalizedTransaction,
+  };
+}
+
 export function createPayUPaymentFields(input: PayUInitiationInput): PayUInitiationResult {
   const { key, salt, paymentUrl } = getPayUConfig();
 
@@ -259,6 +411,7 @@ export function createPayUPaymentFields(input: PayUInitiationInput): PayUInitiat
   const productinfo = getPayUProductInfo(input.sessionType, bundleSize);
   const amount = normalizePayUAmount(input.amount);
   const firstSession = input.sessionDates?.[0];
+  const paymentMode = input.paymentMode || 'auto';
   const encodedContext = encodePayUContext({
     userId: input.userId,
     userEmail: input.userEmail,
@@ -274,13 +427,13 @@ export function createPayUPaymentFields(input: PayUInitiationInput): PayUInitiat
     sessionDates: input.sessionDates,
     notes: input.notes,
     returnUrl: input.returnUrl,
-    paymentMode: input.paymentMode,
+    paymentMode,
     s2sClientIp: input.s2sClientIp,
     s2sDeviceInfo: input.s2sDeviceInfo,
-    vpa: input.vpa,
+    upiAppName: input.upiAppName,
   });
 
-  const paymentModeFields = getPayUPaymentModeFields(input.paymentMode);
+  const paymentModeFields = getPayUPaymentModeFields(paymentMode, input.upiAppName);
   const fields: Record<string, string> = {
     key,
     txnid,
@@ -323,10 +476,6 @@ export function createPayUPaymentFields(input: PayUInitiationInput): PayUInitiat
     fields.upiAppName = paymentModeFields.upiAppName;
   }
 
-  if (input.paymentMode === 'upi' && input.vpa) {
-    fields.vpa = input.vpa;
-  }
-
   const hash = buildPayUInitiationHash({
     key,
     txnid,
@@ -344,6 +493,7 @@ export function createPayUPaymentFields(input: PayUInitiationInput): PayUInitiat
 
   return {
     paymentUrl,
+    paymentMode,
     txnid,
     fields: {
       ...fields,

@@ -68,7 +68,7 @@ const sections = [
   {
     title: '7. Payments & Refunds',
     body: [
-      'Payments on MANNOSAAR are securely processed through Razorpay.',
+      'Payments on MANNOSAAR are securely processed through PayU.',
       'By making payments, you agree that you are authorized to use the selected payment method, the payment details provided are accurate, and charges for booked services may apply immediately.',
     ],
     extra: [
@@ -85,7 +85,7 @@ const sections = [
     list: [
       'Google Analytics',
       'Google Sign-In',
-      'Razorpay',
+      'PayU',
     ],
     extra: ['By using the platform, you consent to such data processing.'],
   },

@@ -9,6 +9,7 @@ import {
   decodePayUContext,
   getPayUConfig,
   normalizePayUAmount,
+  verifyPayUPayment,
 } from '@/lib/payu';
 
 type ErrorField = 'code' | 'message' | 'details';
@@ -326,6 +327,48 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
       }), 303);
     }
 
+    const verifiedPayment = await verifyPayUPayment(txnid);
+    if (!verifiedPayment.isSuccess || !verifiedPayment.transaction) {
+      console.error('PayU verify payment failed:', {
+        txnid,
+        message: verifiedPayment.message,
+        raw: verifiedPayment.raw,
+      });
+      return NextResponse.redirect(getRedirectUrl(request, returnUrl || initialReturnUrl || '/appointment/payment', {
+        paymentStatus: 'failed',
+        paymentError: 'verification-failed',
+      }), 303);
+    }
+
+    if (verifiedPayment.transaction.mihpayid && verifiedPayment.transaction.mihpayid !== paymentId) {
+      console.error('PayU verify payment ID mismatch:', {
+        txnid,
+        callbackPaymentId: paymentId,
+        verifiedPaymentId: verifiedPayment.transaction.mihpayid,
+      });
+      return NextResponse.redirect(getRedirectUrl(request, returnUrl || initialReturnUrl || '/appointment/payment', {
+        paymentStatus: 'failed',
+        paymentError: 'payment-id-mismatch',
+      }), 303);
+    }
+
+    if (
+      verifiedPayment.transaction.amount &&
+      expectedAmount &&
+      !arePayUAmountsEqual(verifiedPayment.transaction.amount, expectedAmount)
+    ) {
+      console.error('PayU verify amount mismatch:', {
+        txnid,
+        callbackAmount: amount,
+        expectedAmount,
+        verifiedAmount: verifiedPayment.transaction.amount,
+      });
+      return NextResponse.redirect(getRedirectUrl(request, returnUrl || initialReturnUrl || '/appointment/payment', {
+        paymentStatus: 'failed',
+        paymentError: 'verified-amount-mismatch',
+      }), 303);
+    }
+
     if (sessionType && sessionDates.length === 0 && !slotId && /bundle/i.test(productinfo)) {
       return NextResponse.redirect(getRedirectUrl(request, returnUrl || initialReturnUrl || '/appointment/payment', {
         paymentStatus: 'failed',
@@ -552,6 +595,7 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
     }
 
     const meetingLinks: string[] = [];
+    let googleCalendarEventId = booking.google_calendar_event_id || '';
     const calendarTherapistId = 'default-therapist';
     const notificationSlot =
       !isBundleBooking && slotDataForCalendar?.date && slotDataForCalendar.start_time && slotDataForCalendar.end_time
@@ -564,7 +608,7 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
 
     try {
       if (isBundleBooking) {
-        for (const session of sessionDates) {
+        for (const [index, session] of sessionDates.entries()) {
           try {
             const calendarResult = await createGoogleCalendarEvent(
               calendarTherapistId,
@@ -578,6 +622,7 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
 
             if (calendarResult?.meetLink) {
               meetingLinks.push(calendarResult.meetLink);
+              googleCalendarEventId = calendarResult.eventId || googleCalendarEventId;
             }
           } catch (sessionError) {
             console.warn('Failed to create calendar event for PayU bundle session:', sessionError);
@@ -596,13 +641,18 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
 
         if (calendarResult?.meetLink) {
           meetingLinks.push(calendarResult.meetLink);
+          googleCalendarEventId = calendarResult.eventId || googleCalendarEventId;
         }
       }
 
       if (meetingLinks.length > 0) {
-        const updatePayload = isBundleBooking && meetingLinks.length > 1
+        const updatePayload: Record<string, unknown> = isBundleBooking && meetingLinks.length > 1
           ? { meeting_links: meetingLinks, meeting_link: meetingLinks[0] }
           : { meeting_link: meetingLinks[0] };
+
+        if (googleCalendarEventId) {
+          updatePayload.google_calendar_event_id = googleCalendarEventId;
+        }
 
         const { data: updatedBooking } = await supabase
           .from('bookings')
