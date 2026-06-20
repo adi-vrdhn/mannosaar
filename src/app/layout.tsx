@@ -13,9 +13,12 @@ export const metadata: Metadata = {
   title: "Mannosaar - Mental Health Therapy",
   description: "Professional mental health therapy and counseling services",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/favicon.ico",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico" },
+    ],
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
   },
 };
 

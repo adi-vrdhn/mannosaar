@@ -5,11 +5,6 @@ import { createGoogleCalendarEvent } from '@/lib/google-calendar';
 import { sendBookingConfirmationEmail } from '@/lib/email';
 import { sendBookingConfirmationWhatsApp } from '@/lib/whatsapp';
 
-// Generate a random 6-digit meeting password
-function generateMeetingPassword(): string {
-  return Math.random().toString().substring(2, 8);
-}
-
 export async function POST(request: Request) {
   const session = await auth();
 
@@ -122,8 +117,6 @@ export async function POST(request: Request) {
     // First create the booking in database
     console.log('🔵 Creating booking...');
     
-    const meetingPassword = generateMeetingPassword();
-
     const { count: previousBookingCount, error: countError } = await supabase
       .from('bookings')
       .select('id', { count: 'exact', head: true })
@@ -141,7 +134,6 @@ export async function POST(request: Request) {
       user_phone: userData.phone || userData.phone_number || '',
       session_type: sessionType,
       status: 'confirmed',
-      meeting_password: meetingPassword,
       notes: notes?.trim() || null,
       sessions_taken_before: (previousBookingCount || 0) + 1,
     };
@@ -252,6 +244,7 @@ export async function POST(request: Request) {
 
     // Create Google Calendar event(s)
     const meetingLinks: string[] = [];
+    let googleCalendarEventId = booking.google_calendar_event_id || '';
     const therapistId = slotData?.therapist_id || 'default-therapist';
     
     try {
@@ -272,15 +265,14 @@ export async function POST(request: Request) {
 
             if (calendarResult?.meetLink) {
               meetingLinks.push(calendarResult.meetLink);
+              googleCalendarEventId = calendarResult.eventId || googleCalendarEventId;
               console.log(`✅ Meeting link ${index + 1} generated:`, calendarResult.meetLink);
             }
           } catch (sessionError) {
             console.warn(`❌ Failed to create calendar event for session ${index + 1}:`, sessionError);
-            // Continue with next session even if this one fails
           }
         }
       } else {
-        // Single booking - create one calendar event
         console.log('🔵 Creating Google Calendar event...');
         const calendarResult = await createGoogleCalendarEvent(
           therapistId,
@@ -296,6 +288,7 @@ export async function POST(request: Request) {
 
         if (calendarResult?.meetLink) {
           meetingLinks.push(calendarResult.meetLink);
+          googleCalendarEventId = calendarResult.eventId || googleCalendarEventId;
           console.log('✅ Meeting link generated:', calendarResult.meetLink);
         } else {
           console.warn('⚠️ No meeting link returned from calendar event creation');
@@ -314,6 +307,10 @@ export async function POST(request: Request) {
         } else {
           // Single booking or bundle with only one link
           updatePayload.meeting_link = meetingLinks[0];
+        }
+
+        if (googleCalendarEventId) {
+          updatePayload.google_calendar_event_id = googleCalendarEventId;
         }
 
         const { data: updatedBooking, error: updateError } = await supabase
@@ -377,7 +374,6 @@ export async function POST(request: Request) {
         endTime: emailEndTime,
         sessionSchedule,
         meetingLink: meetingLinks[0] || '',
-        meetingPassword: booking.meeting_password,
       });
     } catch (emailError) {
       console.warn('⚠️ Email sending error (non-blocking):', emailError);

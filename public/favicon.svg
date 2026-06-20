@@ -1,0 +1,31 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mannosaar">
+  <defs>
+    <linearGradient id="m-bg" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F6F2FF" />
+      <stop offset="100%" stop-color="#E6DEFF" />
+    </linearGradient>
+    <linearGradient id="m-accent" x1="20" y1="18" x2="48" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#9B5CFF" />
+      <stop offset="100%" stop-color="#6C3BF2" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#m-bg)" />
+  <path
+    d="M20 40V24c0-2.8 1.8-5.1 4.4-5.1 2.1 0 3.8 1.1 4.8 3.1l2.8 5.4 2.8-5.4c1-2 2.7-3.1 4.8-3.1 2.6 0 4.4 2.3 4.4 5.1v16"
+    fill="none"
+    stroke="url(#m-accent)"
+    stroke-width="4.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M17 22c5.5-4.5 10.8-4.6 15 0 4.2-4.6 9.5-4.5 15 0"
+    fill="none"
+    stroke="#2C3E7F"
+    stroke-width="2.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.95"
+  />
+  <circle cx="32" cy="34" r="4.2" fill="#E8C89C" />
+</svg>

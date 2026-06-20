@@ -212,11 +212,10 @@ export default function UserBookings() {
                   </div>
                 </div>
 
-                {/* Google Meet Link & Password */}
+                {/* Meeting Link */}
                 {booking.meeting_link && (
                   <div className="bg-blue-50 rounded-lg p-4 mb-4">
-                    <div className="grid md:grid-cols-2 gap-4">
-                      {/* Meet Link */}
+                    <div>
                       <div>
                         <p className="text-sm text-gray-600 mb-2">Google Meet</p>
                         <a
@@ -228,16 +227,6 @@ export default function UserBookings() {
                           📹 Join Meeting
                         </a>
                       </div>
-
-                      {/* Password */}
-                      {booking.meeting_password && (
-                        <div className="bg-white rounded p-3 border border-blue-200">
-                          <p className="text-sm text-gray-600 mb-1">Password</p>
-                          <p className="text-xl font-mono font-bold text-blue-600">
-                            {booking.meeting_password}
-                          </p>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
