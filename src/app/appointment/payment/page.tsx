@@ -139,6 +139,7 @@ function PaymentPageContent() {
   const [processing, setProcessing] = useState(false);
   const [processingMode, setProcessingMode] = useState<'payu' | 'test' | null>(null);
   const [error, setError] = useState('');
+  const [agreementError, setAgreementError] = useState('');
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState('');
 
@@ -510,13 +511,28 @@ function PaymentPageContent() {
     return true;
   };
 
+  const validateAgreementAcceptance = () => {
+    if (agreementChecked) {
+      setAgreementError('');
+      return true;
+    }
+
+    setAgreementError('Accept terms and conditions to continue.');
+    return false;
+  };
+
   const handlePayUPayment = async () => {
+    if (!validateAgreementAcceptance()) {
+      return;
+    }
+
     if (!validatePaymentReadiness()) {
       return;
     }
 
     setProcessing(true);
     setProcessingMode('payu');
+    setAgreementError('');
     setError('');
 
     try {
@@ -564,6 +580,10 @@ function PaymentPageContent() {
   };
 
   const handleTestModeBooking = async () => {
+    if (!validateAgreementAcceptance()) {
+      return;
+    }
+
     if (loading) {
       setError('Still loading booking details. Please wait...');
       return;
@@ -586,6 +606,7 @@ function PaymentPageContent() {
 
     setProcessing(true);
     setProcessingMode('test');
+    setAgreementError('');
     setError('');
 
     try {
@@ -780,7 +801,12 @@ function PaymentPageContent() {
               {/* Payment Agreement */}
               <PaymentAgreement
                 isChecked={agreementChecked}
-                onCheck={setAgreementChecked}
+                onCheck={(checked) => {
+                  setAgreementChecked(checked);
+                  if (checked) {
+                    setAgreementError('');
+                  }
+                }}
               />
 
               {/* PayU Section */}
@@ -799,11 +825,16 @@ function PaymentPageContent() {
                     </p>
                     <button
                       onClick={handlePayUPayment}
-                      disabled={processing || !agreementChecked}
+                      disabled={processing}
                       className="mt-4 w-full rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-3 font-semibold text-white transition-all hover:shadow-lg disabled:opacity-50"
                     >
                       {processingMode === 'payu' ? 'Redirecting to PayU...' : 'Pay with PayU'}
                     </button>
+                    {agreementError && (
+                      <p className="mt-3 text-sm text-red-600">
+                        {agreementError}
+                      </p>
+                    )}
                     <p className="mt-3 text-xs text-slate-500">
                       PayU may show its payment options and any applicable charges on the next screen.
                     </p>
@@ -829,7 +860,7 @@ function PaymentPageContent() {
                   {isAdminUser && (
                     <button
                       onClick={handleTestModeBooking}
-                      disabled={processing || !agreementChecked}
+                      disabled={processing}
                       className="flex-1 px-6 py-3 border-2 border-dashed border-purple-300 text-purple-700 rounded-xl font-semibold hover:border-purple-400 hover:bg-purple-50 transition-colors disabled:opacity-50"
                     >
                       {processingMode === 'test' ? 'Creating Test Booking...' : 'Test Mode: Skip Payment'}
