@@ -27,7 +27,10 @@ interface SlotWithBooking extends Slot {
 interface ConfirmedBookingRecord {
   slot_id: string;
   id: string;
-  user: { name: string; email: string };
+  user:
+    | { name: string | null; email: string | null }
+    | Array<{ name: string | null; email: string | null }>
+    | null;
 }
 
 interface BlockedRange {
@@ -92,8 +95,7 @@ const SlotManagement = () => {
           .select(`
             slot_id,
             id,
-            user:users(name, email),
-            slot:therapy_slots(date, start_time, end_time)
+            user:users(name, email)
           `)
           .eq('status', 'confirmed');
 
@@ -104,9 +106,20 @@ const SlotManagement = () => {
         const bookingsBySlotId = ((bookings || []) as ConfirmedBookingRecord[]).reduce<
           Record<string, SlotWithBooking['booking']>
         >((acc, booking) => {
+          const bookingUser = Array.isArray(booking.user)
+            ? booking.user[0]
+            : booking.user;
+
+          if (!bookingUser) {
+            return acc;
+          }
+
           acc[booking.slot_id] = {
             id: booking.id,
-            user: booking.user,
+            user: {
+              name: bookingUser.name || 'Client',
+              email: bookingUser.email || '',
+            },
           };
           return acc;
         }, {});
@@ -1144,7 +1157,7 @@ const SlotManagement = () => {
                             <motion.button
                               whileHover={{ scale: 1.05 }}
                               onClick={() => handleToggleBlock(slot.id, slot.is_blocked)}
-                              disabled={slot.booking}
+                              disabled={Boolean(slot.booking)}
                               className={`flex-1 px-3 py-2 rounded text-sm font-semibold transition-colors ${
                                 slot.booking
                                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -1158,7 +1171,7 @@ const SlotManagement = () => {
                             <motion.button
                               whileHover={{ scale: 1.05 }}
                               onClick={() => handleDeleteSlot(slot.id)}
-                              disabled={slot.booking}
+                              disabled={Boolean(slot.booking)}
                               className={`flex-1 px-3 py-2 rounded text-sm font-semibold transition-colors ${
                                 slot.booking
                                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
