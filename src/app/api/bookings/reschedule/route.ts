@@ -3,7 +3,7 @@
 import { auth } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import { google } from 'googleapis';
+import { createGoogleCalendarEvent, deleteGoogleCalendarEvent } from '@/lib/google-calendar';
 import { sendRescheduleNotificationWhatsApp } from '@/lib/whatsapp';
 import { sendBookingPostponedEmail } from '@/lib/email';
 
@@ -29,22 +29,6 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
-
-    const extractMeetLink = (eventData: any) => {
-      if (!eventData) return null;
-
-      if (eventData.hangoutLink) {
-        return eventData.hangoutLink;
-      }
-
-      const entryPoints = eventData.conferenceData?.entryPoints || [];
-      const meetEntry = entryPoints.find(
-        (entry: any) =>
-          entry.entryPointType === 'video' || entry.uri?.includes('meet.google.com')
-      );
-
-      return meetEntry?.uri || null;
-    };
 
     // Fetch the current booking
     const { data: booking, error: bookingError } = await supabase
@@ -152,183 +136,47 @@ export async function POST(request: Request) {
       }
     }
 
-    // Generate new Google Meet link
-    let newMeetingLink = booking.meeting_link;
-    let newGoogleEventId = booking.google_calendar_event_id;
+    let newMeetingLink = booking.meeting_link || '';
+    let newGoogleEventId = booking.google_calendar_event_id || '';
+
     try {
-      const oauth2Client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
-        process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      const calendarResult = await createGoogleCalendarEvent(
+        booking.therapist_id || 'default-therapist',
+        booking.user_email || session.user?.email || '',
+        booking.user_name || session.user?.name || 'Client',
+        newSlot.date,
+        newSlot.start_time,
+        newSlot.end_time,
+        booking.session_type
       );
 
-      const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
-      if (refreshToken) {
-        oauth2Client.setCredentials({ refresh_token: refreshToken });
+      newMeetingLink = calendarResult?.meetLink || '';
+      newGoogleEventId = calendarResult?.eventId || newGoogleEventId;
 
-        const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-
-        // Delete old Google Calendar event if it exists
-        if (booking.google_calendar_event_id) {
-          try {
-            await calendar.events.delete({
-              calendarId: 'primary',
-              eventId: booking.google_calendar_event_id,
-            });
-            console.log('✅ Old Google Calendar event deleted:', booking.google_calendar_event_id);
-          } catch (deleteError: any) {
-            if (deleteError.code !== 404) {
-              console.error('⚠️ Error deleting old calendar event:', deleteError.message);
-            }
-          }
-        }
-
-        // Create a new event in Google Calendar
-        // Use the database slot values for accuracy
-        // Ensure time is in HH:mm format
-        let startTimeStr = typeof newSlot.start_time === 'string' 
-          ? newSlot.start_time 
-          : newSlot.start_time?.toString?.() || newStartTime;
-        let endTimeStr = typeof newSlot.end_time === 'string'
-          ? newSlot.end_time
-          : newSlot.end_time?.toString?.() || newEndTime;
-
-        // Trim to HH:mm if longer (e.g., "17:00:00" -> "17:00")
-        if (startTimeStr.length > 5) {
-          startTimeStr = startTimeStr.substring(0, 5);
-        }
-        if (endTimeStr.length > 5) {
-          endTimeStr = endTimeStr.substring(0, 5);
-        }
-
-        // Format as ISO 8601 local time (without Z, with timezone parameter)
-        const eventStartDateTime = `${newSlot.date}T${startTimeStr}:00`;
-        const eventEndDateTime = `${newSlot.date}T${endTimeStr}:00`;
-
-        console.log('📅 Creating Google Calendar event with local times:', {
-          date: newSlot.date,
-          startTime: startTimeStr,
-          endTime: endTimeStr,
-          startDateTime: eventStartDateTime,
-          endDateTime: eventEndDateTime,
-          timezone: 'Asia/Kolkata',
-        });
-
-        const event = {
-          summary: `${booking.session_type === 'personal' ? 'Personal' : 'Couple'} Therapy Session - Mannosaar`,
-          description: `Rescheduled session for ${session.user.name}`,
-          start: {
-            dateTime: eventStartDateTime,
-            timeZone: 'Asia/Kolkata',
-          },
-          end: {
-            dateTime: eventEndDateTime,
-            timeZone: 'Asia/Kolkata',
-          },
-          conferenceData: {
-            createRequest: {
-              requestId: `reschedule-${bookingId}-${Date.now()}`,
-              conferenceSolution: {
-                key: {
-                  conferenceType: 'hangoutsMeet',
-                },
-              },
-            },
-          },
-        };
-
-        const calendarEvent = await calendar.events.insert({
-          calendarId: 'primary',
-          requestBody: event,
-          conferenceDataVersion: 1,
-        });
-
-        if (calendarEvent.data.id) {
-          newGoogleEventId = calendarEvent.data.id;
-          console.log('✅ New Google Calendar event created:', newGoogleEventId);
-          console.log('📋 Calendar event response:', {
-            id: calendarEvent.data.id,
-            summary: calendarEvent.data.summary,
-            start: calendarEvent.data.start,
-            end: calendarEvent.data.end,
-            conferenceDataExists: !!calendarEvent.data.conferenceData,
-            entryPointsCount: calendarEvent.data.conferenceData?.entryPoints?.length || 0,
-          });
-
-          // Try to extract meeting link from initial response
-          let extractedLink: string | null = extractMeetLink(calendarEvent.data);
-
-          if (extractedLink) {
-            console.log('✅ New Google Meet link extracted from initial response:', extractedLink);
-          } else if (calendarEvent.data.conferenceData?.entryPoints) {
-            console.log('🔍 Searching for meeting link in entryPoints:', calendarEvent.data.conferenceData.entryPoints);
-            console.warn('⚠️ No video entry point found in initial response');
-          } else {
-            console.log('ℹ️ No conference data in initial response, will fetch later');
-          }
-
-          // If conference data not in initial response or link not found, fetch the event again
-          if (!extractedLink) {
-            console.log('⏳ Conference data not found or no link extracted, fetching updated event with conferenceData...');
-            try {
-              const getEventResponse = await calendar.events.get({
-                calendarId: 'primary',
-                eventId: newGoogleEventId,
-              });
-
-              const fetchedEvent = getEventResponse.data;
-              
-              console.log('📋 Fetched event details:', {
-                id: fetchedEvent.id,
-                summary: fetchedEvent.summary,
-                conferenceDataExists: !!fetchedEvent.conferenceData,
-                entryPointsCount: fetchedEvent.conferenceData?.entryPoints?.length || 0,
-                allEntryPoints: fetchedEvent.conferenceData?.entryPoints,
-              });
-
-              extractedLink = extractMeetLink(fetchedEvent);
-
-              if (extractedLink) {
-                console.log('✅ New Google Meet link extracted from fetched event:', extractedLink);
-              } else if (fetchedEvent.conferenceData?.entryPoints && fetchedEvent.conferenceData.entryPoints.length > 0) {
-                console.warn('⚠️ No video meet link found in any entry points:', fetchedEvent.conferenceData.entryPoints.map((e: any) => ({ type: e.entryPointType, uri: e.uri })));
-              } else {
-                console.warn('⚠️ No conference data in fetched event');
-              }
-            } catch (fetchError) {
-              console.error('⚠️ Error fetching event details:', fetchError);
-            }
-          }
-
-          // Update the link if we successfully extracted one
-          if (extractedLink) {
-            newMeetingLink = extractedLink;
-            console.log('✅ Meeting link updated to:', newMeetingLink);
-          } else {
-            console.error('❌ Failed to extract new Google Meet link, keeping old link:', booking.meeting_link);
-            // Don't use old link - try without one
-            newMeetingLink = '';
-          }
-        }
+      if (booking.google_calendar_event_id) {
+        await deleteGoogleCalendarEvent(booking.therapist_id || 'default-therapist', booking.google_calendar_event_id);
       }
-    } catch (error) {
-      console.error('❌ Error managing Google Calendar event:', error);
-      // Continue without calendar update if it fails
+    } catch (calendarError) {
+      console.warn('⚠️ Calendar reschedule update failed:', calendarError);
     }
 
     // Update meeting_link for single bookings or meeting_links for bundle bookings
     if (booking.number_of_sessions && booking.number_of_sessions > 1 && sessionIndex !== undefined) {
       // For bundle bookings, update the meeting_links array
-      const meetingLinks = booking.meeting_links || [];
+      const meetingLinks = Array.isArray(booking.meeting_links) ? [...booking.meeting_links] : [];
       meetingLinks[sessionIndex] = newMeetingLink;
       updateData.meeting_links = meetingLinks;
+      if (meetingLinks[0]) {
+        updateData.meeting_link = meetingLinks[0];
+      }
     } else {
       // For single bookings, update meeting_link
       updateData.meeting_link = newMeetingLink;
     }
 
-    // Always update the google calendar event ID for the new event
-    updateData.google_calendar_event_id = newGoogleEventId;
+    if (newGoogleEventId) {
+      updateData.google_calendar_event_id = newGoogleEventId;
+    }
 
     // Update the booking
     const { data: updatedBooking, error: updateError } = await supabase
@@ -440,7 +288,6 @@ export async function POST(request: Request) {
       booking: {
         ...updatedBooking,
         meeting_link: newMeetingLink,
-        google_calendar_event_id: newGoogleEventId,
       },
     });
   } catch (error) {

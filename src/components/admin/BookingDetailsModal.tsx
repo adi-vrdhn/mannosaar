@@ -463,23 +463,6 @@ export default function BookingDetailsModal({
                           </div>
                         )}
 
-                        {booking.meeting_password && (
-                          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                            <p className="text-sm text-gray-600 mb-2">Meeting Password</p>
-                            <div className="flex items-center justify-between gap-2">
-                              <code className="text-lg font-mono font-semibold text-gray-900">
-                                {booking.meeting_password}
-                              </code>
-                              <button
-                                onClick={() => copyToClipboard(booking.meeting_password!)}
-                                className="p-2 hover:bg-blue-100 rounded transition-colors flex-shrink-0"
-                                title="Copy password"
-                              >
-                                <Copy size={18} className="text-blue-600" />
-                              </button>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </section>
                   )}
