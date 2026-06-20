@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import PayU from 'payu-websdk';
 
 export interface PayUSessionDate {
   date: string;
@@ -25,6 +26,7 @@ export interface PayUBookingContext {
   sessionDates?: PayUSessionDate[];
   notes?: string;
   returnUrl?: string;
+  callbackUrl?: string;
   paymentMode?: PayUPaymentMode;
   s2sClientIp?: string;
   s2sDeviceInfo?: string;
@@ -43,6 +45,12 @@ interface PayUPaymentModeFields {
 export interface PayUInitiationResult {
   paymentUrl: string;
   fields: Record<string, string>;
+  txnid: string;
+  paymentMode: PayUPaymentMode;
+}
+
+export interface PayUHostedCheckoutResult {
+  paymentHtml: string;
   txnid: string;
   paymentMode: PayUPaymentMode;
 }
@@ -75,6 +83,26 @@ function toStringValue(value: unknown) {
   return typeof value === 'string' ? value : value == null ? '' : String(value);
 }
 
+function getPayUSdkEnvironment(paymentUrl: string) {
+  return isTestPaymentUrl(paymentUrl) ? 'TEST' : 'PROD';
+}
+
+function getPayUClient() {
+  const { key, salt, paymentUrl } = getPayUConfig();
+
+  if (!key || !salt) {
+    throw new Error('PayU credentials are not configured');
+  }
+
+  return new PayU(
+    {
+      key,
+      salt,
+    },
+    getPayUSdkEnvironment(paymentUrl)
+  );
+}
+
 export function getPayUConfig() {
   const key =
     process.env.PAYU_KEY ||
@@ -89,6 +117,84 @@ export function getPayUConfig() {
   const paymentUrl = process.env.PAYU_PAYMENT_URL || process.env.PAYU_BASE_URL || 'https://secure.payu.in/_payment';
 
   return { key, salt, paymentUrl };
+}
+
+function buildPayUPaymentPayload(input: PayUInitiationInput, txnid = generatePayUTxnId()) {
+  const { paymentUrl } = getPayUConfig();
+  const bundleSize = input.sessionDates?.length || input.bundle || 1;
+  const productinfo = getPayUProductInfo(input.sessionType, bundleSize);
+  const amount = normalizePayUAmount(input.amount);
+  const firstSession = input.sessionDates?.[0];
+  const paymentMode = input.paymentMode || 'auto';
+  const encodedContext = encodePayUContext({
+    userId: input.userId,
+    userEmail: input.userEmail,
+    userName: input.userName,
+    userPhone: input.userPhone,
+    sessionType: input.sessionType,
+    amount: input.amount,
+    slotId: input.slotId,
+    date: input.date,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    bundle: input.bundle,
+    sessionDates: input.sessionDates,
+    notes: input.notes,
+    returnUrl: input.returnUrl,
+    paymentMode,
+    s2sClientIp: input.s2sClientIp,
+    s2sDeviceInfo: input.s2sDeviceInfo,
+    upiAppName: input.upiAppName,
+  });
+
+  const paymentModeFields = getPayUPaymentModeFields(paymentMode, input.upiAppName);
+  const params: Record<string, string> = {
+    txnid,
+    amount,
+    productinfo,
+    firstname: input.userName,
+    email: input.userEmail,
+    phone: input.userPhone || '',
+    surl: input.callbackUrl || input.returnUrl || '',
+    furl: input.callbackUrl || input.returnUrl || '',
+    udf1: encodedContext,
+    udf2: input.returnUrl || '',
+    udf3: input.sessionType,
+    udf4: String(input.userId),
+    udf5: input.slotId || firstSession?.slotId || '',
+    service_provider: 'payu_paisa',
+  };
+
+  if (input.s2sClientIp) {
+    params.s2s_client_ip = input.s2sClientIp;
+  }
+
+  if (input.s2sDeviceInfo) {
+    params.s2s_device_info = input.s2sDeviceInfo;
+  }
+
+  if (paymentModeFields.pg) {
+    params.pg = paymentModeFields.pg;
+  }
+
+  if (paymentModeFields.bankcode) {
+    params.bankcode = paymentModeFields.bankcode;
+  }
+
+  if (paymentModeFields.txn_s2s_flow) {
+    params.txn_s2s_flow = paymentModeFields.txn_s2s_flow;
+  }
+
+  if (paymentModeFields.upiAppName) {
+    params.upiAppName = paymentModeFields.upiAppName;
+  }
+
+  return {
+    params,
+    paymentMode,
+    paymentUrl,
+    txnid,
+  };
 }
 
 export function encodePayUContext(context: PayUBookingContext): string {
@@ -218,27 +324,26 @@ export function buildPayUInitiationHash(params: {
   udf5?: string;
   salt: string;
 }) {
-  const hashSequence = [
-    params.key,
-    params.txnid,
-    params.amount,
-    params.productinfo,
-    params.firstname,
-    params.email,
-    params.udf1 || '',
-    params.udf2 || '',
-    params.udf3 || '',
-    params.udf4 || '',
-    params.udf5 || '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    params.salt,
-  ];
+  const client = new PayU(
+    {
+      key: params.key,
+      salt: params.salt,
+    },
+    'TEST'
+  );
 
-  return crypto.createHash('sha512').update(hashSequence.join('|')).digest('hex');
+  return client.hasher.generatePaymentHash({
+    txnid: params.txnid,
+    amount: params.amount,
+    productinfo: params.productinfo,
+    firstname: params.firstname,
+    email: params.email,
+    udf1: params.udf1 || '',
+    udf2: params.udf2 || '',
+    udf3: params.udf3 || '',
+    udf4: params.udf4 || '',
+    udf5: params.udf5 || '',
+  });
 }
 
 export function buildPayUCommandHash(params: {
@@ -295,209 +400,95 @@ export function buildPayUResponseHash(params: {
   salt: string;
   additionalCharges?: string;
 }) {
-  const hashSegments = [
-    params.salt,
-    params.status,
-    '',
-    '',
-    '',
-    '',
-    '',
-    params.udf5 || '',
-    params.udf4 || '',
-    params.udf3 || '',
-    params.udf2 || '',
-    params.udf1 || '',
-    params.email,
-    params.firstname,
-    params.productinfo,
-    params.amount,
-    params.txnid,
-    params.key,
-  ];
+  const client = new PayU(
+    {
+      key: params.key,
+      salt: params.salt,
+    },
+    'TEST'
+  );
 
-  const finalHashSegments = params.additionalCharges
-    ? [params.additionalCharges, ...hashSegments]
-    : hashSegments;
-
-  return crypto.createHash('sha512').update(finalHashSegments.join('|')).digest('hex');
+  return client.hasher.generateResponseHash({
+    status: params.status,
+    txnid: params.txnid,
+    amount: params.amount,
+    productinfo: params.productinfo,
+    firstname: params.firstname,
+    email: params.email,
+    udf1: params.udf1 || '',
+    udf2: params.udf2 || '',
+    udf3: params.udf3 || '',
+    udf4: params.udf4 || '',
+    udf5: params.udf5 || '',
+    additionalCharges: params.additionalCharges,
+  });
 }
 
 export async function verifyPayUPayment(txnid: string): Promise<PayUVerifyPaymentResult> {
-  const { key, salt } = getPayUConfig();
-  if (!key || !salt) {
+  try {
+    const raw = await getPayUClient().verifyPayment(txnid);
+    const rawRecord = toRecord(raw);
+    const detailsContainer = toRecord(rawRecord?.transaction_details);
+    const transaction = toRecord(detailsContainer?.[txnid]);
+
+    if (!transaction) {
+      return {
+        isSuccess: false,
+        message: 'Verify payment response did not include the requested transaction',
+        raw: rawRecord,
+        transaction: null,
+      };
+    }
+
+    const normalizedTransaction: PayUVerifiedTransaction = {
+      amount: toStringValue(transaction.amt || transaction.amount || transaction.transaction_amount),
+      mihpayid: toStringValue(transaction.mihpayid || transaction.paymentId),
+      raw: transaction,
+      status: toStringValue(transaction.status).toLowerCase(),
+      txnid: toStringValue(transaction.txnid || txnid),
+      unmappedStatus: toStringValue(transaction.unmappedstatus || transaction.unmappedStatus).toLowerCase(),
+    };
+
+    return {
+      isSuccess: normalizedTransaction.status === 'success',
+      message: toStringValue(rawRecord?.msg || rawRecord?.message) || 'Verify payment response received',
+      raw: rawRecord,
+      transaction: normalizedTransaction,
+    };
+  } catch (error) {
     return {
       isSuccess: false,
-      message: 'PayU credentials are not configured',
+      message: error instanceof Error ? error.message : 'Verify payment request failed',
       raw: null,
       transaction: null,
     };
   }
-
-  const endpoint = getPayUVerifyPaymentUrl();
-  const payload = new URLSearchParams({
-    form: '2',
-    key,
-    command: 'verify_payment',
-    var1: txnid,
-    hash: buildPayUVerifyPaymentHash({ key, txnid, salt }),
-  });
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: payload.toString(),
-  });
-
-  const responseText = await response.text();
-  let raw: Record<string, unknown> | null = null;
-
-  try {
-    raw = responseText ? (JSON.parse(responseText) as Record<string, unknown>) : null;
-  } catch {
-    raw = null;
-  }
-
-  if (!response.ok) {
-    return {
-      isSuccess: false,
-      message: `Verify payment request failed with status ${response.status}`,
-      raw,
-      transaction: null,
-    };
-  }
-
-  const detailsContainer = toRecord(raw?.transaction_details);
-  const transaction = toRecord(detailsContainer?.[txnid]);
-
-  if (!transaction) {
-    return {
-      isSuccess: false,
-      message: 'Verify payment response did not include the requested transaction',
-      raw,
-      transaction: null,
-    };
-  }
-
-  const normalizedTransaction: PayUVerifiedTransaction = {
-    amount: toStringValue(transaction.amt || transaction.amount || transaction.transaction_amount),
-    mihpayid: toStringValue(transaction.mihpayid || transaction.paymentId),
-    raw: transaction,
-    status: toStringValue(transaction.status).toLowerCase(),
-    txnid: toStringValue(transaction.txnid || txnid),
-    unmappedStatus: toStringValue(transaction.unmappedstatus || transaction.unmappedStatus).toLowerCase(),
-  };
-
-  return {
-    isSuccess: normalizedTransaction.status === 'success',
-    message: toStringValue(raw?.msg || raw?.message) || 'Verify payment response received',
-    raw,
-    transaction: normalizedTransaction,
-  };
 }
 
 export function createPayUPaymentFields(input: PayUInitiationInput): PayUInitiationResult {
-  const { key, salt, paymentUrl } = getPayUConfig();
-
-  if (!key || !salt) {
-    throw new Error('PayU credentials are not configured');
-  }
-
-  const txnid = generatePayUTxnId();
-  const bundleSize = input.sessionDates?.length || input.bundle || 1;
-  const productinfo = getPayUProductInfo(input.sessionType, bundleSize);
-  const amount = normalizePayUAmount(input.amount);
-  const firstSession = input.sessionDates?.[0];
-  const paymentMode = input.paymentMode || 'auto';
-  const encodedContext = encodePayUContext({
-    userId: input.userId,
-    userEmail: input.userEmail,
-    userName: input.userName,
-    userPhone: input.userPhone,
-    sessionType: input.sessionType,
-    amount: input.amount,
-    slotId: input.slotId,
-    date: input.date,
-    startTime: input.startTime,
-    endTime: input.endTime,
-    bundle: input.bundle,
-    sessionDates: input.sessionDates,
-    notes: input.notes,
-    returnUrl: input.returnUrl,
-    paymentMode,
-    s2sClientIp: input.s2sClientIp,
-    s2sDeviceInfo: input.s2sDeviceInfo,
-    upiAppName: input.upiAppName,
-  });
-
-  const paymentModeFields = getPayUPaymentModeFields(paymentMode, input.upiAppName);
-  const fields: Record<string, string> = {
-    key,
-    txnid,
-    amount,
-    productinfo,
-    firstname: input.userName,
-    email: input.userEmail,
-    phone: input.userPhone || '',
-    surl: input.returnUrl || '',
-    furl: input.returnUrl || '',
-    udf1: encodedContext,
-    udf2: input.returnUrl || '',
-    udf3: input.sessionType,
-    udf4: String(input.userId),
-    udf5: input.slotId || firstSession?.slotId || '',
-    service_provider: 'payu_paisa',
-  };
-
-  if (input.s2sClientIp) {
-    fields.s2s_client_ip = input.s2sClientIp;
-  }
-
-  if (input.s2sDeviceInfo) {
-    fields.s2s_device_info = input.s2sDeviceInfo;
-  }
-
-  if (paymentModeFields.pg) {
-    fields.pg = paymentModeFields.pg;
-  }
-
-  if (paymentModeFields.bankcode) {
-    fields.bankcode = paymentModeFields.bankcode;
-  }
-
-  if (paymentModeFields.txn_s2s_flow) {
-    fields.txn_s2s_flow = paymentModeFields.txn_s2s_flow;
-  }
-
-  if (paymentModeFields.upiAppName) {
-    fields.upiAppName = paymentModeFields.upiAppName;
-  }
-
-  const hash = buildPayUInitiationHash({
-    key,
-    txnid,
-    amount,
-    productinfo,
-    firstname: input.userName,
-    email: input.userEmail,
-    udf1: fields.udf1,
-    udf2: fields.udf2,
-    udf3: fields.udf3,
-    udf4: fields.udf4,
-    udf5: fields.udf5,
-    salt,
-  });
+  const { key, paymentUrl } = getPayUConfig();
+  const { params, paymentMode, txnid } = buildPayUPaymentPayload(input);
+  const hash = getPayUClient().hasher.generatePaymentHash(params);
 
   return {
     paymentUrl,
     paymentMode,
     txnid,
     fields: {
-      ...fields,
+      ...params,
+      key,
       hash,
     },
+  };
+}
+
+export function createPayUPaymentHtml(input: PayUInitiationInput): PayUHostedCheckoutResult {
+  const { params, paymentMode, txnid } = buildPayUPaymentPayload(input);
+  const paymentHtml = getPayUClient().paymentInitiate(params);
+
+  return {
+    paymentHtml,
+    paymentMode,
+    txnid,
   };
 }
