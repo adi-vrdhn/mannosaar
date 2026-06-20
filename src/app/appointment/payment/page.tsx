@@ -814,32 +814,28 @@ function PaymentPageContent() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.35 }}
-                className="p-6 md:p-8 bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-dashed border-purple-300 rounded-2xl mb-8"
+                className="mb-8 rounded-2xl border border-gray-200 bg-white p-6"
               >
-                <div className="mx-auto max-w-3xl">
-                  <div className="border border-purple-100 bg-white px-6 py-6 shadow-sm">
-                    <p className="text-sm font-semibold tracking-wide text-slate-500 uppercase">Pay with PayU</p>
-                    <p className="mt-2 text-2xl font-semibold text-slate-900">₹{totalPrice}</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                      Tap below to open the standard PayU checkout.
-                    </p>
-                    <button
-                      onClick={handlePayUPayment}
-                      disabled={processing}
-                      className="mt-4 w-full rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-3 font-semibold text-white transition-all hover:shadow-lg disabled:opacity-50"
-                    >
-                      {processingMode === 'payu' ? 'Redirecting to PayU...' : 'Pay with PayU'}
-                    </button>
-                    {agreementError && (
-                      <p className="mt-3 text-sm text-red-600">
-                        {agreementError}
-                      </p>
-                    )}
-                    <p className="mt-3 text-xs text-slate-500">
-                      PayU may show its payment options and any applicable charges on the next screen.
-                    </p>
-                  </div>
-                </div>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">Pay with PayU</p>
+                <p className="mt-3 text-3xl font-bold text-gray-900">₹{totalPrice}</p>
+                <p className="mt-3 text-sm leading-6 text-gray-600">
+                  Tap below to open the standard PayU checkout and complete your booking securely.
+                </p>
+                <button
+                  onClick={handlePayUPayment}
+                  disabled={processing}
+                  className="mt-5 w-full rounded-xl bg-green-600 px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50"
+                >
+                  {processingMode === 'payu' ? 'Redirecting to PayU...' : 'Pay with PayU'}
+                </button>
+                {agreementError && (
+                  <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {agreementError}
+                  </p>
+                )}
+                <p className="mt-4 text-xs leading-5 text-gray-500">
+                  PayU may show its payment options and any applicable charges on the next screen.
+                </p>
               </motion.div>
 
               {/* Action Buttons */}
