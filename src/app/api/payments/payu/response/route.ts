@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createGoogleCalendarEvent } from '@/lib/google-calendar';
 import { sendBookingConfirmationEmail } from '@/lib/email';
+import { getTherapistNotificationRecipients } from '@/lib/therapist-email';
 import {
   PayUBookingContext,
   PayUSessionDate,
@@ -676,7 +677,7 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
       await sendBookingConfirmationEmail({
         clientEmail: userEmail,
         clientName: userName,
-        therapistEmail: therapistData?.email || process.env.THERAPIST_EMAIL || process.env.EMAIL_USER || '',
+        therapistEmail: getTherapistNotificationRecipients(therapistData?.email),
         therapistName: therapistData?.name || 'Therapist',
         sessionType,
         date: isBundleBooking ? `${sessionDates.length} sessions scheduled` : notificationSlot?.date || 'Session scheduled',

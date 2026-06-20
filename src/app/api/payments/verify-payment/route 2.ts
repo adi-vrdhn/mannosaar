@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { createGoogleCalendarEvent } from '@/lib/google-calendar';
 import { sendBookingConfirmationEmail } from '@/lib/email';
+import { getTherapistNotificationRecipients } from '@/lib/therapist-email';
 
 interface SessionDateWithSlot {
   date: string;
@@ -280,8 +281,7 @@ export async function POST(request: NextRequest) {
       await sendBookingConfirmationEmail({
         clientEmail: userEmail,
         clientName: userName,
-        therapistEmail:
-          therapistData?.email || process.env.THERAPIST_EMAIL || process.env.EMAIL_USER || '',
+        therapistEmail: getTherapistNotificationRecipients(therapistData?.email),
         therapistName: therapistData?.name || 'Therapist',
         sessionType,
         date: emailDate,

@@ -67,7 +67,7 @@ function getFromAddress() {
 interface BookingEmailData {
   clientEmail: string;
   clientName: string;
-  therapistEmail: string;
+  therapistEmail: string | string[];
   therapistName: string;
   sessionType: string;
   date: string;
@@ -84,7 +84,7 @@ interface BookingEmailData {
 
 interface SessionReminderEmailData {
   recipientType: 'client' | 'therapist';
-  recipientEmail: string;
+  recipientEmail: string | string[];
   clientName: string;
   therapistName: string;
   sessionType: string;
@@ -358,7 +358,11 @@ export async function sendSessionReminderEmail(data: SessionReminderEmailData) {
       html,
     });
 
-    console.log(`✅ Session reminder email sent to ${recipientEmail} (${recipientType})`);
+    console.log(
+      `✅ Session reminder email sent to ${
+        Array.isArray(recipientEmail) ? recipientEmail.join(', ') : recipientEmail
+      } (${recipientType})`
+    );
     return true;
   } catch (error) {
     console.error('❌ Failed to send session reminder email:', error);

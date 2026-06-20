@@ -9,10 +9,14 @@ import {
   startOfMonth,
 } from 'date-fns';
 import {
+  getCurrentComparableTimestamp,
   getCurrentDateString,
   getCurrentTimeInMinutes,
+  isSlotAfterLeadTime,
   isSlotInTheFuture,
 } from '@/lib/time';
+
+const MINIMUM_BOOKING_LEAD_MINUTES = 4 * 60;
 
 interface SlotRow {
   id: string;
@@ -56,6 +60,7 @@ export async function GET(request: NextRequest) {
 
     const currentDateString = getCurrentDateString();
     const currentTimeMinutes = getCurrentTimeInMinutes();
+    const currentComparableTimestamp = getCurrentComparableTimestamp();
     const startDate = dateParam
       ? dateParam
       : monthParam
@@ -119,6 +124,14 @@ export async function GET(request: NextRequest) {
           slot.start_time,
           currentDateString,
           currentTimeMinutes
+        )
+      )
+      .filter((slot: SlotRow) =>
+        isSlotAfterLeadTime(
+          slot.date,
+          slot.start_time,
+          MINIMUM_BOOKING_LEAD_MINUTES,
+          currentComparableTimestamp
         )
       );
 

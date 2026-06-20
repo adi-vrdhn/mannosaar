@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendSessionReminderEmail } from '@/lib/email';
+import { getTherapistNotificationRecipients } from '@/lib/therapist-email';
 
 type SessionReminderState = {
   client?: string;
@@ -219,7 +220,9 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        const therapistEmail = therapist?.email || process.env.THERAPIST_EMAIL || process.env.EMAIL_USER || '';
+        const therapistEmail = getTherapistNotificationRecipients(
+          therapist?.email
+        );
         const therapistName = therapist?.name || 'Therapist';
         const sessionStates = normalizeReminderState(booking.session_reminders_sent);
         const sessions = getSessionEntries(booking);
@@ -266,7 +269,7 @@ export async function POST(request: NextRequest) {
             });
           }
 
-          if (!therapistSent && therapistEmail) {
+          if (!therapistSent && therapistEmail.length > 0) {
             therapistSent = await sendSessionReminderEmail({
               recipientType: 'therapist',
               recipientEmail: therapistEmail,

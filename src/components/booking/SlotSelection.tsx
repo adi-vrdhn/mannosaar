@@ -22,6 +22,22 @@ interface SessionSelection {
   endTime: string;
 }
 
+interface ExistingBooking {
+  slot: {
+    date: string;
+    start_time: string;
+  };
+}
+
+interface RescheduledBooking {
+  slot_date: string;
+  slot_start_time: string;
+  slot_end_time: string;
+  meeting_link?: string | null;
+  number_of_sessions?: number | null;
+  meeting_links?: string[] | null;
+}
+
 interface SlotSelectionProps {
   sessionType?: string;
   bundleSize?: number;
@@ -49,13 +65,14 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [oldBooking, setOldBooking] = useState<any>(null);
+  const [oldBooking, setOldBooking] = useState<ExistingBooking | null>(null);
   const [confirmReschedule, setConfirmReschedule] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
   const [rescheduleSuccess, setRescheduleSuccess] = useState(false);
-  const [updatedBooking, setUpdatedBooking] = useState<any>(null);
+  const [updatedBooking, setUpdatedBooking] = useState<RescheduledBooking | null>(null);
 
   const formatTime = (time: string) => time.slice(0, 5);
+  const todayString = format(new Date(), 'yyyy-MM-dd');
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -142,7 +159,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
     fetchSlots();
   }, [selectedDate]);
 
-  const handleSelectSlot = (slotId: string, slot: Slot) => {
+  const handleSelectSlot = (slotId: string) => {
     setSelectedSlot(slotId);
   };
 
@@ -377,7 +394,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                   const dateStr = format(day, 'yyyy-MM-dd');
                   const isCurrentMonth = day.getMonth() === displayMonth.getMonth();
                   const isSelected = dateStr === selectedDate;
-                  const isPast = day < new Date() && day.getDate() !== new Date().getDate();
+                  const isPast = dateStr < todayString;
                   const isAvailable = availableDates.has(dateStr);
                   const isAlreadyBooked = selectedSessions.some(s => s.date === dateStr);
 
@@ -454,7 +471,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                       <motion.button
                         key={slot.id}
                         whileHover={{ y: -2 }}
-                        onClick={() => handleSelectSlot(slot.id, slot)}
+                        onClick={() => handleSelectSlot(slot.id)}
                         className={`w-full border-2 px-4 py-4 text-left transition-all min-h-[104px] ${
                           selectedSlot === slot.id
                             ? 'border-purple-600 bg-purple-50 text-gray-900 shadow-sm'

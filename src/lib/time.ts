@@ -49,6 +49,74 @@ export function parseTimeToMinutes(value: string) {
   return hours * 60 + minutes;
 }
 
+function parseDateToParts(value: string) {
+  const [yearRaw = '0', monthRaw = '0', dayRaw = '0'] = value.split('-');
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+
+  if (
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day)
+  ) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function getComparableTimestamp(date: string, time: string) {
+  const dateParts = parseDateToParts(date);
+  const timeInMinutes = parseTimeToMinutes(time);
+
+  if (!dateParts || Number.isNaN(timeInMinutes)) {
+    return Number.NaN;
+  }
+
+  const hours = Math.floor(timeInMinutes / 60);
+  const minutes = timeInMinutes % 60;
+
+  return Date.UTC(
+    dateParts.year,
+    dateParts.month - 1,
+    dateParts.day,
+    hours,
+    minutes
+  );
+}
+
+export function getCurrentComparableTimestamp(
+  timeZone: string = APP_TIME_ZONE
+) {
+  const parts = getZonedParts(new Date(), timeZone);
+
+  return Date.UTC(
+    Number(parts.year || 0),
+    Number(parts.month || 1) - 1,
+    Number(parts.day || 1),
+    Number(parts.hour || 0),
+    Number(parts.minute || 0)
+  );
+}
+
+export function isSlotAfterLeadTime(
+  slotDate: string,
+  slotTime: string,
+  minimumLeadMinutes: number = 0,
+  currentComparableTimestamp: number = getCurrentComparableTimestamp()
+) {
+  const slotTimestamp = getComparableTimestamp(slotDate, slotTime);
+
+  if (Number.isNaN(slotTimestamp)) {
+    return false;
+  }
+
+  return (
+    slotTimestamp >= currentComparableTimestamp + minimumLeadMinutes * 60 * 1000
+  );
+}
+
 export function isSlotInTheFuture(
   slotDate: string,
   slotTime: string,

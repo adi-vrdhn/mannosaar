@@ -24,6 +24,12 @@ interface SlotWithBooking extends Slot {
   };
 }
 
+interface ConfirmedBookingRecord {
+  slot_id: string;
+  id: string;
+  user: { name: string; email: string };
+}
+
 interface BlockedRange {
   id: string;
   start_date: string;
@@ -31,14 +37,17 @@ interface BlockedRange {
   reason: string;
 }
 
+type BlockMode = 'range' | 'specific';
+
 const SlotManagement = () => {
   const router = useRouter();
-  const [slots, setSlots] = useState<Slot[]>([]);
+  const [slots, setSlots] = useState<SlotWithBooking[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showGenerateDefaultForm, setShowGenerateDefaultForm] = useState(false);
   const [showBlockForm, setShowBlockForm] = useState(false);
+  const [blockMode, setBlockMode] = useState<BlockMode>('range');
   const [blockedRanges, setBlockedRanges] = useState<BlockedRange[]>([]);
   const [blockFormData, setBlockFormData] = useState({
     startDate: format(new Date(), 'yyyy-MM-dd'),
@@ -64,25 +73,20 @@ const SlotManagement = () => {
   
   // State for all blocked slots (across all dates)
   const [allBlockedSlots, setAllBlockedSlots] = useState<Slot[]>([]);
+  const [selectedSlotIdsToBlock, setSelectedSlotIdsToBlock] = useState<Set<string>>(new Set());
 
-  // Fetch slots for selected date with booking info
-  useEffect(() => {
-    const fetchSlots = async () => {
-      setLoading(true);
-      try {
-        // Get all slots for the date
-        const { data: allSlots, error: slotError } = await supabase
-          .from('therapy_slots')
-          .select('*')
-          .eq('date', selectedDate)
-          .order('start_time', { ascending: true });
+  const fetchSlotManagementData = async (date: string) => {
+    setLoading(true);
+    try {
+      const { data: allSlots, error: slotError } = await supabase
+        .from('therapy_slots')
+        .select('*')
+        .eq('date', date)
+        .order('start_time', { ascending: true });
 
-        if (slotError || !allSlots) {
-          setLoading(false);
-          return;
-        }
-
-        // Get all bookings with user info
+      if (slotError || !allSlots) {
+        setSlots([]);
+      } else {
         const { data: bookings, error: bookingError } = await supabase
           .from('bookings')
           .select(`
@@ -97,8 +101,9 @@ const SlotManagement = () => {
           console.error('Error fetching bookings:', bookingError);
         }
 
-        // Map bookings to slots
-        const bookingsBySlotId = (bookings || []).reduce((acc: any, booking: any) => {
+        const bookingsBySlotId = ((bookings || []) as ConfirmedBookingRecord[]).reduce<
+          Record<string, SlotWithBooking['booking']>
+        >((acc, booking) => {
           acc[booking.slot_id] = {
             id: booking.id,
             user: booking.user,
@@ -106,42 +111,46 @@ const SlotManagement = () => {
           return acc;
         }, {});
 
-        // Add booking info to slots
-        const slotsWithBooking = allSlots.map((slot: any) => ({
+        const slotsWithBooking: SlotWithBooking[] = allSlots.map((slot: Slot) => ({
           ...slot,
           booking: bookingsBySlotId[slot.id],
         }));
 
         setSlots(slotsWithBooking);
-
-        // Fetch blocked date ranges
-        const { data: ranges } = await supabase
-          .from('block_schedules')
-          .select('*')
-          .order('start_date', { ascending: true });
-
-        setBlockedRanges(ranges || []);
-
-        // Fetch ALL blocked slots (across all dates)
-        const { data: blockedSlots, error: blockedError } = await supabase
-          .from('therapy_slots')
-          .select('*')
-          .eq('is_blocked', true)
-          .order('date', { ascending: true })
-          .order('start_time', { ascending: true });
-
-        if (!blockedError) {
-          setAllBlockedSlots(blockedSlots || []);
-        }
-      } finally {
-        setLoading(false);
       }
-    };
 
-    fetchSlots();
+      const { data: ranges } = await supabase
+        .from('block_schedules')
+        .select('*')
+        .order('start_date', { ascending: true });
+
+      setBlockedRanges(ranges || []);
+
+      const { data: blockedSlots, error: blockedError } = await supabase
+        .from('therapy_slots')
+        .select('*')
+        .eq('is_blocked', true)
+        .order('date', { ascending: true })
+        .order('start_time', { ascending: true });
+
+      if (!blockedError) {
+        setAllBlockedSlots(blockedSlots || []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch slots for selected date with booking info
+  useEffect(() => {
+    fetchSlotManagementData(selectedDate);
   }, [selectedDate, supabase]);
 
-  const handleGenerateDefaultPreview = (startDate: string, endDate: string) => {
+  useEffect(() => {
+    setSelectedSlotIdsToBlock(new Set());
+  }, [selectedDate]);
+
+  const handleGenerateDefaultPreview = () => {
     // Sample preview of default slots for one day
     const allDefaultSlots = generateDefaultSlots();
     const filteredSlots = allDefaultSlots.filter((_, idx) => selectedHours[idx]);
@@ -223,14 +232,7 @@ const SlotManagement = () => {
 
       alert(result.message || `Successfully saved ${slotsToInsert.length} slots!`);
 
-      // Refetch slots
-      const { data } = await supabase
-        .from('therapy_slots')
-        .select('*')
-        .eq('date', selectedDate)
-        .order('start_time', { ascending: true });
-
-      if (data) setSlots(data);
+      await fetchSlotManagementData(selectedDate);
     } catch (error) {
       console.error('Generate default slots error:', error);
       alert('Error creating slots');
@@ -270,14 +272,7 @@ const SlotManagement = () => {
       });
       setShowCreateForm(false);
 
-      // Refetch slots
-      const { data } = await supabase
-        .from('therapy_slots')
-        .select('*')
-        .eq('date', selectedDate)
-        .order('start_time', { ascending: true });
-
-      if (data) setSlots(data);
+      await fetchSlotManagementData(selectedDate);
 
       alert(result.message || 'Slot saved successfully.');
     } catch (error) {
@@ -302,7 +297,7 @@ const SlotManagement = () => {
         return;
       }
 
-      setSlots(slots.map((s) => (s.id === slotId ? { ...s, is_blocked: !isBlocked } : s)));
+      await fetchSlotManagementData(selectedDate);
     } catch (error) {
       console.error('Toggle block error:', error);
       alert('Error updating slot');
@@ -323,7 +318,7 @@ const SlotManagement = () => {
         return;
       }
 
-      setSlots(slots.filter((s) => s.id !== slotId));
+      await fetchSlotManagementData(selectedDate);
     } catch (error) {
       console.error('Delete slot error:', error);
       alert('Error deleting slot');
@@ -360,14 +355,7 @@ const SlotManagement = () => {
         endDate: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
         reason: '',
       });
-
-      // Refetch blocked ranges
-      const { data: ranges } = await supabase
-        .from('block_schedules')
-        .select('*')
-        .order('start_date', { ascending: true });
-
-      setBlockedRanges(ranges || []);
+      await fetchSlotManagementData(selectedDate);
       alert('Date range blocked successfully!');
     } catch (error) {
       console.error('Block date range error:', error);
@@ -390,7 +378,7 @@ const SlotManagement = () => {
         return;
       }
 
-      setBlockedRanges(blockedRanges.filter((b) => b.id !== blockId));
+      await fetchSlotManagementData(selectedDate);
       alert('Date range unblocked successfully!');
     } catch (error) {
       console.error('Unblock date range error:', error);
@@ -420,17 +408,84 @@ const SlotManagement = () => {
       const result = await response.json();
       alert(`✅ Successfully deleted ${result.deletedCount} unbooked slots!\n⚠️ ${result.bookedCount} booked slots were preserved.`);
 
-      // Refetch slots
-      const { data } = await supabase
-        .from('therapy_slots')
-        .select('*')
-        .eq('date', selectedDate)
-        .order('start_time', { ascending: true });
-
-      if (data) setSlots(data);
+      await fetchSlotManagementData(selectedDate);
     } catch (error) {
       console.error('Delete all slots error:', error);
       alert('Error deleting slots');
+    }
+
+    setLoading(false);
+  };
+
+  const availableSlotsToBlock = slots.filter((slot) => !slot.is_blocked && !slot.booking);
+
+  const handleToggleSelectedSlot = (slotId: string) => {
+    setSelectedSlotIdsToBlock((currentSelection) => {
+      const nextSelection = new Set(currentSelection);
+
+      if (nextSelection.has(slotId)) {
+        nextSelection.delete(slotId);
+      } else {
+        nextSelection.add(slotId);
+      }
+
+      return nextSelection;
+    });
+  };
+
+  const handleToggleAllSelectedSlots = () => {
+    if (selectedSlotIdsToBlock.size === availableSlotsToBlock.length) {
+      setSelectedSlotIdsToBlock(new Set());
+      return;
+    }
+
+    setSelectedSlotIdsToBlock(
+      new Set(availableSlotsToBlock.map((slot) => slot.id))
+    );
+  };
+
+  const handleBlockSelectedSlots = async () => {
+    if (selectedSlotIdsToBlock.size === 0) {
+      alert('Please select at least one slot to block.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const slotsToBlock = availableSlotsToBlock
+        .filter((slot) => selectedSlotIdsToBlock.has(slot.id))
+        .map((slot) => ({
+          date: slot.date,
+          time: `${slot.start_time} - ${slot.end_time}`,
+        }));
+
+      const response = await fetch('/api/admin/slots/block-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slots: slotsToBlock,
+          reason: blockFormData.reason || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert('Error blocking slots: ' + errorData.error);
+        setLoading(false);
+        return;
+      }
+
+      setSelectedSlotIdsToBlock(new Set());
+      setBlockFormData((current) => ({
+        ...current,
+        reason: '',
+      }));
+      await fetchSlotManagementData(selectedDate);
+      alert('Selected slots blocked successfully!');
+    } catch (error) {
+      console.error('Block selected slots error:', error);
+      alert('Error blocking selected slots');
     }
 
     setLoading(false);
@@ -475,10 +530,7 @@ const SlotManagement = () => {
             onClick={() => {
               setShowGenerateDefaultForm(!showGenerateDefaultForm);
               if (!showGenerateDefaultForm) {
-                handleGenerateDefaultPreview(
-                  defaultFormData.startDate,
-                  defaultFormData.endDate
-                );
+                handleGenerateDefaultPreview();
               } else {
                 setPreviewSlots([]);
               }
@@ -492,7 +544,7 @@ const SlotManagement = () => {
             onClick={() => setShowBlockForm(!showBlockForm)}
             className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
-            {showBlockForm ? 'Cancel' : 'Block Date Range'}
+            {showBlockForm ? 'Cancel' : 'Blocking Tools'}
           </motion.button>
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -527,7 +579,7 @@ const SlotManagement = () => {
                   value={defaultFormData.startDate}
                   onChange={(e) => {
                     setDefaultFormData({ ...defaultFormData, startDate: e.target.value });
-                    handleGenerateDefaultPreview(e.target.value, defaultFormData.endDate);
+                    handleGenerateDefaultPreview();
                   }}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                 />
@@ -540,7 +592,7 @@ const SlotManagement = () => {
                   value={defaultFormData.endDate}
                   onChange={(e) => {
                     setDefaultFormData({ ...defaultFormData, endDate: e.target.value });
-                    handleGenerateDefaultPreview(defaultFormData.startDate, e.target.value);
+                    handleGenerateDefaultPreview();
                   }}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                 />
@@ -556,7 +608,7 @@ const SlotManagement = () => {
                     type="button"
                     onClick={() => {
                       setSelectedDays([true, true, true, true, true, true, true]);
-                      handleGenerateDefaultPreview(defaultFormData.startDate, defaultFormData.endDate);
+                      handleGenerateDefaultPreview();
                     }}
                     className="text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
@@ -566,7 +618,7 @@ const SlotManagement = () => {
                     type="button"
                     onClick={() => {
                       setSelectedDays([false, false, false, false, false, false, false]);
-                      handleGenerateDefaultPreview(defaultFormData.startDate, defaultFormData.endDate);
+                      handleGenerateDefaultPreview();
                     }}
                     className="text-sm px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
                   >
@@ -584,7 +636,7 @@ const SlotManagement = () => {
                         const newDays = [...selectedDays];
                         newDays[idx] = e.target.checked;
                         setSelectedDays(newDays);
-                        handleGenerateDefaultPreview(defaultFormData.startDate, defaultFormData.endDate);
+                        handleGenerateDefaultPreview();
                       }}
                       className="w-4 h-4 rounded border-gray-300 text-purple-600"
                     />
@@ -603,7 +655,7 @@ const SlotManagement = () => {
                     type="button"
                     onClick={() => {
                       setSelectedHours([true, true, true, true, true, true, true, true, true, true, true, true]);
-                      handleGenerateDefaultPreview(defaultFormData.startDate, defaultFormData.endDate);
+                      handleGenerateDefaultPreview();
                     }}
                     className="text-sm px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
                   >
@@ -613,7 +665,7 @@ const SlotManagement = () => {
                     type="button"
                     onClick={() => {
                       setSelectedHours([false, false, false, false, false, false, false, false, false, false, false, false]);
-                      handleGenerateDefaultPreview(defaultFormData.startDate, defaultFormData.endDate);
+                      handleGenerateDefaultPreview();
                     }}
                     className="text-sm px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
                   >
@@ -631,7 +683,7 @@ const SlotManagement = () => {
                         const newHours = [...selectedHours];
                         newHours[idx] = e.target.checked;
                         setSelectedHours(newHours);
-                        handleGenerateDefaultPreview(defaultFormData.startDate, defaultFormData.endDate);
+                        handleGenerateDefaultPreview();
                       }}
                       className="w-4 h-4 rounded border-gray-300 text-green-600"
                     />
@@ -666,62 +718,187 @@ const SlotManagement = () => {
           </motion.form>
         )}
 
-        {/* Block Date Range Form */}
+        {/* Blocking Tools */}
         {showBlockForm && (
-          <motion.form
+          <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            onSubmit={handleBlockDateRange}
             className="mb-8 bg-white rounded-xl shadow-lg p-6 border-2 border-red-200"
           >
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Block Date Range</h2>
-            <p className="text-gray-600 mb-4">
-              Block a range of dates. Users cannot book sessions during this period, but existing bookings will remain.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date</label>
-                <input
-                  aria-label="Block Start Date"
-                  type="date"
-                  value={blockFormData.startDate}
-                  onChange={(e) => setBlockFormData({ ...blockFormData, startDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
+                <h2 className="text-2xl font-bold text-gray-900">Blocking Section</h2>
+                <p className="mt-1 text-gray-600">
+                  Choose whether you want to block a full date range or only certain slots from the selected date.
+                </p>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">End Date</label>
-                <input
-                  aria-label="Block End Date"
-                  type="date"
-                  value={blockFormData.endDate}
-                  onChange={(e) => setBlockFormData({ ...blockFormData, endDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Reason (Optional)</label>
-                <input
-                  aria-label="Block Reason"
-                  type="text"
-                  placeholder="e.g., Personal leave, Vacation"
-                  value={blockFormData.reason}
-                  onChange={(e) => setBlockFormData({ ...blockFormData, reason: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
+              <div className="inline-flex rounded-lg border border-red-200 bg-red-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setBlockMode('range')}
+                  className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                    blockMode === 'range'
+                      ? 'bg-white text-red-700 shadow-sm'
+                      : 'text-gray-600'
+                  }`}
+                >
+                  Block date range
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBlockMode('specific')}
+                  className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                    blockMode === 'specific'
+                      ? 'bg-white text-red-700 shadow-sm'
+                      : 'text-gray-600'
+                  }`}
+                >
+                  Block specific slots
+                </button>
               </div>
             </div>
 
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              type="submit"
-              disabled={loading}
-              className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 font-semibold"
-            >
-              Block Date Range
-            </motion.button>
-          </motion.form>
+            {blockMode === 'range' ? (
+              <motion.form onSubmit={handleBlockDateRange} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date</label>
+                    <input
+                      aria-label="Block Start Date"
+                      type="date"
+                      value={blockFormData.startDate}
+                      onChange={(e) => setBlockFormData({ ...blockFormData, startDate: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">End Date</label>
+                    <input
+                      aria-label="Block End Date"
+                      type="date"
+                      value={blockFormData.endDate}
+                      onChange={(e) => setBlockFormData({ ...blockFormData, endDate: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Reason (Optional)</label>
+                    <input
+                      aria-label="Block Reason"
+                      type="text"
+                      placeholder="e.g., Personal leave, Vacation"
+                      value={blockFormData.reason}
+                      onChange={(e) => setBlockFormData({ ...blockFormData, reason: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                </div>
+
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  type="submit"
+                  disabled={loading}
+                  className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 font-semibold"
+                >
+                  Block Date Range
+                </motion.button>
+              </motion.form>
+            ) : (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px] gap-6">
+                  <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+                    <p className="text-sm font-semibold text-orange-800">Selected date</p>
+                    <p className="mt-1 text-lg font-bold text-gray-900">
+                      {format(new Date(selectedDate), 'MMMM dd, yyyy')}
+                    </p>
+                    <p className="mt-2 text-sm text-gray-600">
+                      Pick only the slots you want to hide from customers on this date.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Reason (Optional)</label>
+                    <input
+                      aria-label="Specific Block Reason"
+                      type="text"
+                      placeholder="e.g., Personal work, Meeting"
+                      value={blockFormData.reason}
+                      onChange={(e) => setBlockFormData({ ...blockFormData, reason: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                </div>
+
+                {availableSlotsToBlock.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-gray-500">
+                    No unblocked, unbooked slots are available for {format(new Date(selectedDate), 'MMM dd, yyyy')}.
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-gray-600">
+                        Selected <span className="font-semibold">{selectedSlotIdsToBlock.size}</span> of{' '}
+                        <span className="font-semibold">{availableSlotsToBlock.length}</span> available slots
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleToggleAllSelectedSlots}
+                        className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        {selectedSlotIdsToBlock.size === availableSlotsToBlock.length ? 'Clear All' : 'Select All'}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {availableSlotsToBlock.map((slot) => {
+                        const isSelected = selectedSlotIdsToBlock.has(slot.id);
+
+                        return (
+                          <button
+                            key={slot.id}
+                            type="button"
+                            onClick={() => handleToggleSelectedSlot(slot.id)}
+                            className={`rounded-xl border-2 p-4 text-left transition-colors ${
+                              isSelected
+                                ? 'border-red-500 bg-red-50'
+                                : 'border-gray-200 bg-white hover:border-red-300'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-semibold text-gray-900">
+                                  {slot.start_time} - {slot.end_time}
+                                </p>
+                                <p className="text-sm text-gray-600">40 minutes</p>
+                              </div>
+                              <span
+                                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                  isSelected
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-green-100 text-green-700'
+                                }`}
+                              >
+                                {isSelected ? 'Selected' : 'Available'}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      type="button"
+                      onClick={handleBlockSelectedSlots}
+                      disabled={loading || selectedSlotIdsToBlock.size === 0}
+                      className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 font-semibold"
+                    >
+                      Block Selected Slots
+                    </motion.button>
+                  </>
+                )}
+              </div>
+            )}
+          </motion.div>
         )}
 
         {/* Blocked Date Ranges Section */}
@@ -874,7 +1051,7 @@ const SlotManagement = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {slots
                         .filter(s => s.is_blocked)
-                        .map((slot: any) => (
+                        .map((slot) => (
                           <motion.div
                             key={slot.id}
                             whileHover={{ scale: 1.02 }}
@@ -923,7 +1100,7 @@ const SlotManagement = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {slots
                       .filter(s => !s.is_blocked)
-                      .map((slot: any) => (
+                      .map((slot) => (
                         <motion.div
                           key={slot.id}
                           whileHover={{ scale: 1.02 }}

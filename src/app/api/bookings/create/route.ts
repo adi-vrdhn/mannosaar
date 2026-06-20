@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { createGoogleCalendarEvent } from '@/lib/google-calendar';
 import { sendBookingConfirmationEmail } from '@/lib/email';
+import { getTherapistNotificationRecipients } from '@/lib/therapist-email';
 import { sendBookingConfirmationWhatsApp } from '@/lib/whatsapp';
 
 export async function POST(request: Request) {
@@ -343,8 +344,9 @@ export async function POST(request: Request) {
         .eq('id', therapistId)
         .single();
 
-      const therapistEmail =
-        therapistData?.email || process.env.THERAPIST_EMAIL || process.env.EMAIL_USER || '';
+      const therapistEmail = getTherapistNotificationRecipients(
+        therapistData?.email
+      );
       const therapistName = therapistData?.name || 'Therapist';
       const emailDate = isBundleBooking ? `${sessionDates.length} sessions scheduled` : slotData.date;
       const emailStartTime = isBundleBooking ? 'Varies' : slotData.start_time;

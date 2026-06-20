@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendBookingConfirmationEmail } from '@/lib/email';
+import { getTherapistNotificationRecipients } from '@/lib/therapist-email';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
     const emailSent = await sendBookingConfirmationEmail({
       clientEmail: booking.user.email,
       clientName: booking.user.name || 'Client',
-      therapistEmail: therapist.email,
+      therapistEmail: getTherapistNotificationRecipients(therapist.email),
       therapistName: therapist.name || 'Therapist',
       sessionType: booking.session_type,
       date: booking.slot.date,

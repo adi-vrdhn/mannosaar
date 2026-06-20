@@ -362,21 +362,35 @@ const AdminDashboard = () => {
                   ) : (
                     <div className="space-y-3">
                       {dashboardData.todayBookings.map((booking) => (
-                        <Link
-                          href="/admin/bookings?view=today"
+                        <div
                           key={booking.id}
                           className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-4 transition hover:border-violet-200 hover:bg-violet-50/60 sm:flex-row sm:items-center sm:justify-between"
                         >
-                          <div>
+                          <Link
+                            href="/admin/bookings?view=today"
+                            className="block"
+                          >
                             <p className="font-black text-slate-950">{booking.user_name || 'Client'}</p>
                             <p className="text-sm font-medium text-slate-500">
                               {formatTime(booking.slot_start_time)} - {formatTime(booking.slot_end_time)}
                             </p>
+                          </Link>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black capitalize text-emerald-700">
+                              {booking.status || 'confirmed'}
+                            </span>
+                            {booking.meeting_link && (
+                              <a
+                                href={booking.meeting_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="rounded-full border border-violet-200 bg-white px-3 py-1 text-xs font-black text-violet-700 transition hover:bg-violet-50"
+                              >
+                                Join meeting
+                              </a>
+                            )}
                           </div>
-                          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black capitalize text-emerald-700">
-                            {booking.status || 'confirmed'}
-                          </span>
-                        </Link>
+                        </div>
                       ))}
                     </div>
                   )}
