@@ -6,12 +6,10 @@ import { signOut } from 'next-auth/react';
 import { useSession } from 'next-auth/react';
 
 interface NavbarProps {
-  isLoggedIn?: boolean;
-  userName?: string;
   onLogout?: () => void;
 }
 
-const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) => {
+const Navbar = ({ onLogout }: NavbarProps) => {
   const { data: session } = useSession();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -99,12 +97,13 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
           </div>
 
           {/* User Section - Right */}
-          <div className="flex items-center gap-4" suppressHydrationWarning>
+          <div ref={mobileMenuRef} className="flex items-center gap-4" suppressHydrationWarning>
             {/* Mobile Menu Button */}
             <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              onClick={() => setIsMobileMenuOpen((isOpen) => !isOpen)}
               className="md:hidden flex flex-col gap-1.5 p-2"
               aria-label="Toggle menu"
+              aria-expanded={isMobileMenuOpen}
               suppressHydrationWarning
             >
               <div className={`w-6 h-0.5 bg-[#34213f] transition-all duration-300 ${isMobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`}></div>
@@ -174,7 +173,6 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
           <div
-            ref={mobileMenuRef}
             className="mt-4 border-t border-white/25 pb-4 md:hidden"
             suppressHydrationWarning
           >

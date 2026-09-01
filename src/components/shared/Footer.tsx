@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 
 export default function Footer() {
@@ -7,9 +8,19 @@ export default function Footer() {
     <footer className="bg-[#cbb7df] py-12 text-[#34213f]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Brand Name */}
-        <div className="text-center mb-8">
-          <h3 className="text-2xl font-playfair font-bold">MANNOSAAR</h3>
-          <p className="mt-2 text-sm text-[#34213f]/80">Mental Health & Wellness Platform</p>
+        <div className="mb-8 text-center">
+          <div className="flex items-center justify-center gap-3">
+            <Image
+              src="/mannosaar_logog_only.png"
+              alt="Mannosaar logo"
+              width={42}
+              height={42}
+              className="h-10 w-10 object-contain"
+            />
+            <h3 className="font-playfair text-2xl font-bold">MANNOSAAR</h3>
+          </div>
+          <p className="mt-2 text-sm font-medium tracking-wide text-[#34213f]/80">Heal • Grow • Transform</p>
+          <p className="mt-1 text-sm text-[#34213f]/80">Mental Health & Wellness Platform</p>
         </div>
 
         {/* Contact Info */}

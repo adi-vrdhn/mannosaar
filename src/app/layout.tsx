@@ -12,6 +12,26 @@ const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "G-QDPW5YK7B5";
 export const metadata: Metadata = {
   title: "Mannosaar - Mental Health Therapy",
   description: "Professional mental health therapy and counseling services",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://www.mannosaar.com"),
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Mannosaar",
+    title: "Mannosaar - Mental Health Therapy",
+    description: "Professional mental health therapy and counseling services.",
+    url: "/",
+  },
+  twitter: {
+    card: "summary",
+    title: "Mannosaar - Mental Health Therapy",
+    description: "Professional mental health therapy and counseling services.",
+  },
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
