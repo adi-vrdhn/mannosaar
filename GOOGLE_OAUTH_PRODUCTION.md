@@ -34,10 +34,13 @@ Your OAuth app is currently in **Testing** mode. Here's how to move it to **Prod
 - **Developer contact**: your-email@example.com
 
 #### Scopes (Keep minimal):
-- ✅ `auth/userinfo.email`
-- ✅ `auth/userinfo.profile`
-- ✅ `calendar` (if using Google Calendar)
-- ❌ Remove any unnecessary scopes
+- ✅ `https://www.googleapis.com/auth/calendar.events`
+- ✅ `https://www.googleapis.com/auth/userinfo.email`
+- ❌ Remove every other scope, including full calendar access and profile access
+
+#### Why these scopes are required:
+- `https://www.googleapis.com/auth/calendar.events`: lets the app create, update, read back, and delete appointment events on the therapist's calendar.
+- `https://www.googleapis.com/auth/userinfo.email`: lets the app identify the connected Google account by email.
 
 #### Branding:
 - **Logo**: Upload your platform logo (512x512 px)
@@ -46,11 +49,10 @@ Your OAuth app is currently in **Testing** mode. Here's how to move it to **Prod
 - **Terms of service**: `https://your-domain.vercel.app/terms` (create this page)
 
 #### Sensitive Scopes:
-- If using calendar data, add justification:
-  ```
-  "We use this to display your Google Calendar availability for 
-   booking appointments. No data is stored or shared."
-  ```
+- If Google asks for justification, describe the minimum event-level access only:
+   ```
+   "We use event-level Calendar access to create, update, read, and delete appointment events for booking management. We only request the connected account's email for identification."
+   ```
 
 ### Save Changes
 
@@ -88,6 +90,14 @@ These are the domains where users can sign in.
    ```
 
 5. Click **Save**
+
+## Google Cloud Console Changes to Make After This Update
+
+1. Remove `https://www.googleapis.com/auth/calendar` from the OAuth consent screen.
+2. Remove any profile scopes such as `https://www.googleapis.com/auth/userinfo.profile` if they were previously added.
+3. Keep only `https://www.googleapis.com/auth/calendar.events` and `https://www.googleapis.com/auth/userinfo.email` on the consent screen.
+4. Re-publish or save the OAuth consent screen so the displayed scopes match the code.
+5. Verify the OAuth client redirect URI still matches `/api/auth/google-callback` exactly for each environment.
 
 ## Step 5: Request Production Status
 

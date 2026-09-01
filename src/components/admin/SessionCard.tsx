@@ -56,11 +56,11 @@ const SessionCard = ({
       {/* Main Info - Always Visible */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full p-4 flex items-start justify-between hover:bg-gray-50 transition-colors text-left"
+        className="flex w-full items-start justify-between p-4 text-left transition-colors hover:bg-gray-50"
       >
         <div className="flex-1">
           {/* Top Row: Name and Session Type */}
-          <div className="flex items-center gap-3 mb-2">
+          <div className="mb-2 flex flex-wrap items-center gap-3">
             <p className="font-semibold text-gray-900">{userName}</p>
             <span
               className={`px-2 py-1 rounded text-xs font-medium ${
@@ -74,7 +74,7 @@ const SessionCard = ({
           </div>
 
           {/* Date and Time */}
-          <p className="text-sm text-gray-600 mb-2">
+          <p className="mb-2 text-sm text-gray-600">
             📅 {format(new Date(slotDate), 'MMM dd, yyyy')} • ⏰ {slotStartTime} - {slotEndTime}
           </p>
 

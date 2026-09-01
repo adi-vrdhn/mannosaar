@@ -79,6 +79,7 @@ export default function GoogleConnectButton({ onSuccess }: GoogleConnectButtonPr
       }
 
       setConnected(false);
+      onSuccess?.();
       setLoading(false);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to disconnect Google account';
@@ -94,7 +95,7 @@ export default function GoogleConnectButton({ onSuccess }: GoogleConnectButtonPr
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Google Calendar Integration</h3>
           <p className="text-sm text-gray-600 mb-4">
@@ -132,12 +133,12 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
         </div>
       )}
 
-      <div className="mt-4 flex gap-3">
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
         {!connected ? (
           <button
             onClick={handleConnect}
             disabled={loading}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors"
+            className="w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-700 disabled:bg-gray-400 sm:w-auto"
           >
             {loading ? 'Connecting...' : '🔗 Connect Google Account'}
           </button>
@@ -145,14 +146,14 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
           <>
             <button
               disabled={true}
-              className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg flex items-center gap-2"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-3 font-semibold text-white sm:w-auto"
             >
               ✅ Connected
             </button>
             <button
               onClick={handleDisconnect}
               disabled={loading}
-              className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors"
+              className="w-full rounded-lg bg-red-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-red-700 disabled:bg-gray-400 sm:w-auto"
             >
               {loading ? 'Disconnecting...' : '🔌 Disconnect'}
             </button>

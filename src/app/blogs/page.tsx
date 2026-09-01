@@ -61,10 +61,6 @@ export default function BlogsPage() {
     title: string;
     description: string;
   } | null>(null);
-  const [imageData, setImageData] = useState<{
-    imageUrl: string;
-    caption: string;
-  } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [editingImageId, setEditingImageId] = useState<string | null>(null);
@@ -378,49 +374,8 @@ export default function BlogsPage() {
     }
   };
 
-  const handlePublishImage = async () => {
-    if (!imageData) {
-      alert('Please upload an image first');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      console.log('📸 Publishing image:', { imageData });
-      const response = await fetch('/api/content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'image',
-          title: imageData.caption.split('\n')[0] || 'Untitled',
-          description: imageData.caption,
-          mediaUrl: imageData.imageUrl,
-          featured: false,
-        }),
-      });
-
-      console.log('📸 Image publish response:', { status: response.status });
-      const responseData = await response.json();
-      console.log('📸 Image publish data:', responseData);
-
-      if (response.ok) {
-        setSuccessMessage('Image posted successfully!');
-        setImageData(null);
-        fetchAllContent();
-        setTimeout(() => setSuccessMessage(''), 3000);
-      } else {
-        alert(`Failed to post image: ${responseData.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      console.error('Error posting image:', error);
-      alert('Error posting image');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50">
+    <div className="min-h-screen bg-[#cbb7df]">
       {/* Success Message */}
       {successMessage && (
         <div className="fixed top-4 right-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 font-medium z-50">
@@ -429,7 +384,7 @@ export default function BlogsPage() {
       )}
 
       {/* Header */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="mx-auto max-w-[1320px] px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-[1.25fr_0.75fr] lg:items-end">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -437,30 +392,30 @@ export default function BlogsPage() {
             transition={{ duration: 0.6 }}
             className="space-y-6"
           >
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-purple-700 shadow-sm backdrop-blur">
-              Community feed
+            <div className="inline-flex items-center gap-2 border-b border-[#5b267a]/40 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#5b267a]">
+              Mental wellness resources
             </div>
             <div className="space-y-4">
-              <h1 className="max-w-3xl text-5xl font-black leading-[0.95] tracking-tight text-gray-900 md:text-7xl">
-                Stories, art, and moments from the mindcare journal.
+              <h1 className="max-w-3xl font-playfair text-4xl font-bold leading-[1.02] tracking-[-0.04em] text-[#34213f] md:text-6xl">
+                Thoughtful resources for your mental wellbeing.
               </h1>
-              <p className="max-w-2xl text-lg leading-8 text-gray-600 md:text-xl">
-                Share articles, pictures, and short updates with a bold visual style.
+              <p className="max-w-2xl text-base leading-8 text-[#4c4052] md:text-lg">
+                Read practical reflections, watch short videos, and find gentle perspectives for everyday life.
               </p>
             </div>
 
-            <div className="grid max-w-2xl grid-cols-3 gap-3">
-              <div className="rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-500">Articles</p>
-                <p className="mt-2 text-2xl font-black text-gray-900">{blogs.length}</p>
+            <div className="grid max-w-2xl grid-cols-3 divide-x divide-[#6f4b88]/20 border-y border-[#6f4b88]/20 py-4">
+              <div className="px-3 first:pl-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Articles</p>
+                <p className="mt-1 font-playfair text-2xl font-bold text-[#34213f]">{blogs.length}</p>
               </div>
-              <div className="rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-pink-500">Images</p>
-                <p className="mt-2 text-2xl font-black text-gray-900">{images.length}</p>
+              <div className="px-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Images</p>
+                <p className="mt-1 font-playfair text-2xl font-bold text-[#34213f]">{images.length}</p>
               </div>
-              <div className="rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-500">Shorts</p>
-                <p className="mt-2 text-2xl font-black text-gray-900">{videos.length}</p>
+              <div className="px-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Short videos</p>
+                <p className="mt-1 font-playfair text-2xl font-bold text-[#34213f]">{videos.length}</p>
               </div>
             </div>
           </motion.div>
@@ -469,18 +424,18 @@ export default function BlogsPage() {
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="rounded-[32px] border border-white/80 bg-white/85 p-5 shadow-[0_20px_60px_rgba(99,102,241,0.12)] backdrop-blur"
+            className="border-l border-[#6f4b88]/30 pl-6 lg:pb-2"
           >
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-purple-500">Create & share</p>
-                <p className="mt-2 text-lg font-bold text-gray-900">Posts feel better with a cover image.</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Create & share</p>
+                <p className="mt-2 text-lg font-bold text-[#34213f]">Share a thoughtful resource with the community.</p>
               </div>
 
               {isAdmin && (
                 <motion.button
                   onClick={() => setShowUploadUI(!showUploadUI)}
-                  className="rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:shadow-xl"
+                  className="rounded-full bg-[#5b267a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#481d61]"
                   whileHover={{ scale: 1.04 }}
                 >
                   {showUploadUI ? 'Hide upload' : '+ Upload'}
@@ -492,7 +447,7 @@ export default function BlogsPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="mt-10 flex flex-wrap gap-2 rounded-3xl border border-white/70 bg-white/70 p-2 shadow-sm backdrop-blur">
+        <div className="mt-10 flex flex-wrap gap-1 border-y border-[#6f4b88]/25 py-2">
           {[
             { id: 'articles', label: 'Feed', icon: FileText },
             { id: 'shorts', label: 'Reels', icon: Video },
@@ -502,11 +457,11 @@ export default function BlogsPage() {
             return (
               <motion.button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 rounded-2xl px-6 py-3 font-semibold transition-all ${
+                onClick={() => setActiveTab(tab.id as 'articles' | 'shorts' | 'images')}
+                className={`flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all ${
                   activeTab === tab.id
-                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
-                    : 'text-gray-600 hover:bg-white hover:text-gray-900'
+                    ? 'bg-[#5b267a] text-white'
+                    : 'text-[#4c4052] hover:bg-white/30 hover:text-[#34213f]'
                 }`}
                 whileHover={{ scale: 1.05 }}
               >
@@ -688,7 +643,7 @@ export default function BlogsPage() {
       </div>
 
       {/* Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="mx-auto max-w-[1320px] px-4 py-12 sm:px-6 lg:px-8">
         {loading ? (
           <div className="text-center py-12">
             <p className="text-gray-500">Loading...</p>

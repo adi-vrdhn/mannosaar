@@ -37,10 +37,10 @@ export default function BlogCard({
       whileInView={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       whileHover={{ y: -6 }}
-      className="group overflow-hidden rounded-[28px] border border-white/70 bg-white/85 shadow-[0_18px_50px_rgba(99,102,241,0.12)] backdrop-blur"
+      className="group overflow-hidden border border-white/70 bg-white/55 shadow-[0_14px_30px_rgba(68,42,87,0.1)]"
     >
       <Link href={`/blogs/${slug}`} className="block">
-        <div className="relative aspect-[16/11] overflow-hidden bg-gradient-to-br from-purple-100 via-pink-50 to-blue-100">
+        <div className="relative aspect-[16/11] overflow-hidden bg-[#bda5d2]">
           {featured_image ? (
             <img
               src={featured_image}
@@ -48,17 +48,17 @@ export default function BlogCard({
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
           ) : (
-            <div className="flex h-full w-full items-end bg-[radial-gradient(circle_at_top_left,_rgba(236,72,153,0.18),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(99,102,241,0.18),_transparent_28%),linear-gradient(135deg,_rgba(255,255,255,0.95),_rgba(238,242,255,0.9))]">
+            <div className="flex h-full w-full items-end bg-[#bda5d2]">
               <div className="px-6 pb-6">
-                <div className="inline-flex rounded-full bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-purple-700">
-                  Cover image
+                <div className="inline-flex border-b border-[#5b267a]/45 pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#4c245f]">
+                  Mannosaar journal
                 </div>
               </div>
             </div>
           )}
 
           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between gap-3">
-            <div className="rounded-full bg-white/90 px-3 py-2 text-xs font-semibold text-gray-800 backdrop-blur-md">
+            <div className="rounded-full bg-white/85 px-3 py-2 text-xs font-semibold text-[#34213f] backdrop-blur-md">
               {format(new Date(created_at), 'MMM d, yyyy')}
             </div>
           </div>
@@ -66,26 +66,26 @@ export default function BlogCard({
 
         <div className="space-y-4 p-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-600 to-pink-500 text-sm font-bold text-white shadow-lg">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#5b267a] text-sm font-bold text-white">
               {initials || 'MH'}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-gray-900">{author_name}</p>
-              <p className="text-xs text-gray-500">{format(new Date(created_at), 'EEEE, MMM d')}</p>
+              <p className="truncate text-sm font-semibold text-[#34213f]">{author_name}</p>
+              <p className="text-xs text-[#4c4052]">{format(new Date(created_at), 'EEEE, MMM d')}</p>
             </div>
-            <ArrowUpRight className="text-purple-500 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" size={18} />
+            <ArrowUpRight className="text-[#5b267a] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" size={18} />
           </div>
 
-          <h2 className="line-clamp-2 text-[1.65rem] font-black leading-tight tracking-tight text-gray-900 group-hover:text-purple-700">
+          <h2 className="line-clamp-2 font-playfair text-2xl font-bold leading-tight text-[#34213f] group-hover:text-[#5b267a]">
             {title}
           </h2>
 
-          <p className="line-clamp-3 text-sm leading-7 text-gray-600">
+          <p className="line-clamp-3 text-sm leading-7 text-[#4c4052]">
             {excerpt}
           </p>
 
-          <div className="flex items-center justify-between border-t border-gray-100 pt-4">
-            <span className="text-sm font-semibold text-gray-900 transition-colors group-hover:text-purple-700">
+          <div className="flex items-center justify-between border-t border-[#6f4b88]/15 pt-4">
+            <span className="text-sm font-semibold text-[#34213f] transition-colors group-hover:text-[#5b267a]">
               Read story
             </span>
           </div>

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 
+const GOOGLE_AUTH_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/userinfo.email',
+];
+
 export async function GET(request: NextRequest) {
   try {
     console.log('🔍 [Google Auth] Request received');
@@ -46,11 +51,7 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.append('client_id', GOOGLE_CLIENT_ID);
     authUrl.searchParams.append('redirect_uri', REDIRECT_URI);
     authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('scope', [
-      'https://www.googleapis.com/auth/calendar',
-      'https://www.googleapis.com/auth/calendar.events',
-      'https://www.googleapis.com/auth/userinfo.email',
-    ].join(' '));
+    authUrl.searchParams.append('scope', GOOGLE_AUTH_SCOPES.join(' '));
     authUrl.searchParams.append('access_type', 'offline');
     authUrl.searchParams.append('prompt', 'consent');
 

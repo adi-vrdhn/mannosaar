@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import BlogEditor from '@/components/blog/BlogEditor';
+import AdminSectionNav from '@/components/admin/AdminSectionNav';
 import { motion } from 'framer-motion';
 
 export default function AdminBlogPage() {
@@ -137,15 +138,17 @@ export default function AdminBlogPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
+    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pb-12 pt-20 sm:pt-24">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <AdminSectionNav className="mb-5" />
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-12"
         >
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Create New Blog Post</h1>
+          <h1 className="mb-2 text-3xl font-bold text-gray-900 sm:text-4xl">Create New Blog Post</h1>
           <p className="text-gray-600">Share your thoughts on mental health and wellness</p>
         </motion.div>
 
@@ -154,7 +157,7 @@ export default function AdminBlogPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           onSubmit={handlePublish}
-          className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100"
+          className="rounded-2xl border border-gray-100 bg-white p-5 shadow-lg sm:p-8"
         >
           {/* Messages */}
           {error && (

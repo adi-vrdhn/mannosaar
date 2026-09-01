@@ -145,7 +145,7 @@ const ReviewsManagement = ({ userRole }: ReviewsManagementProps) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="bg-white rounded-2xl shadow-lg p-8"
+      className="rounded-2xl bg-white p-5 shadow-lg sm:p-8"
     >
       <h2 className="text-2xl font-bold text-gray-900 mb-6">⭐ Customer Reviews</h2>
 
@@ -171,7 +171,7 @@ const ReviewsManagement = ({ userRole }: ReviewsManagementProps) => {
 
       {/* Add Review Form */}
       {canManage && (
-        <div className="mb-8 p-6 bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+          <div className="mb-8 rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-purple-100 p-5 sm:p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Add New Review</h3>
 
           <div className="space-y-4">
@@ -180,7 +180,7 @@ const ReviewsManagement = ({ userRole }: ReviewsManagementProps) => {
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Rating (1-5 stars)
               </label>
-              <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
                     key={star}
@@ -249,7 +249,7 @@ const ReviewsManagement = ({ userRole }: ReviewsManagementProps) => {
                 exit={{ opacity: 0 }}
                 className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-all"
               >
-                <div className="flex justify-between items-start gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex-1">
                     {renderStars(review.rating)}
                     <p className="text-gray-700 mt-2">{review.comment}</p>

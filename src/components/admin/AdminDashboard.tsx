@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
+import AdminSectionNav from './AdminSectionNav';
+import { adminNavItems } from './adminNavItems';
 import {
   BarChart3,
   Calendar,
@@ -14,12 +16,9 @@ import {
   ChevronRight,
   ChevronLeft,
   Clock3,
-  CreditCard,
-  Home,
   IndianRupee,
   LayoutDashboard,
   MoreVertical,
-  Settings,
   ShieldBan,
   UserPlus,
   Users,
@@ -58,17 +57,6 @@ interface AdminUser {
 }
 
 type PricingMap = Record<string, number>;
-
-const navItems = [
-  { label: 'Dashboard', href: '/admin', icon: Home },
-  { label: 'Appointments', href: '/admin/bookings', icon: CalendarDays },
-  { label: 'Calendar', href: '/admin/calendar', icon: Calendar },
-  { label: 'Clients', href: '/admin/users', icon: Users },
-  { label: 'Slots', href: '/admin/slots', icon: Clock3 },
-  { label: 'Payments', href: '/admin/payments', icon: CreditCard },
-  { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
-  { label: 'Settings', href: '/admin/settings', icon: Settings },
-];
 
 const quickActions = [
   { label: 'Create Slot', href: '/admin/slots', icon: CalendarPlus, className: 'from-purple-50 to-violet-50 text-purple-700' },
@@ -242,7 +230,7 @@ const AdminDashboard = () => {
           </div>
 
           <nav className="flex-1 space-y-2 px-5 py-7">
-            {navItems.map(({ label, href, icon: Icon }) => {
+            {adminNavItems.map(({ label, href, icon: Icon }) => {
               const active = href === '/admin';
               return (
                 <Link
@@ -274,36 +262,38 @@ const AdminDashboard = () => {
         </aside>
 
         <main className="min-w-0">
-          <div className="px-4 py-7 sm:px-6 lg:px-10">
-            <section className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="px-3 py-4 sm:px-6 sm:py-7 lg:px-10">
+            <AdminSectionNav className="mb-4" />
+
+            <section className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-4xl">
                   {getGreeting()}, {adminName.split(' ')[0]}
                 </h1>
-                <p className="mt-2 text-base font-medium text-slate-500">Here is what is happening with your sessions today.</p>
+                <p className="mt-1 text-sm font-medium text-slate-500 sm:mt-2 sm:text-base">Here is what is happening with your sessions today.</p>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-slate-600 shadow-sm ring-1 ring-slate-200">
-                <CalendarDays size={18} />
+              <div className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-600 shadow-sm ring-1 ring-slate-200 sm:w-auto sm:rounded-2xl sm:px-4 sm:py-3">
+                <CalendarDays size={16} />
                 {format(new Date(), 'EEE, MMM dd, yyyy')}
               </div>
             </section>
 
-            <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
               {summaryCards.map(({ label, value, caption, icon: Icon, color, href }) =>
                 href ? (
                   <Link
                     key={label}
                     href={href}
-                    className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-violet-200"
+                    className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_18px_50px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-violet-200 sm:rounded-3xl sm:p-5"
                   >
-                    <div className="flex items-center gap-4">
-                      <span className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${color}`}>
-                        <Icon size={28} />
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl sm:h-16 sm:w-16 sm:rounded-full ${color}`}>
+                        <Icon size={20} className="sm:h-7 sm:w-7" />
                       </span>
-                      <div>
-                        <p className="text-sm font-bold text-slate-500">{label}</p>
-                        <p className="mt-1 text-3xl font-black text-slate-950">{loading ? '...' : value}</p>
-                        <p className="mt-1 text-sm font-medium text-slate-500">{caption}</p>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold leading-tight text-slate-500 sm:text-sm">{label}</p>
+                        <p className="mt-1 break-words text-xl font-black leading-none text-slate-950 sm:text-3xl">{loading ? '...' : value}</p>
+                        <p className="mt-1 text-xs font-medium leading-tight text-slate-500 sm:text-sm">{caption}</p>
                       </div>
                     </div>
                   </Link>
@@ -312,16 +302,16 @@ const AdminDashboard = () => {
                     key={label}
                     initial={{ opacity: 0, y: 18 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]"
+                    className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:rounded-3xl sm:p-5"
                   >
-                    <div className="flex items-center gap-4">
-                      <span className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${color}`}>
-                        <Icon size={28} />
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl sm:h-16 sm:w-16 sm:rounded-full ${color}`}>
+                        <Icon size={20} className="sm:h-7 sm:w-7" />
                       </span>
-                      <div>
-                        <p className="text-sm font-bold text-slate-500">{label}</p>
-                        <p className="mt-1 text-3xl font-black text-slate-950">{loading ? '...' : value}</p>
-                        <p className="mt-1 text-sm font-medium text-slate-500">{caption}</p>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold leading-tight text-slate-500 sm:text-sm">{label}</p>
+                        <p className="mt-1 break-words text-xl font-black leading-none text-slate-950 sm:text-3xl">{loading ? '...' : value}</p>
+                        <p className="mt-1 text-xs font-medium leading-tight text-slate-500 sm:text-sm">{caption}</p>
                       </div>
                     </div>
                   </motion.div>
@@ -329,16 +319,16 @@ const AdminDashboard = () => {
               )}
             </section>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-              <div className="space-y-6">
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:p-7">
-                  <div className="mb-5 flex items-center justify-between">
-                    <h2 className="text-xl font-black text-slate-950">Today's Schedule</h2>
-                    <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-6">
+              <div className="space-y-4 sm:space-y-6">
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:rounded-3xl sm:p-7">
+                  <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="text-lg font-black text-slate-950 sm:text-xl">Today's Schedule</h2>
+                    <div className="flex w-full overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1 sm:w-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       {['Day', 'Week', 'Month'].map((label, index) => (
                         <button
                           key={label}
-                          className={`rounded-lg px-4 py-2 text-sm font-bold ${
+                          className={`min-w-[72px] rounded-lg px-3 py-1.5 text-xs font-bold sm:min-w-[88px] sm:px-4 sm:py-2 sm:text-sm ${
                             index === 0 ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500'
                           }`}
                           type="button"
@@ -350,33 +340,33 @@ const AdminDashboard = () => {
                   </div>
 
                   {loading ? (
-                    <div className="h-48 animate-pulse rounded-3xl bg-slate-100" />
+                    <div className="h-36 animate-pulse rounded-2xl bg-slate-100 sm:h-48 sm:rounded-3xl" />
                   ) : dashboardData.todayBookings.length === 0 ? (
-                    <div className="flex min-h-52 flex-col items-center justify-center rounded-3xl bg-gradient-to-br from-white to-violet-50 text-center">
-                      <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-violet-100 text-violet-700">
-                        <Clock3 size={38} />
+                    <div className="flex min-h-36 flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-white to-violet-50 px-4 text-center sm:min-h-52 sm:rounded-3xl">
+                      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 sm:mb-4 sm:h-20 sm:w-20 sm:rounded-3xl">
+                        <Clock3 size={26} className="sm:h-[38px] sm:w-[38px]" />
                       </div>
-                      <p className="text-xl font-black text-slate-950">No sessions today</p>
-                      <p className="mt-2 text-sm font-medium text-slate-500">Enjoy your free time.</p>
+                      <p className="text-lg font-black text-slate-950 sm:text-xl">No sessions today</p>
+                      <p className="mt-1 text-xs font-medium text-slate-500 sm:mt-2 sm:text-sm">Enjoy your free time.</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2.5 sm:space-y-3">
                       {dashboardData.todayBookings.map((booking) => (
                         <div
                           key={booking.id}
-                          className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-4 transition hover:border-violet-200 hover:bg-violet-50/60 sm:flex-row sm:items-center sm:justify-between"
+                          className="flex flex-col gap-2 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition hover:border-violet-200 hover:bg-violet-50/60 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-4"
                         >
                           <Link
                             href="/admin/bookings?view=today"
                             className="block"
                           >
-                            <p className="font-black text-slate-950">{booking.user_name || 'Client'}</p>
-                            <p className="text-sm font-medium text-slate-500">
+                            <p className="text-sm font-black text-slate-950 sm:text-base">{booking.user_name || 'Client'}</p>
+                            <p className="text-xs font-medium text-slate-500 sm:text-sm">
                               {formatTime(booking.slot_start_time)} - {formatTime(booking.slot_end_time)}
                             </p>
                           </Link>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black capitalize text-emerald-700">
+                            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-black capitalize text-emerald-700 sm:px-3 sm:text-xs">
                               {booking.status || 'confirmed'}
                             </span>
                             {booking.meeting_link && (
@@ -384,7 +374,7 @@ const AdminDashboard = () => {
                                 href={booking.meeting_link}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="rounded-full border border-violet-200 bg-white px-3 py-1 text-xs font-black text-violet-700 transition hover:bg-violet-50"
+                                className="rounded-full border border-violet-200 bg-white px-2.5 py-1 text-[11px] font-black text-violet-700 transition hover:bg-violet-50 sm:px-3 sm:text-xs"
                               >
                                 Join meeting
                               </a>
@@ -396,19 +386,57 @@ const AdminDashboard = () => {
                   )}
                 </section>
 
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:p-7">
-                  <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <h2 className="text-xl font-black text-slate-950">Upcoming Sessions</h2>
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:rounded-3xl sm:p-7">
+                  <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="text-lg font-black text-slate-950 sm:text-xl">Upcoming Sessions</h2>
                     <Link
                       href="/admin/bookings?view=upcoming"
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 px-4 py-2 text-sm font-bold text-violet-700 transition hover:bg-violet-50"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 px-3 py-2 text-xs font-bold text-violet-700 transition hover:bg-violet-50 sm:px-4 sm:text-sm"
                     >
                       <Calendar size={16} />
                       View Bookings
                     </Link>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  <div className="space-y-2.5 md:hidden">
+                    {loading ? (
+                      Array.from({ length: 3 }).map((_, index) => (
+                        <div key={index} className="h-20 animate-pulse rounded-2xl bg-slate-100" />
+                      ))
+                    ) : upcomingPreview.length === 0 ? (
+                      <div className="rounded-2xl bg-slate-50 px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                        No upcoming sessions yet.
+                      </div>
+                    ) : (
+                      upcomingPreview.map((booking) => (
+                        <Link
+                          key={booking.id}
+                          href="/admin/bookings"
+                          className="block rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition hover:border-violet-200 hover:bg-violet-50/60"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-black text-slate-900">{booking.user_name || 'Client'}</p>
+                              <p className="mt-1 text-xs font-medium text-slate-500">
+                                {format(new Date(booking.slot_date), 'MMM dd')} · {formatTime(booking.slot_start_time)} - {formatTime(booking.slot_end_time)}
+                              </p>
+                            </div>
+                            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-black capitalize text-emerald-700">
+                              {booking.status || 'confirmed'}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <span className="rounded-lg bg-violet-100 px-2.5 py-1 text-[11px] font-black capitalize text-violet-700">
+                              {booking.session_type || 'Personal'}
+                            </span>
+                            <span className="text-xs font-bold text-violet-700">Open</span>
+                          </div>
+                        </Link>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="hidden overflow-x-auto md:block">
                     <table className="w-full min-w-[760px] border-collapse text-left">
                       <thead>
                         <tr className="border-y border-slate-200 bg-slate-50 text-sm text-slate-500">
@@ -476,7 +504,7 @@ const AdminDashboard = () => {
 
                   <Link
                     href="/admin/bookings"
-                    className="mt-5 inline-flex w-full items-center justify-center gap-2 text-sm font-black text-violet-700"
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 text-xs font-black text-violet-700 sm:mt-5 sm:text-sm"
                   >
                     View all sessions
                     <ChevronRight size={16} />
@@ -484,38 +512,38 @@ const AdminDashboard = () => {
                 </section>
               </div>
 
-              <aside className="space-y-6">
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-                  <h2 className="text-xl font-black text-slate-950">Quick Actions</h2>
-                  <div className="mt-5 space-y-3">
+              <aside className="space-y-4 sm:space-y-6">
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:rounded-3xl sm:p-5">
+                  <h2 className="text-lg font-black text-slate-950 sm:text-xl">Quick Actions</h2>
+                  <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:grid-cols-1 sm:gap-3">
                     {quickActions.map(({ label, href, icon: Icon, className }) => (
                       <Link
                         key={href + label}
                         href={href}
-                        className={`flex items-center gap-4 rounded-2xl bg-gradient-to-r px-4 py-3 text-sm font-black transition hover:-translate-y-0.5 ${className}`}
+                        className={`flex items-center gap-2 rounded-2xl bg-gradient-to-r px-3 py-2.5 text-xs font-black transition hover:-translate-y-0.5 sm:gap-4 sm:px-4 sm:py-3 sm:text-sm ${className}`}
                       >
-                        <Icon size={18} />
+                        <Icon size={16} className="sm:h-[18px] sm:w-[18px]" />
                         {label}
                       </Link>
                     ))}
                   </div>
                 </section>
 
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-                  <div className="mb-5 flex items-center justify-between">
-                    <h2 className="text-xl font-black text-slate-950">Calendar Overview</h2>
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:rounded-3xl sm:p-5">
+                  <div className="mb-4 flex items-center justify-between sm:mb-5">
+                    <h2 className="text-lg font-black text-slate-950 sm:text-xl">Calendar Overview</h2>
                     <div className="flex items-center gap-2 text-slate-500">
                       <ChevronLeft size={18} />
                       <ChevronRight size={18} />
                     </div>
                   </div>
-                  <p className="mb-4 text-center text-sm font-bold text-slate-500">{format(today, 'MMMM yyyy')}</p>
-                  <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-400">
+                  <p className="mb-3 text-center text-xs font-bold text-slate-500 sm:mb-4 sm:text-sm">{format(today, 'MMMM yyyy')}</p>
+                  <div className="grid grid-cols-7 gap-1.5 text-center text-[11px] font-bold text-slate-400 sm:gap-2 sm:text-xs">
                     {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
                       <span key={`${day}-${index}`}>{day}</span>
                     ))}
                   </div>
-                  <div className="mt-3 grid grid-cols-7 gap-2 text-center text-sm font-semibold text-slate-700">
+                  <div className="mt-3 grid grid-cols-7 gap-1.5 text-center text-xs font-semibold text-slate-700 sm:gap-2 sm:text-sm">
                     {calendarDays.leadingBlanks.map((_, index) => (
                       <span key={`blank-${index}`} />
                     ))}
@@ -527,7 +555,7 @@ const AdminDashboard = () => {
                         <Link
                           key={day.toISOString()}
                           href="/admin/calendar"
-                          className={`flex h-9 items-center justify-center rounded-full transition ${
+                          className={`flex h-7 items-center justify-center rounded-full transition sm:h-9 ${
                             active
                               ? 'bg-violet-600 font-black text-white'
                               : hasSession

@@ -300,7 +300,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
+    <div className="booking-theme min-h-screen pt-24 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Progress Header */}
         <motion.div

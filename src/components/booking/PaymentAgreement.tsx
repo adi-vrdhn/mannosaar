@@ -9,7 +9,7 @@ interface PaymentAgreementProps {
 
 export default function PaymentAgreement({ isChecked, onCheck }: PaymentAgreementProps) {
   return (
-    <div className="my-6 rounded-2xl border border-gray-200 bg-white p-6">
+    <div className="booking-panel my-6 rounded-2xl border border-gray-200 bg-white p-6">
       <h3 className="text-lg font-semibold text-gray-900">
         Payment & Refund Agreement
       </h3>

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { ArrowLeft, Clock } from 'lucide-react';
 import { format, startOfDay } from 'date-fns';
+import AdminSectionNav from '@/components/admin/AdminSectionNav';
 import SessionCard from '@/components/admin/SessionCard';
 
 interface Booking {
@@ -78,16 +79,18 @@ export default function TodaySessionsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-blue-50 to-white pt-24 pb-12">
+    <div className="min-h-screen bg-gradient-to-br from-white via-blue-50 to-white pb-12 pt-20 sm:pt-24">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <AdminSectionNav className="mb-5" />
+
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <Link href="/admin" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4">
             <ArrowLeft size={20} />
             Back to Dashboard
           </Link>
-          <h1 className="text-5xl font-bold text-gray-900 mb-2">Today's Sessions</h1>
-          <p className="text-xl text-gray-600">
+          <h1 className="mb-2 text-3xl font-bold text-gray-900 sm:text-5xl">Today's Sessions</h1>
+          <p className="text-base text-gray-600 sm:text-xl">
             {format(new Date(), 'EEEE, MMMM d, yyyy')}
           </p>
         </motion.div>
@@ -96,12 +99,12 @@ export default function TodaySessionsPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg p-8 text-white mb-8"
+          className="mb-8 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 p-6 text-white shadow-lg sm:p-8"
         >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-blue-100 text-sm font-semibold uppercase tracking-wide">Total Sessions Today</p>
-              <p className="text-5xl font-bold mt-2">{bookings.length}</p>
+              <p className="mt-2 text-4xl font-bold sm:text-5xl">{bookings.length}</p>
             </div>
             <Clock size={48} className="text-blue-200 opacity-50" />
           </div>

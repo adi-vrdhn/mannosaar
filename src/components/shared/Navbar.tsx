@@ -15,10 +15,15 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
   const { data: session } = useSession();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -45,7 +50,7 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
   };
 
   return (
-    <nav className="sticky top-0 z-50 bg-white backdrop-blur-md border-b border-purple-100/20 shadow-sm">
+    <nav className="sticky top-0 z-50 border-b border-white/30 bg-[#cbb7df] shadow-sm" suppressHydrationWarning>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
@@ -56,10 +61,10 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
               className="w-12 h-12 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6"
             />
             <div className="flex flex-col">
-              <span className="text-2xl font-bold text-gray-800 leading-tight transition-all duration-300 group-hover:text-purple-600" style={{ fontFamily: 'var(--font-playfair-display)' }}>
+              <span className="text-2xl font-bold text-[#34213f] leading-tight transition-all duration-300 group-hover:text-[#34213f]/75" style={{ fontFamily: 'var(--font-playfair-display)' }}>
                 Mannosaar
               </span>
-              <span className="text-xs text-gray-600 font-medium tracking-wide">
+              <span className="text-xs text-[#34213f]/80 font-medium tracking-wide">
                 Heal • Grow • Transform
               </span>
             </div>
@@ -69,25 +74,25 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
           <div className="hidden md:flex items-center space-x-8">
             <Link
               href="/"
-              className="text-gray-700 hover:text-purple-600 transition-colors font-medium text-sm"
+              className="text-[#34213f] hover:text-[#34213f]/70 transition-colors font-medium text-sm"
             >
               Home
             </Link>
             <Link
               href="/about"
-              className="text-gray-700 hover:text-purple-600 transition-colors font-medium text-sm"
+              className="text-[#34213f] hover:text-[#34213f]/70 transition-colors font-medium text-sm"
             >
               About
             </Link>
             <Link
               href="/blogs"
-              className="text-gray-700 hover:text-purple-600 transition-colors font-medium text-sm"
+              className="text-[#34213f] hover:text-[#34213f]/70 transition-colors font-medium text-sm"
             >
               Blog
             </Link>
             <Link
               href="/#reviews"
-              className="text-gray-700 hover:text-purple-600 transition-colors font-medium text-sm"
+              className="text-[#34213f] hover:text-[#34213f]/70 transition-colors font-medium text-sm"
             >
               Reviews
             </Link>
@@ -102,62 +107,66 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
               aria-label="Toggle menu"
               suppressHydrationWarning
             >
-              <div className={`w-6 h-0.5 bg-gray-800 transition-all duration-300 ${isMobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`}></div>
-              <div className={`w-6 h-0.5 bg-gray-800 transition-all duration-300 ${isMobileMenuOpen ? 'opacity-0' : ''}`}></div>
-              <div className={`w-6 h-0.5 bg-gray-800 transition-all duration-300 ${isMobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`}></div>
+              <div className={`w-6 h-0.5 bg-[#34213f] transition-all duration-300 ${isMobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`}></div>
+              <div className={`w-6 h-0.5 bg-[#34213f] transition-all duration-300 ${isMobileMenuOpen ? 'opacity-0' : ''}`}></div>
+              <div className={`w-6 h-0.5 bg-[#34213f] transition-all duration-300 ${isMobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`}></div>
             </button>
 
-            {session?.user ? (
-              <div ref={dropdownRef} className="relative">
-                <button
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-purple-50 transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-500 flex items-center justify-center">
-                    <span className="text-sm font-semibold text-white">
-                      {(session.user.name || session.user.email || '').charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <span className="text-sm font-medium text-gray-800 hidden sm:block">
-                    {session.user.name || session.user.email?.split('@')[0] || 'User'}
-                  </span>
-                </button>
-
-                {/* Dropdown Menu */}
-                {isDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
-                    <Link
-                      href="/profile"
-                      onClick={() => setIsDropdownOpen(false)}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 transition-colors"
-                    >
-                      Profile
-                    </Link>
-                    {session.user.role === 'admin' && (
-                      <Link
-                        href="/admin"
-                        onClick={() => setIsDropdownOpen(false)}
-                        className="block px-4 py-2 text-sm text-purple-600 hover:bg-purple-50 transition-colors border-t border-gray-200 font-semibold"
-                      >
-                        Admin Panel
-                      </Link>
-                    )}
+            {isMounted && (
+              <>
+                {session?.user ? (
+                  <div ref={dropdownRef} className="relative">
                     <button
-                      onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-gray-200"
+                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-white/15 transition-colors"
                     >
-                      Logout
-                      </button>
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-500 flex items-center justify-center">
+                        <span className="text-sm font-semibold text-white">
+                          {(session.user.name || session.user.email || '').charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <span className="text-sm font-medium text-[#34213f] hidden sm:block">
+                        {session.user.name || session.user.email?.split('@')[0] || 'User'}
+                      </span>
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {isDropdownOpen && (
+                      <div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-lg border border-white/30 bg-purple-700 shadow-xl">
+                        <Link
+                          href="/profile"
+                          onClick={() => setIsDropdownOpen(false)}
+                          className="block px-4 py-2 text-sm text-white hover:bg-white/15 transition-colors"
+                        >
+                          Profile
+                        </Link>
+                        {session.user.role === 'admin' && (
+                          <Link
+                            href="/admin"
+                            onClick={() => setIsDropdownOpen(false)}
+                            className="block border-t border-white/20 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15 transition-colors"
+                          >
+                            Admin Panel
+                          </Link>
+                        )}
+                        <button
+                          onClick={handleLogout}
+                          className="w-full border-t border-white/20 px-4 py-2 text-left text-sm text-white hover:bg-white/15 transition-colors"
+                        >
+                          Logout
+                          </button>
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  <Link
+                    href="/auth/login"
+                    className="rounded-full border border-white/50 bg-purple-700 px-6 py-2 font-medium text-white transition-all hover:bg-purple-800 hover:shadow-lg"
+                  >
+                    Login
+                  </Link>
                 )}
-              </div>
-            ) : (
-              <Link
-                href="/auth/login"
-                className="px-6 py-2 rounded-full font-medium text-white transition-all bg-gradient-to-r from-purple-600 to-purple-500 hover:shadow-lg"
-              >
-                Login
-              </Link>
+              </>
             )}
           </div>
         </div>
@@ -166,35 +175,35 @@ const Navbar = ({ isLoggedIn = false, userName = '', onLogout }: NavbarProps) =>
         {isMobileMenuOpen && (
           <div
             ref={mobileMenuRef}
-            className="md:hidden mt-4 pb-4 border-t border-purple-100/20"
+            className="mt-4 border-t border-white/25 pb-4 md:hidden"
             suppressHydrationWarning
           >
             <div className="space-y-2">
               <Link
                 href="/"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="block px-4 py-3 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors font-medium"
+                className="block rounded-lg px-4 py-3 font-medium text-[#34213f] hover:bg-white/15 transition-colors"
               >
                 Home
               </Link>
               <Link
                 href="/about"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="block px-4 py-3 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors font-medium"
+                className="block rounded-lg px-4 py-3 font-medium text-[#34213f] hover:bg-white/15 transition-colors"
               >
                 About
               </Link>
               <Link
                 href="/blogs"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="block px-4 py-3 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors font-medium"
+                className="block rounded-lg px-4 py-3 font-medium text-[#34213f] hover:bg-white/15 transition-colors"
               >
                 Blog
               </Link>
               <Link
                 href="/#reviews"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="block px-4 py-3 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors font-medium"
+                className="block rounded-lg px-4 py-3 font-medium text-[#34213f] hover:bg-white/15 transition-colors"
               >
                 Reviews
               </Link>

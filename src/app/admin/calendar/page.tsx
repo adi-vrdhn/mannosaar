@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { CalendarDays, ChevronLeft, Clock3, Users } from 'lucide-react';
 import { format } from 'date-fns';
+import AdminSectionNav from '@/components/admin/AdminSectionNav';
 
 interface Booking {
   id: string;
@@ -62,8 +63,10 @@ export default async function AdminCalendarPage() {
   }, {});
 
   return (
-    <div className="min-h-screen bg-[#f8f7ff] px-4 py-8 text-slate-950 sm:px-6 lg:px-10">
+    <div className="min-h-screen bg-[#f8f7ff] px-4 py-6 text-slate-950 sm:px-6 sm:py-8 lg:px-10">
       <div className="mx-auto max-w-6xl">
+        <AdminSectionNav className="mb-5" />
+
         <Link href="/admin" className="mb-6 inline-flex items-center gap-2 text-sm font-black text-violet-700">
           <ChevronLeft size={18} />
           Back to dashboard
@@ -71,7 +74,7 @@ export default async function AdminCalendarPage() {
 
         <div className="mb-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
           <p className="text-sm font-black uppercase tracking-[0.2em] text-violet-600">Admin Calendar</p>
-          <h1 className="mt-2 text-4xl font-black tracking-tight">Session calendar</h1>
+          <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Session calendar</h1>
           <p className="mt-2 text-slate-500">Upcoming sessions grouped by date for quick planning.</p>
         </div>
 

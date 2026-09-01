@@ -400,28 +400,14 @@ export function buildPayUResponseHash(params: {
   salt: string;
   additionalCharges?: string;
 }) {
-  const client = new PayU(
-    {
-      key: params.key,
-      salt: params.salt,
-    },
-    'TEST'
-  );
+  // PayU only prefixes the reverse hash when its callback includes additional_charges.
+  // The SDK adds an `undefined` prefix for normal responses, which rejects valid payments.
+  const reverseHashSequence = `${params.salt}|${params.status}||||||${params.udf5 || ''}|${params.udf4 || ''}|${params.udf3 || ''}|${params.udf2 || ''}|${params.udf1 || ''}|${params.email}|${params.firstname}|${params.productinfo}|${params.amount}|${params.txnid}|${params.key}`;
+  const hashSequence = params.additionalCharges
+    ? `${params.additionalCharges}|${reverseHashSequence}`
+    : reverseHashSequence;
 
-  return client.hasher.generateResponseHash({
-    status: params.status,
-    txnid: params.txnid,
-    amount: params.amount,
-    productinfo: params.productinfo,
-    firstname: params.firstname,
-    email: params.email,
-    udf1: params.udf1 || '',
-    udf2: params.udf2 || '',
-    udf3: params.udf3 || '',
-    udf4: params.udf4 || '',
-    udf5: params.udf5 || '',
-    additionalCharges: params.additionalCharges,
-  });
+  return crypto.createHash('sha512').update(hashSequence).digest('hex');
 }
 
 export async function verifyPayUPayment(txnid: string): Promise<PayUVerifyPaymentResult> {

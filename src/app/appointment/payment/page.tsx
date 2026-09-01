@@ -651,7 +651,7 @@ function PaymentPageContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
+    <div className="booking-theme min-h-screen pt-24 pb-12">
       <div className="max-w-2xl mx-auto px-4">
         <motion.div
           variants={containerVariants}
@@ -874,7 +874,7 @@ function PaymentPageContent() {
 
 function PaymentLoadingFallback() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
+    <div className="booking-theme min-h-screen pt-24 pb-12">
       <div className="max-w-2xl mx-auto px-4">
         <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12">
           <div className="text-center py-12">

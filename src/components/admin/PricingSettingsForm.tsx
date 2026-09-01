@@ -107,7 +107,7 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="bg-white rounded-2xl shadow-lg p-8"
+      className="rounded-2xl bg-white p-5 shadow-lg sm:p-8"
     >
       <h2 className="text-2xl font-bold text-gray-900 mb-2">💰 Session Bundle Pricing</h2>
       <p className="text-gray-600 mb-2">
@@ -138,7 +138,39 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
       )}
 
       {/* Pricing Grid */}
-      <div className="overflow-x-auto mb-8">
+      <div className="mb-8 space-y-4 md:hidden">
+        {[
+          { label: 'Personal', emoji: '👤', values: ['personal_1', 'personal_2', 'personal_3'] as const },
+          { label: 'Couple', emoji: '👫', values: ['couple_1', 'couple_2', 'couple_3'] as const },
+        ].map((section) => (
+          <div key={section.label} className="rounded-2xl border border-gray-200 p-4">
+            <p className="font-semibold text-gray-900">{section.emoji} {section.label}</p>
+            <div className="mt-4 space-y-4">
+              {section.values.map((key, index) => (
+                <div key={key}>
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">
+                    {index + 1} Session{index > 0 ? 's' : ''} Total
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-gray-600">₹</span>
+                    <input
+                      type="number"
+                      value={pricing[key]}
+                      onChange={(e) => handlePriceChange(key, parseFloat(e.target.value) || 0)}
+                      disabled={!canEdit || saving}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 font-semibold focus:border-transparent focus:ring-2 focus:ring-purple-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                      step="100"
+                      min="0"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mb-8 hidden overflow-x-auto md:block">
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-purple-100 to-purple-50 border-b-2 border-purple-300">
@@ -253,9 +285,9 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
       </div>
 
       {/* Savings Summary */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
+      <div className="mb-8 rounded-lg border border-blue-200 bg-blue-50 p-5 sm:p-6">
         <h3 className="font-semibold text-blue-900 mb-4">💡 Bundle Savings Overview</h3>
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div>
             <p className="text-sm text-blue-700 mb-2">Personal Sessions</p>
             <div className="space-y-1 text-sm text-blue-900">

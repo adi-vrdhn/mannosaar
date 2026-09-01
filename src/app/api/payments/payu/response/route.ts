@@ -219,7 +219,7 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
       udf4: payload.udf4,
       udf5: payload.udf5,
       salt,
-      additionalCharges: payload.additionalCharges,
+      additionalCharges: payload.additional_charges || payload.additionalCharges,
     });
 
     if (expectedHash !== receivedHash.toLowerCase()) {
@@ -609,7 +609,7 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
 
     try {
       if (isBundleBooking) {
-        for (const [index, session] of sessionDates.entries()) {
+        for (const session of sessionDates) {
           try {
             const calendarResult = await createGoogleCalendarEvent(
               calendarTherapistId,

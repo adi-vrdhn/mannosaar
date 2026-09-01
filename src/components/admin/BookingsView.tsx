@@ -4,6 +4,20 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
+import {
+  ArrowLeft,
+  CalendarCheck2,
+  CalendarDays,
+  CheckCircle2,
+  CircleAlert,
+  CircleX,
+  Clock3,
+  CreditCard,
+  LayoutList,
+  NotebookPen,
+  UserRound,
+} from 'lucide-react';
+import AdminSectionNav from './AdminSectionNav';
 import BookingDetailsModal from './BookingDetailsModal';
 
 interface Booking {
@@ -46,6 +60,8 @@ interface BookingWithDetails extends Booking {
     end_time: string;
   };
 }
+
+const statusOptions = ['all', 'pending', 'confirmed', 'cancelled', 'completed'] as const;
 
 const BookingsView = () => {
   const router = useRouter();
@@ -219,134 +235,189 @@ const BookingsView = () => {
     return `${normalized.slice(0, max).trimEnd()}...`;
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
-      <div className="mx-auto max-w-[1720px] px-4 sm:px-6 lg:px-10 2xl:px-12">
-        {/* Go Back Button */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          onClick={() => router.back()}
-          className="mb-6 rounded-2xl bg-slate-700 px-5 py-3 font-semibold text-white transition-colors hover:bg-slate-800"
-        >
-          ← Back
-        </motion.button>
+  const formatBookingDate = (value?: string) => {
+    if (!value || value === 'N/A') return 'Date unavailable';
+    return format(new Date(value), 'EEE, MMM dd');
+  };
 
-        {/* Header */}
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="mb-4 text-4xl font-bold text-gray-900">
-            📋 {viewMode === 'today' ? 'Today\'s Bookings' : viewMode === 'upcoming' ? 'Upcoming Bookings' : 'All Bookings'}
-          </h1>
-          <p className="text-gray-600">
-            Total: <span className="font-semibold text-purple-600">{bookings.length}</span> bookings | 
-            {' '}Filtered: <span className="font-semibold text-purple-600">{filteredBookings.length}</span>
-          </p>
+  const formatBookingDateLong = (value?: string) => {
+    if (!value || value === 'N/A') return 'Date unavailable';
+    return format(new Date(value), 'MMM dd, yyyy');
+  };
+
+  const summaryCards = [
+    {
+      key: 'today',
+      label: "Today's Sessions",
+      value: todaySessions.length,
+      helper: 'Scheduled for today',
+      icon: Clock3,
+      active: viewMode === 'today',
+      activeClass: 'border-blue-200 bg-blue-600 text-white',
+      idleClass: 'border-slate-200 bg-white text-slate-900',
+      iconClass: viewMode === 'today' ? 'bg-white/15 text-white' : 'bg-blue-50 text-blue-600',
+      helperClass: viewMode === 'today' ? 'text-blue-100' : 'text-slate-500',
+      onClick: () => setViewMode('today'),
+    },
+    {
+      key: 'upcoming',
+      label: 'Upcoming',
+      value: upcomingSessions.length,
+      helper: 'Future sessions',
+      icon: CalendarCheck2,
+      active: viewMode === 'upcoming',
+      activeClass: 'border-emerald-200 bg-emerald-600 text-white',
+      idleClass: 'border-slate-200 bg-white text-slate-900',
+      iconClass: viewMode === 'upcoming' ? 'bg-white/15 text-white' : 'bg-emerald-50 text-emerald-600',
+      helperClass: viewMode === 'upcoming' ? 'text-emerald-100' : 'text-slate-500',
+      onClick: () => setViewMode('upcoming'),
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.10),_transparent_38%),linear-gradient(180deg,#faf7ff_0%,#f7f4ff_100%)] pb-12 pt-20 sm:pt-24">
+      <div className="mx-auto max-w-[1720px] px-4 sm:px-6 lg:px-10 2xl:px-12">
+        <AdminSectionNav className="mb-4" />
+
+        <div className="mb-4 flex items-center justify-between gap-3 sm:mb-6">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => router.back()}
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-violet-200 hover:text-violet-700"
+          >
+            <ArrowLeft size={16} />
+            Back
+          </motion.button>
+
+          <div className="hidden rounded-full border border-violet-100 bg-violet-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-violet-700 sm:inline-flex">
+            Admin Bookings
+          </div>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-5 rounded-[28px] border border-violet-100 bg-white/95 p-5 shadow-[0_18px_50px_rgba(76,29,149,0.08)] backdrop-blur sm:mb-8 sm:p-7"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600">Bookings Overview</p>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                {viewMode === 'today' ? 'Today\'s Bookings' : viewMode === 'upcoming' ? 'Upcoming Bookings' : 'All Bookings'}
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm font-medium text-slate-500 sm:text-base">
+                Review session status, open client details, and jump into the next action without digging through long tables.
+              </p>
+            </div>
+
+            <div className="hidden h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-600 sm:flex">
+              <LayoutList size={22} />
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+            <div className="rounded-2xl bg-slate-50 px-4 py-3">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Total</p>
+              <p className="mt-1 text-2xl font-black text-slate-950">{bookings.length}</p>
+            </div>
+            <div className="rounded-2xl bg-violet-50 px-4 py-3">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-violet-600">Visible</p>
+              <p className="mt-1 text-2xl font-black text-violet-700">{filteredBookings.length}</p>
+            </div>
+            <div className="rounded-2xl bg-emerald-50 px-4 py-3">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-600">Confirmed</p>
+              <p className="mt-1 text-2xl font-black text-emerald-700">{displayBookings.filter((booking) => getDisplayStatus(booking) === 'confirmed').length}</p>
+            </div>
+            <div className="rounded-2xl bg-amber-50 px-4 py-3">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-600">Pending</p>
+              <p className="mt-1 text-2xl font-black text-amber-700">{displayBookings.filter((booking) => getDisplayStatus(booking) === 'pending').length}</p>
+            </div>
+          </div>
+
           {viewMode !== 'all' && (
-            <p className="mt-3 inline-flex rounded-full bg-violet-100 px-4 py-2 text-sm font-semibold text-violet-700">
+            <p className="mt-4 inline-flex rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700">
               Viewing {viewMode === 'today' ? 'today\'s sessions' : 'upcoming sessions'}
             </p>
           )}
         </motion.div>
 
-        {/* Today's & Upcoming Sessions Cards */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-          {/* Today's Sessions Card */}
-          <motion.button
-            onClick={() => setViewMode('today')}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className={`p-8 rounded-2xl shadow-lg transition-all ${
-              viewMode === 'today'
-                ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white'
-                : 'bg-white text-gray-900 border-2 border-gray-200 hover:border-blue-500'
-            }`}
-          >
-            <div className="flex items-start justify-between">
-              <div className="text-left flex-1">
-                <p className={`text-sm font-semibold uppercase tracking-wider ${
-                  viewMode === 'today' ? 'text-blue-100' : 'text-gray-600'
-                }`}>
-                  Today's Sessions
-                </p>
-                <p className="text-5xl font-bold mt-4">{todaySessions.length}</p>
-              </div>
-              <div className={`text-4xl ${
-                viewMode === 'today' ? 'text-blue-100' : 'text-blue-200'
-              }`}>
-                🕐
-              </div>
-            </div>
-          </motion.button>
-
-          {/* Upcoming Sessions Card */}
-          <motion.button
-            onClick={() => setViewMode('upcoming')}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className={`p-8 rounded-2xl shadow-lg transition-all ${
-              viewMode === 'upcoming'
-                ? 'bg-gradient-to-br from-green-500 to-green-600 text-white'
-                : 'bg-white text-gray-900 border-2 border-gray-200 hover:border-green-500'
-            }`}
-          >
-            <div className="flex items-start justify-between">
-              <div className="text-left flex-1">
-                <p className={`text-sm font-semibold uppercase tracking-wider ${
-                  viewMode === 'upcoming' ? 'text-green-100' : 'text-gray-600'
-                }`}>
-                  Upcoming Sessions
-                </p>
-                <p className="text-5xl font-bold mt-4">{upcomingSessions.length}</p>
-              </div>
-              <div className={`text-4xl ${
-                viewMode === 'upcoming' ? 'text-green-100' : 'text-green-200'
-              }`}>
-                📅
-              </div>
-            </div>
-          </motion.button>
-        </motion.div>
-
-        {/* View Mode Info */}
-        {viewMode !== 'all' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 flex gap-3">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-5 grid grid-cols-2 gap-3 sm:mb-8">
+          {summaryCards.map(({ key, label, value, helper, icon: Icon, activeClass, idleClass, iconClass, helperClass, onClick }) => (
             <motion.button
-              onClick={() => setViewMode('all')}
-              className="rounded-2xl bg-slate-700 px-5 py-3 font-semibold text-white transition-colors hover:bg-slate-800"
+              key={key}
+              onClick={onClick}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className={`rounded-[24px] border p-4 text-left shadow-[0_12px_30px_rgba(15,23,42,0.05)] transition ${viewMode === key ? activeClass : idleClass}`}
             >
-              ← Show All Bookings
-            </motion.button>
-            <div className="flex items-center">
-              <p className="text-gray-700 font-semibold">
-                {viewMode === 'today' ? 'Today\'s Sessions' : 'Upcoming Sessions'}
-              </p>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Filter Tabs */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-8 flex flex-wrap gap-2">
-          {['all', 'pending', 'confirmed', 'cancelled', 'completed'].map((status) => (
-            <motion.button
-              key={status}
-              whileHover={{ scale: 1.05 }}
-              onClick={() => setFilterStatus(status)}
-              className={`px-6 py-2 rounded-lg font-semibold transition-colors capitalize ${
-                filterStatus === status
-                  ? 'bg-purple-600 text-white shadow-lg'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-600'
-              }`}
-            >
-              {status === 'all' ? '📊 All' : status}
+              <div className="flex items-start justify-between gap-3">
+                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${iconClass}`}>
+                  <Icon size={20} />
+                </div>
+                <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
+                  viewMode === key ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {viewMode === key ? 'Active' : 'View'}
+                </span>
+              </div>
+              <p className="mt-4 text-xs font-black uppercase tracking-[0.14em] opacity-80">{label}</p>
+              <p className="mt-2 text-4xl font-black leading-none">{value}</p>
+              <p className={`mt-2 text-xs font-medium ${helperClass}`}>{helper}</p>
             </motion.button>
           ))}
         </motion.div>
 
-        {/* Bookings Table */}
+        {viewMode !== 'all' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 shadow-sm">
+              {viewMode === 'today' ? 'Showing only today\'s sessions' : 'Showing only upcoming sessions'}
+            </div>
+            <motion.button
+              onClick={() => setViewMode('all')}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="rounded-2xl border border-slate-900 bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+            >
+              Show all bookings
+            </motion.button>
+          </motion.div>
+        )}
+
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-5 rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_14px_40px_rgba(15,23,42,0.05)] sm:mb-8">
+          <div className="mb-3 flex items-center gap-2">
+            <NotebookPen size={16} className="text-violet-600" />
+            <p className="text-sm font-black uppercase tracking-[0.16em] text-slate-500">Filter by status</p>
+          </div>
+          <div className="flex flex-wrap gap-2.5">
+          {statusOptions.map((status) => (
+            <motion.button
+              key={status}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setFilterStatus(status)}
+              className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold capitalize transition-colors ${
+                filterStatus === status
+                  ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-lg'
+                  : 'border border-slate-200 bg-slate-50 text-slate-700 hover:border-violet-300 hover:bg-violet-50'
+              }`}
+            >
+              {status === 'all' && <LayoutList size={15} />}
+              {status === 'pending' && <CircleAlert size={15} />}
+              {status === 'confirmed' && <CheckCircle2 size={15} />}
+              {status === 'cancelled' && <CircleX size={15} />}
+              {status === 'completed' && <CalendarCheck2 size={15} />}
+              {status}
+            </motion.button>
+          ))}
+          </div>
+        </motion.div>
+
         <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-[0_24px_70px_rgba(88,28,135,0.1)]"
+          className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(88,28,135,0.08)]"
         >
           {loading ? (
             <div className="text-center py-12">
@@ -359,8 +430,124 @@ const BookingsView = () => {
               <p className="text-sm mt-2">No bookings with status "{filterStatus}"</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1360px] table-fixed">
+            <>
+              <div className="space-y-3 p-4 lg:hidden">
+                {filteredBookings.map((booking) => {
+                  const isBundle = booking.number_of_sessions && booking.number_of_sessions > 1;
+                  const sessionCount = booking.number_of_sessions || 1;
+                  const displayStatus = getDisplayStatus(booking);
+
+                  return (
+                    <motion.button
+                      key={booking.id}
+                      variants={itemVariants}
+                      onClick={() => setSelectedBookingId(booking.id)}
+                      className="w-full rounded-[28px] border border-slate-200 bg-white p-4 text-left shadow-[0_12px_28px_rgba(15,23,42,0.05)] transition hover:border-violet-300"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-base font-black text-violet-700">
+                          {getInitial(booking.user?.name)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-[1.05rem] font-black leading-tight text-slate-950">{booking.user?.name || 'N/A'}</p>
+                            <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${getStatusColor(displayStatus)}`}>
+                              {displayStatus}
+                            </span>
+                          </div>
+                          <p className="mt-1 break-all text-sm text-slate-500">{booking.user?.email || 'N/A'}</p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {booking.user_phone || 'No phone'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 rounded-[24px] border border-slate-100 bg-slate-50/90 p-3.5">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm">
+                            <CalendarDays size={17} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Schedule</p>
+                          {isBundle ? (
+                            <div className="mt-2 space-y-1.5">
+                              {booking.session_dates && booking.session_dates.length > 0 ? (
+                                booking.session_dates.map((session, sessionIdx) => (
+                                  <p key={`${booking.id}-${sessionIdx}`} className="text-sm font-semibold text-slate-900">
+                                    Session {sessionIdx + 1}: {formatBookingDate(session.date)} • {(session.start_time || '').substring(0, 5)}
+                                  </p>
+                                ))
+                              ) : (
+                                <p className="mt-2 text-sm italic text-slate-600">Bundle: {sessionCount} sessions</p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-sm font-semibold text-slate-900">
+                              {booking.slot && booking.slot.date !== 'N/A'
+                                ? `${formatBookingDateLong(booking.slot.date)} • ${(booking.slot.start_time || '').substring(0, 5)}`
+                                : 'N/A'}
+                            </p>
+                          )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <span className="w-fit rounded-full bg-blue-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-blue-800">
+                            {booking.session_type}
+                          </span>
+                          {isBundle && (
+                            <span className="w-fit rounded-full bg-violet-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-violet-800">
+                              {sessionCount} sessions
+                            </span>
+                          )}
+                          {booking.meeting_link && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-emerald-800">
+                              <CreditCard size={12} />
+                              meeting ready
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Client Note</p>
+                          <p className="mt-2 text-sm leading-6 text-slate-700">{truncateText(booking.notes, 110)}</p>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <span className="inline-flex flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-600">
+                            <UserRound size={14} />
+                            Open details for update
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex gap-2">
+                        <span className="inline-flex flex-1 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
+                          View details
+                        </span>
+                        {booking.meeting_links && booking.meeting_links.length > 1 ? (
+                          <span className="inline-flex items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-xs font-black text-violet-700">
+                            {booking.meeting_links.length} links
+                          </span>
+                        ) : booking.meeting_link ? (
+                          <a
+                            href={booking.meeting_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(event) => event.stopPropagation()}
+                            className="inline-flex items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-black text-emerald-700"
+                          >
+                            Join
+                          </a>
+                        ) : null}
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="w-full min-w-[1360px] table-fixed">
                 <colgroup>
                   <col className="w-[23%]" />
                   <col className="w-[18%]" />
@@ -505,8 +692,9 @@ const BookingsView = () => {
                     );
                   })}
                 </tbody>
-              </table>
-            </div>
+                </table>
+              </div>
+            </>
           )}
         </motion.div>
       </div>

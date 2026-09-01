@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { generateDefaultSlots, getAvailableSlotsForDateRange } from '@/utils/slotGenerator';
+import { getAvailableSlotsForDateRange } from '@/utils/slotGenerator';
+import AdminSectionNav from './AdminSectionNav';
 
 interface BlockSchedule {
   id: string;
@@ -33,8 +33,6 @@ const BlockScheduleManagement = () => {
     endTime: '17:00',
     reason: '',
   });
-
-  const supabase = createClient();
 
   // Fetch block schedules
   useEffect(() => {
@@ -123,7 +121,14 @@ const BlockScheduleManagement = () => {
         alert(`Successfully blocked ${slotsToBlock.length} slot(s). These slots will no longer be visible to customers.`);
       } else {
         // Block entire time range using block_schedules
-        const blockData: any = {
+        const blockData: {
+          start_date: string;
+          end_date: string;
+          block_type: 'full_day' | 'time_range';
+          reason: string | null;
+          start_time?: string;
+          end_time?: string;
+        } = {
           start_date: formData.startDate,
           end_date: formData.endDate,
           block_type: formData.blockType,
@@ -217,20 +222,22 @@ const BlockScheduleManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
+    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pb-12 pt-20 sm:pt-24">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <AdminSectionNav className="mb-5" />
+
         {/* Go Back Button */}
         <motion.button
           whileHover={{ scale: 1.05 }}
           onClick={() => router.back()}
-          className="mb-6 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          className="mb-6 inline-flex w-full items-center justify-center rounded-lg bg-gray-600 px-4 py-2 text-white transition-colors hover:bg-gray-700 sm:w-auto"
         >
           Back
         </motion.button>
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Block Schedule</h1>
+          <h1 className="mb-4 text-3xl font-bold text-gray-900 sm:text-4xl">Block Schedule</h1>
           <p className="text-gray-600">Block entire days or specific time slots to prevent bookings</p>
         </motion.div>
 
@@ -238,7 +245,7 @@ const BlockScheduleManagement = () => {
         <motion.button
           whileHover={{ scale: 1.05 }}
           onClick={() => setShowCreateForm(!showCreateForm)}
-          className="mb-8 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          className="mb-8 inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-6 py-2 text-white transition-colors hover:bg-red-700 sm:w-auto"
         >
           {showCreateForm ? 'Cancel' : 'Block Period'}
         </motion.button>
@@ -249,7 +256,7 @@ const BlockScheduleManagement = () => {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             onSubmit={(e) => handleCreateBlockSchedule(e)}
-            className="mb-8 bg-white rounded-xl shadow-lg p-6"
+            className="mb-8 rounded-xl bg-white p-5 shadow-lg sm:p-6"
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
@@ -357,16 +364,16 @@ const BlockScheduleManagement = () => {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8 bg-white rounded-xl shadow-lg p-6"
+            className="mb-8 rounded-xl bg-white p-5 shadow-lg sm:p-6"
           >
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
                 Select Slots from {formData.startDate} to {formData.endDate}
               </h2>
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 onClick={handleSelectAllSlots}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 sm:w-auto"
               >
                 {selectedSlots.size === availableSlots.length ? 'Deselect All' : 'Select All'}
               </motion.button>
@@ -379,7 +386,7 @@ const BlockScheduleManagement = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mb-6">
+            <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {availableSlots.map((slot, idx) => (
                 <motion.button
                   key={idx}
@@ -398,7 +405,7 @@ const BlockScheduleManagement = () => {
               ))}
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row">
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 type="button"
@@ -428,9 +435,9 @@ const BlockScheduleManagement = () => {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="bg-white rounded-xl shadow-lg p-6"
+          className="rounded-xl bg-white p-5 shadow-lg sm:p-6"
         >
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Active Block Schedules</h2>
+          <h2 className="mb-6 text-xl font-bold text-gray-900 sm:text-2xl">Active Block Schedules</h2>
 
           {loading ? (
             <div className="text-center py-12">Loading...</div>
@@ -442,7 +449,7 @@ const BlockScheduleManagement = () => {
                 <motion.div
                   key={block.id}
                   variants={itemVariants}
-                  className="flex items-center justify-between p-4 border border-red-200 bg-red-50 rounded-lg"
+                  className="flex flex-col gap-4 rounded-lg border border-red-200 bg-red-50 p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
                     <p className="font-semibold text-gray-900">

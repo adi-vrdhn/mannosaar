@@ -182,7 +182,7 @@ export default function BookingDetailsModal({
 
         setTimeout(() => setUpdateMessage(null), 3000);
       }, 1500);
-    } catch (err) {
+    } catch {
       setUpdateMessage({
         type: 'error',
         text: 'Error updating booking. Please try again.',

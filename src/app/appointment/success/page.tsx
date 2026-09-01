@@ -132,7 +132,7 @@ function SuccessPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-green-50 pt-24 pb-12">
+    <div className="booking-theme min-h-screen pt-24 pb-12">
       <div className="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
         <div className="rounded-[32px] border border-white/80 bg-white/90 px-5 py-8 shadow-[0_24px_70px_rgba(76,29,149,0.12)] backdrop-blur sm:px-8 sm:py-10">
           <div className="text-center">
@@ -309,7 +309,7 @@ function SuccessPageContent() {
 
 function SuccessLoadingFallback() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
+    <div className="booking-theme min-h-screen pt-24 pb-12">
       <div className="max-w-2xl mx-auto px-4">
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center py-12">

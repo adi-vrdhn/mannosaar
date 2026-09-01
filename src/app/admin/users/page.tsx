@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { ArrowLeft, Users, Search, X } from 'lucide-react';
 import { format } from 'date-fns';
+import AdminSectionNav from '@/components/admin/AdminSectionNav';
 
 interface User {
   id: string;
@@ -97,16 +98,18 @@ export default function UsersManagementPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-cyan-50 to-white pt-24 pb-12">
+    <div className="min-h-screen bg-gradient-to-br from-white via-cyan-50 to-white pb-12 pt-20 sm:pt-24">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <AdminSectionNav className="mb-5" />
+
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <Link href="/admin" className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 mb-4">
             <ArrowLeft size={20} />
             Back to Dashboard
           </Link>
-          <h1 className="text-5xl font-bold text-gray-900 mb-2">Users Management</h1>
-          <p className="text-xl text-gray-600">
+          <h1 className="mb-2 text-3xl font-bold text-gray-900 sm:text-5xl">Users Management</h1>
+          <p className="text-base text-gray-600 sm:text-xl">
             View and manage all users and their booking history
           </p>
         </motion.div>
@@ -115,12 +118,12 @@ export default function UsersManagementPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-2xl shadow-lg p-8 text-white mb-8"
+          className="mb-8 rounded-2xl bg-gradient-to-br from-cyan-500 to-cyan-600 p-6 text-white shadow-lg sm:p-8"
         >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-cyan-100 text-sm font-semibold uppercase tracking-wide">Total Users</p>
-              <p className="text-5xl font-bold mt-2">{users.length}</p>
+              <p className="mt-2 text-4xl font-bold sm:text-5xl">{users.length}</p>
             </div>
             <Users size={48} className="text-cyan-200 opacity-50" />
           </div>
@@ -130,7 +133,7 @@ export default function UsersManagementPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl shadow-lg p-6 mb-8"
+          className="mb-8 rounded-2xl bg-white p-5 shadow-lg sm:p-6"
         >
           <div className="relative">
             <Search size={20} className="absolute left-3 top-3 text-gray-400" />
@@ -210,10 +213,10 @@ export default function UsersManagementPage() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-96 overflow-y-auto"
-            >
-              {/* Modal Header */}
-              <div className="sticky top-0 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white p-6 flex items-center justify-between border-b border-gray-200">
+            className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+          >
+            {/* Modal Header */}
+            <div className="sticky top-0 flex items-start justify-between gap-3 border-b border-gray-200 bg-gradient-to-r from-cyan-500 to-cyan-600 p-4 text-white sm:p-6">
                 <div>
                   <h2 className="text-2xl font-bold">{selectedUser.name}</h2>
                   <p className="text-cyan-100">{selectedUser.email}</p>

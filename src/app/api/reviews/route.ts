@@ -1,12 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Reviews endpoint misconfigured: missing public Supabase environment variables');
+      return NextResponse.json(
+        { error: 'Reviews are temporarily unavailable' },
+        { status: 500 }
+      );
+    }
+
+    const supabase = await createClient();
 
     console.log('Fetching reviews...');
 

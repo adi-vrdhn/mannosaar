@@ -105,11 +105,11 @@ function AppointmentNotePageContent() {
   };
 
   const cardBase =
-    'relative rounded-none px-4 py-4 sm:p-5 cursor-pointer border-2 transition-all bg-white shadow-sm';
+    'relative cursor-pointer border px-4 py-3.5 text-left transition-all sm:px-5 sm:py-4';
 
   if (status === 'loading' || !isReady) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12 flex items-center justify-center">
+      <div className="booking-theme min-h-screen pt-24 pb-12 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin h-12 w-12 border-2 border-purple-600 border-b-transparent mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>
@@ -119,98 +119,101 @@ function AppointmentNotePageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="booking-theme min-h-screen pt-24 pb-14">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          className="space-y-8"
+          className="space-y-7"
         >
-          <div className="text-center space-y-3 pt-2 sm:pt-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-purple-600">
-              Step 2
+          <div className="text-center space-y-2 pt-2 sm:pt-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#5b267a]">
+              Step 2 of 3 · Share what you need
             </p>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-gray-900">
-              Please tell your problem in brief
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl md:text-[2.7rem]">
+              Tell us a little about what is on your mind
             </h1>
-            <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
-              A short note helps us understand your situation before the session.
+            <p className="mx-auto max-w-xl text-base text-gray-600 sm:text-lg">
+              A few words help us prepare for your session. Share only what feels comfortable.
             </p>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)] items-start">
-            <div className="flex h-full flex-col">
-              <label className="block text-sm font-semibold text-gray-700 mb-3">
-                Your note
-              </label>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                rows={10}
-                maxLength={1000}
-                placeholder="Write a few lines about what you would like support with..."
-                className="w-full min-h-[320px] sm:min-h-[380px] lg:min-h-[420px] rounded-none border border-gray-300 bg-white px-4 py-4 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
-              />
-              <div className="mt-2 flex items-center justify-between gap-4 text-sm text-gray-500">
-                <span>Keep it brief and comfortable for you.</span>
-                <span>{note.length}/1000</span>
-              </div>
-
-            </div>
-
-            <div className="flex h-full flex-col lg:pt-8">
-              <div className="mb-4">
-                <h2 className="text-lg font-bold text-gray-900 mb-2">Choose bundle size</h2>
-                <p className="text-sm sm:text-base text-gray-600">
-                  Pick how many sessions you want to book for your {sessionType} therapy.
+          <div className="border border-white/70 bg-white/45 p-5 shadow-[0_18px_50px_rgba(60,31,79,0.09)] sm:p-7 lg:p-8">
+            <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)] lg:gap-10">
+              <div>
+                <div className="mb-3 flex items-end justify-between gap-4">
+                  <label htmlFor="appointment-note" className="text-sm font-semibold text-gray-700">
+                    Your note
+                  </label>
+                  <span className="text-xs text-gray-500">{note.length}/1000</span>
+                </div>
+                <textarea
+                  id="appointment-note"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={7}
+                  maxLength={1000}
+                  placeholder="For example: I have been feeling overwhelmed at work and would like someone to talk to."
+                  className="min-h-[210px] w-full resize-none border border-[#6f4b88]/25 bg-white/75 px-4 py-4 text-gray-900 placeholder:text-gray-400 focus:border-[#5b267a] focus:outline-none focus:ring-2 focus:ring-[#5b267a]/20 sm:min-h-[235px]"
+                />
+                <p className="mt-3 text-sm text-gray-600">
+                  Keep it brief and comfortable for you. Your therapist will read this before the session.
                 </p>
               </div>
 
-              <div className="space-y-3 flex-1">
-                {[1, 2, 3].map((size) => {
-                  const active = bundleSize === size;
-                  return (
-                    <button
-                      key={size}
-                      type="button"
-                      onClick={() => setBundleSize(size as 1 | 2 | 3)}
-                      className={`${cardBase} w-full min-h-[124px] sm:min-h-[136px] flex flex-col justify-between text-left ${
-                        active
-                          ? 'border-purple-500 ring-2 ring-purple-200'
-                          : 'border-gray-200 hover:border-purple-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Bundle</p>
-                          <p className="text-2xl font-bold text-gray-900">
-                            {size} Session{size > 1 ? 's' : ''}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-gray-500 mb-1">Total price</p>
-                          <p className="text-xl font-bold text-purple-600">
+              <div className="border-t border-[#6f4b88]/20 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+                <div className="mb-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5b267a]">Your sessions</p>
+                  <h2 className="mt-1 text-xl font-bold text-gray-900">Choose a bundle</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Select what feels right for your {sessionType} therapy.
+                  </p>
+                </div>
+
+                <div className="space-y-2.5">
+                  {[1, 2, 3].map((size) => {
+                    const active = bundleSize === size;
+                    return (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => setBundleSize(size as 1 | 2 | 3)}
+                        className={`${cardBase} w-full ${
+                          active
+                            ? 'border-[#5b267a] bg-[#5b267a] text-white shadow-[0_8px_20px_rgba(91,38,122,0.2)]'
+                            : 'border-[#6f4b88]/20 bg-white/45 text-gray-900 hover:border-[#5b267a]/55 hover:bg-white/65'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <span className={`flex h-5 w-5 items-center justify-center rounded-full border text-xs ${active ? 'border-white bg-white text-[#5b267a]' : 'border-[#6f4b88]/45 text-transparent'}`}>
+                              ✓
+                            </span>
+                            <div>
+                              <p className={`text-base font-bold ${active ? 'text-white' : 'text-gray-900'}`}>
+                                {size} Session{size > 1 ? 's' : ''}
+                              </p>
+                              <p className={`mt-0.5 text-xs ${active ? 'text-white/75' : 'text-gray-600'}`}>
+                                {size === 1 ? 'A focused place to begin' : 'Support over time'}
+                              </p>
+                            </div>
+                          </div>
+                          <p className={`text-lg font-bold ${active ? 'text-white' : 'text-[#5b267a]'}`}>
                             ₹{loadingPrices ? '...' : getPriceForBundle(sessionType, size)}
                           </p>
                         </div>
-                      </div>
-                      <p className="mt-3 text-sm text-gray-600">
-                        {size === 1
-                          ? 'One session to get started'
-                          : `${size} sessions for consistent support`}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
+                      </button>
+                    );
+                  })}
+                </div>
 
-              <div className="mt-5">
                 <button
                   onClick={handleContinue}
-                  className="w-full px-6 py-3 rounded-none font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-500 hover:shadow-lg transition-all"
+                  className="mt-6 w-full bg-[#5b267a] px-6 py-3.5 font-semibold text-white transition-all hover:bg-[#472061] hover:shadow-lg"
                 >
                   Continue to Slots
                 </button>
+                <p className="mt-3 text-center text-xs text-gray-600">You will choose a convenient time in the next step.</p>
               </div>
             </div>
           </div>
@@ -222,7 +225,7 @@ function AppointmentNotePageContent() {
 
 function AppointmentNoteLoadingFallback() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12 flex items-center justify-center">
+    <div className="booking-theme min-h-screen pt-24 pb-12 flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin h-12 w-12 border-2 border-purple-600 border-b-transparent mx-auto mb-4"></div>
         <p className="text-gray-600">Loading...</p>

@@ -6,6 +6,7 @@ import { format, addDays } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { generateDefaultSlots } from '@/utils/slotGenerator';
+import AdminSectionNav from './AdminSectionNav';
 
 interface Slot {
   id: string;
@@ -505,36 +506,38 @@ const SlotManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
+    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pb-12 pt-20 sm:pt-24">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <AdminSectionNav className="mb-5" />
+
         {/* Go Back Button */}
         <motion.button
           whileHover={{ scale: 1.05 }}
           onClick={() => router.back()}
-          className="mb-6 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          className="mb-6 inline-flex w-full items-center justify-center rounded-lg bg-gray-600 px-4 py-2 text-white transition-colors hover:bg-gray-700 sm:w-auto"
         >
           Back
         </motion.button>
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Manage Therapy Slots</h1>
+          <h1 className="mb-4 text-3xl font-bold text-gray-900 sm:text-4xl">Manage Therapy Slots</h1>
           <p className="text-gray-600">Create and manage available therapy session slots</p>
         </motion.div>
 
         {/* Quick Actions */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-8 flex gap-4 flex-wrap">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <input
             type="date"
             aria-label="Date Selector"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 sm:w-auto"
           />
           <motion.button
             whileHover={{ scale: 1.05 }}
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            className="w-full rounded-lg bg-purple-600 px-6 py-2 text-white transition-colors hover:bg-purple-700 sm:w-auto"
           >
             {showCreateForm ? 'Cancel' : 'Create Single Slot'}
           </motion.button>
@@ -548,14 +551,14 @@ const SlotManagement = () => {
                 setPreviewSlots([]);
               }
             }}
-            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className="w-full rounded-lg bg-green-600 px-6 py-2 text-white transition-colors hover:bg-green-700 sm:w-auto"
           >
             {showGenerateDefaultForm ? 'Cancel' : 'Generate Default Slots'}
           </motion.button>
           <motion.button
             whileHover={{ scale: 1.05 }}
             onClick={() => setShowBlockForm(!showBlockForm)}
-            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            className="w-full rounded-lg bg-red-600 px-6 py-2 text-white transition-colors hover:bg-red-700 sm:w-auto"
           >
             {showBlockForm ? 'Cancel' : 'Blocking Tools'}
           </motion.button>
@@ -563,7 +566,7 @@ const SlotManagement = () => {
             whileHover={{ scale: 1.05 }}
             onClick={handleDeleteAllSlots}
             disabled={loading}
-            className="px-6 py-2 bg-red-800 text-white rounded-lg hover:bg-red-900 transition-colors disabled:opacity-50"
+            className="w-full rounded-lg bg-red-800 px-6 py-2 text-white transition-colors hover:bg-red-900 disabled:opacity-50 sm:w-auto"
           >
             Delete All Slots
           </motion.button>
@@ -575,7 +578,7 @@ const SlotManagement = () => {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             onSubmit={handleGenerateDefault}
-            className="mb-8 bg-white rounded-xl shadow-lg p-6"
+            className="mb-8 rounded-xl bg-white p-5 shadow-lg sm:p-6"
           >
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Generate Default Slots</h2>
             <p className="text-gray-600 mb-4">
@@ -614,9 +617,9 @@ const SlotManagement = () => {
 
             {/* Day Selection */}
             <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex justify-between items-center mb-4">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="font-semibold text-gray-900">Select Days of Week</h3>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -661,9 +664,9 @@ const SlotManagement = () => {
 
             {/* Hour Selection */}
             <div className="mb-8 p-4 bg-green-50 rounded-lg border border-green-200">
-              <div className="flex justify-between items-center mb-4">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="font-semibold text-gray-900">Select Time Slots (9 AM to 8 PM)</h3>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -736,7 +739,7 @@ const SlotManagement = () => {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8 bg-white rounded-xl shadow-lg p-6 border-2 border-red-200"
+            className="mb-8 rounded-xl border-2 border-red-200 bg-white p-5 shadow-lg sm:p-6"
           >
             <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -745,11 +748,11 @@ const SlotManagement = () => {
                   Choose whether you want to block a full date range or only certain slots from the selected date.
                 </p>
               </div>
-              <div className="inline-flex rounded-lg border border-red-200 bg-red-50 p-1">
+              <div className="inline-flex w-full rounded-lg border border-red-200 bg-red-50 p-1 sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setBlockMode('range')}
-                  className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                  className={`flex-1 rounded-md px-4 py-2 text-sm font-semibold transition-colors sm:flex-none ${
                     blockMode === 'range'
                       ? 'bg-white text-red-700 shadow-sm'
                       : 'text-gray-600'
@@ -760,7 +763,7 @@ const SlotManagement = () => {
                 <button
                   type="button"
                   onClick={() => setBlockMode('specific')}
-                  className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                  className={`flex-1 rounded-md px-4 py-2 text-sm font-semibold transition-colors sm:flex-none ${
                     blockMode === 'specific'
                       ? 'bg-white text-red-700 shadow-sm'
                       : 'text-gray-600'
@@ -919,7 +922,7 @@ const SlotManagement = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="mb-8 bg-red-50 rounded-xl shadow-lg border border-red-200 p-6"
+            className="mb-8 rounded-xl border border-red-200 bg-red-50 p-5 shadow-lg sm:p-6"
           >
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Blocked Date Ranges</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -951,7 +954,7 @@ const SlotManagement = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="mb-8 bg-orange-50 rounded-xl shadow-lg border border-orange-300 p-6"
+            className="mb-8 rounded-xl border border-orange-300 bg-orange-50 p-5 shadow-lg sm:p-6"
           >
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Blocked Individual Slots</h2>
             <p className="text-gray-600 mb-6">These are individual slots you blocked. Click Unblock to make them available.</p>
@@ -996,7 +999,7 @@ const SlotManagement = () => {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             onSubmit={handleCreateSlot}
-            className="mb-8 bg-white rounded-xl shadow-lg p-6"
+            className="mb-8 rounded-xl bg-white p-5 shadow-lg sm:p-6"
           >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
@@ -1042,9 +1045,9 @@ const SlotManagement = () => {
         )}
 
         {/* Slots List */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white rounded-xl shadow-lg">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl bg-white shadow-lg">
           <div className="p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            <h2 className="mb-6 text-xl font-bold text-gray-900 sm:text-2xl">
               Slots for {format(new Date(selectedDate), 'MMMM dd, yyyy')}
             </h2>
 

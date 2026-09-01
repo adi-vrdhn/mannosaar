@@ -1,470 +1,133 @@
-'use client';
-
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, ExternalLink, ChevronRight, ChevronDown } from 'lucide-react';
+import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
+import { ArrowRight, Check, ChevronDown, Languages } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'About Neetu Rathore | Mannosaar',
+  description: 'Learn about Neetu Rathore, psychologist, family therapist, and career counsellor with 24+ years of clinical experience.',
+};
+
+const experiences = [
+  { role: 'Online Psychotherapist', organization: 'TalktoAngel', period: '2020 - Present', details: ['Delivered 500+ online psychotherapy sessions across relationships, anxiety, OCD, workplace stress, and career challenges.', 'Supported employees through EAP programmes and helped professionals build healthier work-life balance.', 'Guided students toward stronger academic outcomes and career focus.'] },
+  { role: 'Psychologist & Counsellor', organization: 'Army Public School, Jodhpur', period: '2022 - 2023', details: ['Provided counselling for 300+ students on academic, behavioural, and emotional concerns.', 'Conducted psychology and student-engagement workshops for teachers and parenting workshops for families.', 'Launched an anti-bullying campaign and early intervention programme for senior students.'] },
+  { role: 'Psychologist & Counsellor', organization: 'Astha Cell', period: '2022 - 2024', details: ['Provided psychological support to personnel and their families.', 'Conducted stress-management and resilience training.', 'Facilitated group therapy for PTSD and combat-related stress.'] },
+  { role: 'Psychologist & Counsellor', organization: 'Army Public School, Shillong', period: '2019 - 2020', details: ['Guided students through developmental and academic concerns.', 'Conducted teacher workshops and parent awareness sessions.', 'Supported early interventions for student wellbeing and academic outcomes.'] },
+  { role: 'Psychologist & Counsellor', organization: 'Astha Cell', period: '2019 - 2020', details: ['Provided individual and group counselling for stress management.', 'Conducted mental-health workshops and family awareness sessions.'] },
+  { role: 'Counsellor', organization: 'Kendriya Vidyalaya, Allahabad', period: '2017 - 2018', details: ['Counselled students individually and in groups.', 'Conducted teacher training, parent workshops, and anti-bullying initiatives.'] },
+  { role: 'Psychologist and Family Therapist', organization: 'NGO', period: '2001 - 2016', details: ['Conducted career counselling for 4,000+ students.', 'Led parent training in marital harmony, health, and personal development.', 'Delivered workshops on personality building and conflict resolution.'] },
+  { role: 'Lecturer in Psychology', organization: 'Govt. Girls College, Jhunjhunu', period: '1999 - 2000', details: ['Taught undergraduate psychology courses.', 'Led student mentoring and anti-bullying initiatives.'] },
+];
+
+const expertise = [
+  'Addiction', 'ADHD', 'Anger', 'Anxiety', 'Autism', 'Bipolar Disorder', 'Bullying',
+  'Child & Adolescent', 'Depression', 'Developmental Delay', 'Grief and Loss', 'OCD',
+  'Personality Disorder', 'Phobia', 'Physical Health', 'Post Traumatic Stress Disorder (PTSD)',
+  'Relationship', 'Self Improvement', 'Sensory Processing Disorder', 'Sexual Dysfunction',
+  'Sleep', 'Stress', 'Workplace',
+];
+
+const certifications = [
+  'M.A Psychology (Gold Medalist) - Rajasthan University',
+  'PG Diploma in Career Counselling & Guidance - Enoma Institute, Mumbai',
+  'PG Diploma in Family Therapy & Counselling - IGNOU',
+  'Certification - Psychometric Analyser (Careeguide.com)',
+  'Certification - Emotional Freedom Technique (EFT)',
+];
 
 export default function AboutPage() {
-  const [expandedExp, setExpandedExp] = useState<number | null>(null);
-
-  // Experience data with detailed descriptions
-  const experiences = [
-    {
-      role: 'Online Psychotherapist',
-      organization: 'TalktoAngel',
-      period: '2020 – Present',
-      details: [
-        'Delivered 500+ online psychotherapy sessions across domains including relationships, anxiety, OCD, workplace stress, and career challenges.',
-        'Achieved an average 4.8/5 client rating and maintained 100% client satisfaction through personalized therapy and progress tracking.',
-        'Supported employees through EAP programs, reducing stress and enhancing productivity.',
-        'Helped professionals improve work–life balance and career focus, while guiding students toward better academic outcomes.',
-      ],
-    },
-    {
-      role: 'Psychologist & Counsellor',
-      organization: 'Army Public School, Jodhpur',
-      period: '2022 – 2023',
-      details: [
-        'Provided counselling for 300+ students on academic, behavioural, and emotional issues.',
-        'Conducted workshops for 100+ teachers on teaching psychology and student engagement.',
-        'Trained 800+ parents on evolving parenting practices in modern socio-cultural settings.',
-        'Launched anti-bullying campaign → 30% reduction in student conflicts.',
-        'Introduced early intervention program → 20% improvement in senior students\' results.',
-      ],
-    },
-    {
-      role: 'Psychologist & Counsellor',
-      organization: 'Astha Cell',
-      period: '2022 – 2024',
-      details: [
-        'Provided comprehensive psychological support to  personnel and their families.',
-        'Conducted stress management and resilience training for 200+ personnel.',
-        'Facilitated group therapy sessions for PTSD and combat-related stress.',
-        'Implemented mental health awareness programs across the unit.',
-      ],
-    },
-    {
-      role: 'Psychologist & Counsellor',
-      organization: 'Army Public School, Shillong',
-      period: '2019 – 2020',
-      details: [
-        'Guided 300+ students in counselling sessions on various developmental and academic issues.',
-        'Conducted workshops for 300 teachers and awareness sessions for 800+ parents.',
-        'Reduced conflicts among students by 30%; improved academic outcomes by 20%.',
-      ],
-    },
-    {
-      role: 'Psychologist & Counsellor',
-      organization: 'Astha Cell ',
-      period: '2019 – 2020',
-      details: [
-        'Provided part-time psychological support while pursuing academic commitments.',
-        'Conducted mental health workshops and awareness sessions for families.',
-        'Offered individual and group counselling for stress management.',
-      ],
-    },
-    {
-      role: 'Counsellor',
-      organization: 'Kendriya Vidyalaya, Allahabad',
-      period: '2017 – 2018',
-      details: [
-        'Counselled 600+ students individually and in groups.',
-        'Conducted teacher training sessions (300+) and parent workshops (1000+).',
-        'Delivered anti-bullying campaign → 20% conflict reduction.',
-        'Early academic interventions → 30% result improvement.',
-      ],
-    },
-    {
-      role: 'Psychologist and Family Therapist',
-      organization: 'NGO',
-      period: '2001 – 2016',
-      details: [
-        'Conducted career counselling for 4000+ students (life skills, aptitude, career development).',
-        'Delivered parent training to 4000 parents in marital harmony, health, and grooming.',
-        'Led workshops/lectures for 5000+ participants on personality building and conflict resolution.',
-      ],
-    },
-    {
-      role: 'Lecturer in Psychology',
-      organization: 'Govt. Girls College, Jhunjhunu (Rajasthan)',
-      period: '1999 – 2000',
-      details: [
-        'Taught psychology courses to undergraduate students.',
-        'Anti-bullying initiative → 40% student conflict reduction.',
-        'Mentoring program → 25% improvement in student results.',
-      ],
-    },
-  ];
-
-  // Area of expertise
-  const expertise = [
-    'Addiction',
-    'ADHD',
-    'Anger',
-    'Anxiety',
-    'Autism',
-    'Bipolar Disorder',
-    'Bullying',
-    'Child & Adolescent',
-    'Depression',
-    'Developmental Delay',
-    'Grief and Loss',
-    'OCD',
-    'Personality Disorder',
-    'Phobia',
-    'Physical Health',
-    'Post Traumatic Stress Disorder (PTSD)',
-    'Relationship',
-    'Self Improvement',
-    'Sensory Processing Disorder',
-    'Sexual Dysfunction',
-    'Sleep',
-    'Stress',
-    'Workplace',
-  ];
-
-  // Certifications
-  const certifications = [
-    'M.A Psychology (Gold Medalist) – Rajasthan University',
-    'PG Diploma in Career Counselling & Guidance – Enoma Institute, Mumbai',
-    'PG Diploma in Family Therapy & Counselling – IGNOU',
-    'Certification – Psychometric Analyser (Careeguide.com)',
-    'Certification – Emotional Freedom Technique (EFT)',
-  ];
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5 },
-    },
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50/30 to-purple-50/20">
-      {/* Navigation Spacing */}
-      <div className="pt-24" />
+    <main className="bg-[#cbb7df] text-[#34213f]">
+      <section className="px-4 pb-16 pt-12 sm:px-6 sm:pb-24 sm:pt-16 lg:px-8">
+        <div className="mx-auto grid max-w-[1320px] items-center gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+          <div className="order-2 lg:order-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5b267a]">Meet Neetu Rathore</p>
+            <h1 className="mt-4 max-w-2xl font-playfair text-4xl font-bold leading-[1.02] tracking-[-0.045em] sm:text-5xl lg:text-6xl">A thoughtful space for the parts of life that feel hard to carry alone.</h1>
+            <p className="mt-6 max-w-xl text-base leading-8 text-[#4c4052] sm:text-lg">Neetu is a psychologist, family therapist, and career counsellor with over 24 years of clinical experience. Her work is grounded in empathy, practical tools, and the belief that meaningful change begins with being heard.</p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link href="/appointment/type" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#5b267a] px-6 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#481d61]">Book a session <ArrowRight size={16} /></Link>
+              <a href="https://www.linkedin.com/in/neeturathore9/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center rounded-full border border-[#5b267a]/35 px-6 py-3.5 text-sm font-bold text-[#5b267a] transition hover:border-[#5b267a] hover:bg-white/25">Connect on LinkedIn</a>
+            </div>
+            <dl className="mt-10 grid max-w-xl grid-cols-3 border-t border-[#6f4b88]/25 pt-6">
+              <div><dt className="font-playfair text-3xl font-bold text-[#5b267a]">24+</dt><dd className="mt-1 text-xs leading-5 text-[#4c4052]">Years of experience</dd></div>
+              <div><dt className="font-playfair text-3xl font-bold text-[#5b267a]">10K+</dt><dd className="mt-1 text-xs leading-5 text-[#4c4052]">Counselling sessions</dd></div>
+              <div><dt className="font-playfair text-3xl font-bold text-[#5b267a]">2</dt><dd className="mt-1 text-xs leading-5 text-[#4c4052]">Languages offered</dd></div>
+            </dl>
+          </div>
 
-      {/* Hero Section */}
-      <motion.section
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.8 }}
-        className="px-4 sm:px-6 lg:px-8 mb-20"
-      >
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-16 items-center">
-            {/* Left: Profile Image */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.8, delay: 0.1 }}
-              className="flex flex-col items-center"
-            >
-              <div className="w-full max-w-lg aspect-[3/4] bg-gradient-to-br from-purple-200 to-purple-300 rounded-3xl shadow-2xl flex items-center justify-center overflow-hidden">
-                <img
-                  src="/images/profile-picture.jpeg"
-                  alt="Neetu Rathore"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-
-              {/* Social Icons */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.4 }}
-                className="flex gap-6 mt-8"
-              >
-                <motion.a
-                  href="https://www.linkedin.com/in/neeturathore9/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  whileHover={{ scale: 1.1 }}
-                  className="p-3 rounded-full bg-purple-100 hover:bg-blue-100 text-purple-600 hover:text-blue-600 transition-all flex items-center justify-center"
-                  title="LinkedIn"
-                >
-                  <span className="text-2xl font-bold">in</span>
-                </motion.a>
-                <motion.a
-                  href="https://instagram.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  whileHover={{ scale: 1.1 }}
-                  className="p-3 rounded-full bg-purple-100 hover:bg-pink-100 text-purple-600 hover:text-pink-600 transition-all flex items-center justify-center"
-                  title="Instagram"
-                >
-                  <span className="text-2xl font-bold">📷</span>
-                </motion.a>
-                <motion.a
-                  href="mailto:contact@neeturathore.com"
-                  whileHover={{ scale: 1.1 }}
-                  className="p-3 rounded-full bg-purple-100 hover:bg-red-100 text-purple-600 hover:text-red-600 transition-all"
-                  title="Email"
-                >
-                  <Mail size={24} />
-                </motion.a>
-              </motion.div>
-            </motion.div>
-
-            {/* Right: Content */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="space-y-6"
-            >
-              <div>
-                <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-4">
-                  Neetu Rathore
-                </h1>
-                <p className="text-lg text-gray-700 leading-relaxed">
-                  Dynamic Psychologist, Family Therapist, and Career Counsellor with 24+ years of experience in
-                  psychotherapy, relationship counselling, career mentoring, and employee assistance programs (EAP).
-                  Delivered 10,000+ counselling sessions across academic, corporate, and family contexts. Recognized for
-                  achieving measurable results in conflict reduction, stress management, productivity improvement, and
-                  academic performance gains. Gold Medalist in Psychology with proven expertise in designing workshops,
-                  implementing early intervention programs, and leading community well-being initiatives.
-                </p>
-              </div>
-
-              {/* Stats */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.4 }}
-                className="grid grid-cols-3 gap-4 pt-6 border-t border-purple-200"
-              >
-                <div className="text-center">
-                  <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-400 bg-clip-text text-transparent">
-                    24+
-                  </p>
-                  <p className="text-sm text-gray-600 mt-1">Years Experience</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-400 bg-clip-text text-transparent">
-                    10K+
-                  </p>
-                  <p className="text-sm text-gray-600 mt-1">Total sessions</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-400 bg-clip-text text-transparent">
-                    4.9
-                  </p>
-                  <p className="text-sm text-gray-600 mt-1">Rating</p>
-                </div>
-              </motion.div>
-            </motion.div>
+          <div className="relative order-1 mx-auto w-full max-w-md lg:order-2 lg:max-w-none">
+            <div className="absolute inset-x-[8%] bottom-[5%] top-[10%] rounded-[48%_52%_44%_56%/48%_42%_58%_52%] border border-white/60" />
+            <div className="absolute inset-x-[16%] bottom-0 top-[14%] rounded-[48%_52%_54%_46%/44%_54%_46%_56%] bg-white/25" />
+            <Image src="/images/ChatGPT%20Image%20Sep%201%2C%202026%2C%2011_36_39%20AM.png" alt="Neetu Rathore, psychologist and therapist" width={1200} height={1200} priority className="relative z-10 mx-auto h-auto w-full max-w-[550px] object-contain" />
+            <p className="absolute bottom-[8%] left-0 z-20 max-w-[180px] border-l border-[#5b267a]/55 pl-3 text-xs leading-5 text-[#4c4052]">Psychologist, family therapist, and career counsellor.</p>
           </div>
         </div>
-      </motion.section>
+      </section>
 
-      {/* Experience Section */}
-      <motion.section
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: '-100px' }}
-        variants={containerVariants}
-        className="px-4 sm:px-6 lg:px-8 py-20 bg-white/50 backdrop-blur-sm"
-      >
-        <div className="max-w-7xl mx-auto">
-          <motion.h2
-            variants={itemVariants}
-            className="text-4xl md:text-5xl font-bold text-gray-900 mb-12 text-center"
-          >
-            Experience
-          </motion.h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-            {experiences.map((exp, index) => (
-              <motion.div
-                key={index}
-                variants={itemVariants}
-                className="rounded-2xl bg-gradient-to-br from-purple-50 to-white border border-purple-200 hover:border-purple-400 hover:shadow-lg transition-all cursor-pointer overflow-hidden"
-                onClick={() => setExpandedExp(expandedExp === index ? null : index)}
-              >
-                <div className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 text-white flex-shrink-0">
-                      <ChevronRight size={20} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-900">{exp.role}</h3>
-                      <p className="text-purple-600 font-semibold mt-1">{exp.organization}</p>
-                      <p className="text-sm text-gray-500 mt-2">{exp.period}</p>
-                    </div>
-                    <motion.div
-                      animate={{ rotate: expandedExp === index ? 180 : 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="flex-shrink-0"
-                    >
-                      <ChevronDown size={20} className="text-purple-600" />
-                    </motion.div>
-                  </div>
-
-                  {/* Expandable Details */}
-                  <AnimatePresence>
-                    {expandedExp === index && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="mt-6 pt-6 border-t border-purple-200"
-                      >
-                        <div className="space-y-4">
-                          {exp.details.map((detail, idx) => (
-                            <motion.div
-                              key={idx}
-                              initial={{ opacity: 0, x: -10 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: idx * 0.05 }}
-                              className="flex gap-3 text-sm text-gray-700 leading-relaxed"
-                            >
-                              <span className="text-purple-500 font-bold flex-shrink-0 mt-1">●</span>
-                              <span>{detail}</span>
-                            </motion.div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </motion.div>
-            ))}
+      <section className="border-y border-white/45 bg-white/35 px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+        <div className="mx-auto grid max-w-[1200px] gap-10 lg:grid-cols-[0.72fr_1.28fr] lg:gap-16">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5b267a]">How I work</p>
+            <h2 className="mt-3 font-playfair text-3xl font-bold leading-tight sm:text-4xl">Therapy that meets you with care and clarity.</h2>
+            <p className="mt-5 text-base leading-7 text-[#4c4052]">There is no single right way to begin. Sessions are shaped around your concerns, pace, and goals, creating room to understand patterns and take practical next steps.</p>
+            <p className="mt-7 border-l-2 border-[#6f4b88] pl-4 font-playfair text-xl font-bold leading-8 text-[#493153]">“A thoughtful conversation can be the beginning of meaningful change.”</p>
+          </div>
+          <div className="grid gap-0 border-t border-[#6f4b88]/20 sm:grid-cols-2 sm:border-l">
+            {[
+              ['Individual therapy', 'A confidential space to explore feelings, patterns, and change.'],
+              ['Couples & family therapy', 'Support for communication, connection, and relationships.'],
+              ['Career counselling', 'Clarity for decisions, transitions, and professional growth.'],
+              ['Workplace wellbeing', 'Practical support for stress, resilience, and balance.'],
+            ].map(([title, text]) => <div key={title} className="border-b border-r-0 border-[#6f4b88]/20 p-5 sm:border-r sm:p-7"><h3 className="font-bold text-[#34213f]">{title}</h3><p className="mt-2 text-sm leading-6 text-[#4c4052]">{text}</p></div>)}
           </div>
         </div>
-      </motion.section>
+      </section>
 
-      {/* Area of Expertise Section */}
-      <motion.section
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: '-100px' }}
-        variants={containerVariants}
-        className="px-4 sm:px-6 lg:px-8 py-20"
-      >
-        <div className="max-w-7xl mx-auto">
-          <motion.h2
-            variants={itemVariants}
-            className="text-4xl md:text-5xl font-bold text-gray-900 mb-12 text-center"
-          >
-            Area of Expertise
-          </motion.h2>
-
-          <motion.div
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
-            variants={containerVariants}
-          >
-            {expertise.map((skill, index) => (
-              <motion.div
-                key={index}
-                variants={itemVariants}
-                whileHover={{ scale: 1.05, y: -5 }}
-                className="px-4 py-3 rounded-full bg-gradient-to-r from-purple-500/10 to-purple-400/10 border border-purple-200 hover:border-purple-400 text-center cursor-pointer transition-all group"
-              >
-                <p className="text-sm font-semibold text-gray-700 group-hover:text-purple-600 transition-colors">
-                  {skill}
-                </p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </motion.section>
-
-      {/* Languages & Certifications Section */}
-      <motion.section
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: '-100px' }}
-        variants={containerVariants}
-        className="px-4 sm:px-6 lg:px-8 py-20 bg-white/50 backdrop-blur-sm"
-      >
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-16">
-            {/* Languages */}
-            <motion.div variants={itemVariants}>
-              <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-8">Languages</h3>
-              <div className="space-y-4">
-                {['Hindi', 'English'].map((lang, index) => (
-                  <motion.div
-                    key={index}
-                    whileHover={{ x: 10 }}
-                    className="p-4 rounded-xl bg-gradient-to-r from-purple-50 to-white border border-purple-200 hover:border-purple-400 cursor-pointer transition-all"
-                  >
-                    <p className="text-lg font-semibold text-gray-900">{lang}</p>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* Certifications */}
-            <motion.div variants={itemVariants}>
-              <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-8">Certifications</h3>
-              <div className="space-y-4">
-                {certifications.map((cert, index) => (
-                  <motion.div
-                    key={index}
-                    whileHover={{ x: 10 }}
-                    className="p-4 rounded-xl bg-gradient-to-r from-purple-50 to-white border border-purple-200 hover:border-purple-400 cursor-pointer transition-all"
-                  >
-                    <p className="text-sm font-semibold text-gray-900 leading-relaxed">{cert}</p>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
+      <section className="px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+        <div className="mx-auto max-w-[1200px]">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Areas of expertise</p>
+            <h2 className="mt-3 font-playfair text-3xl font-bold leading-tight sm:text-4xl">Support for the concerns that matter to you.</h2>
+          </div>
+          <div className="mt-9 grid border-t border-[#6f4b88]/25 sm:grid-cols-2 lg:grid-cols-3">
+            {expertise.map((item) => <div key={item} className="flex items-center gap-2 border-b border-[#6f4b88]/20 py-3.5 text-sm font-medium text-[#493153]"><Check size={15} className="shrink-0 text-[#6b3290]" strokeWidth={2.5} />{item}</div>)}
           </div>
         </div>
-      </motion.section>
+      </section>
 
-      {/* CTA Section */}
-      <motion.section
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.8 }}
-        className="px-4 sm:px-6 lg:px-8 py-20"
-      >
-        <div className="max-w-4xl mx-auto">
-          <div className="rounded-3xl bg-gradient-to-r from-purple-600 to-purple-500 p-12 md:p-20 text-center shadow-2xl">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2, duration: 0.6 }}
-            >
-              <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">Ready to Start Your Journey?</h2>
-              <p className="text-lg text-purple-100 mb-8">
-                Take the first step towards better mental health and personal growth. Book a session with me today.
-              </p>
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Link
-                  href="/appointment/type"
-                  className="inline-block px-10 py-4 bg-white text-purple-600 font-bold rounded-full hover:shadow-2xl transition-all"
-                >
-                  Book a Session Now
-                </Link>
-              </motion.div>
-            </motion.div>
+      <section className="border-y border-white/45 bg-white/35 px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+        <div className="mx-auto grid max-w-[1200px] gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Languages</p>
+            <h2 className="mt-3 font-playfair text-3xl font-bold leading-tight sm:text-4xl">Speak in the language that feels natural.</h2>
+            <div className="mt-7 flex items-center gap-3 text-base font-semibold text-[#493153]"><Languages size={21} className="text-[#5b267a]" /> Hindi and English</div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Education & credentials</p>
+            <ul className="mt-5 border-t border-[#6f4b88]/20">
+              {certifications.map((cert) => <li key={cert} className="border-b border-[#6f4b88]/20 py-4 text-sm leading-6 text-[#493153]">{cert}</li>)}
+            </ul>
           </div>
         </div>
-      </motion.section>
+      </section>
 
-      {/* Spacing */}
-      <div className="pb-12" />
-    </div>
+      <section className="px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+        <div className="mx-auto max-w-[1200px] border-y border-[#6f4b88]/25 py-12 text-center sm:py-16">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Begin when you are ready</p>
+          <h2 className="mx-auto mt-3 max-w-2xl font-playfair text-3xl font-bold leading-tight sm:text-4xl">You do not have to have it all figured out to start a conversation.</h2>
+          <Link href="/appointment/type" className="mt-7 inline-flex items-center gap-2 rounded-full bg-[#5b267a] px-6 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#481d61]">Book a session <ArrowRight size={16} /></Link>
+        </div>
+      </section>
+
+      <section className="px-4 pb-16 sm:px-6 sm:pb-24 lg:px-8">
+        <div className="mx-auto max-w-[1200px] border-t border-[#6f4b88]/25 pt-10">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Professional experience</p>
+          <h2 className="mt-3 font-playfair text-3xl font-bold leading-tight sm:text-4xl">A career in care, education, and counselling.</h2>
+          <div className="mt-8 border-t border-[#6f4b88]/25">
+            {experiences.map((experience) => <details key={`${experience.role}-${experience.organization}-${experience.period}`} className="group border-b border-[#6f4b88]/25 py-5"><summary className="flex cursor-pointer list-none items-start justify-between gap-5 text-left marker:content-none"><span><span className="block text-base font-bold text-[#34213f]">{experience.role}</span><span className="mt-1 block text-sm font-semibold text-[#5b267a]">{experience.organization} <span className="font-normal text-[#4c4052]">| {experience.period}</span></span></span><ChevronDown size={20} className="mt-1 shrink-0 text-[#5b267a] transition-transform group-open:rotate-180" /></summary><ul className="mt-4 max-w-3xl space-y-2 border-l border-[#6f4b88]/25 pl-4 text-sm leading-6 text-[#4c4052]">{experience.details.map((detail) => <li key={detail}>{detail}</li>)}</ul></details>)}
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }

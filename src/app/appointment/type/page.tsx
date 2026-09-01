@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 import TherapistHeader from '@/components/booking/TherapistHeader';
 
 interface BundlePricing {
@@ -83,7 +84,7 @@ export default function AppointmentTypePage() {
 
   if (status === 'loading' || !isReady) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12 flex items-center justify-center">
+      <div className="booking-theme min-h-screen pt-24 pb-12 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>
@@ -93,7 +94,7 @@ export default function AppointmentTypePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-24 pb-12">
+    <div className="booking-theme min-h-screen pt-24 pb-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <TherapistHeader languages={['Hindi', 'English']} />
 
@@ -211,9 +212,9 @@ export default function AppointmentTypePage() {
             </motion.div>
 
             <div className="text-center">
-              <a href="/" className="text-purple-600 hover:text-purple-700 font-semibold">
+              <Link href="/" className="text-purple-600 hover:text-purple-700 font-semibold">
                 ← Back to Home
-              </a>
+              </Link>
             </div>
           </motion.div>
         </AnimatePresence>

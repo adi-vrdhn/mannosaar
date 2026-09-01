@@ -1,16 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import RichTextEditor from '@/components/admin/RichTextEditor';
 import VideoUpload from '@/components/admin/VideoUpload';
 import ImageUpload from '@/components/admin/ImageUpload';
+import AdminSectionNav from '@/components/admin/AdminSectionNav';
 import { FileText, Video, Image, Loader2 } from 'lucide-react';
 
 type TabType = 'articles' | 'videos' | 'images';
 
 export default function AdminUpload() {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('articles');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -148,10 +147,12 @@ export default function AdminUpload() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
+        <AdminSectionNav className="mb-5" />
+
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-playfair font-bold text-purple-900 mb-2">
+          <h1 className="mb-2 text-3xl font-playfair font-bold text-purple-900 sm:text-4xl">
             Content Management
           </h1>
           <p className="text-gray-600">
@@ -167,7 +168,8 @@ export default function AdminUpload() {
         )}
 
         {/* Tabs */}
-        <div className="mb-8 flex gap-2 border-b border-gray-200">
+        <div className="mb-8 overflow-x-auto border-b border-gray-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex min-w-max gap-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -182,6 +184,7 @@ export default function AdminUpload() {
               {tab.label}
             </button>
           ))}
+          </div>
         </div>
 
         {/* Tab Content */}

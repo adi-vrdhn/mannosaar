@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Upload, FileText, Video, Image as ImageIcon } from 'lucide-react';
+import AdminSectionNav from '@/components/admin/AdminSectionNav';
 import AdminUploadPanel from '@/components/content/AdminUploadPanel';
 
 interface ContentStats {
@@ -78,14 +80,16 @@ export default function AdminContentPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+        <AdminSectionNav className="mb-5" />
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-12"
         >
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Content Management</h1>
+          <h1 className="mb-4 text-3xl font-bold text-gray-900 sm:text-4xl">Content Management</h1>
           <p className="text-lg text-gray-600">
             Manage your articles, videos, and images all in one place
           </p>
@@ -101,7 +105,7 @@ export default function AdminContentPage() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsUploadOpen(true)}
-            className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-lg transition-all shadow-lg hover:shadow-xl"
+            className="inline-flex w-full items-center justify-center gap-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4 font-bold text-white shadow-lg transition-all hover:from-purple-700 hover:to-pink-700 hover:shadow-xl sm:w-auto sm:px-8"
           >
             <Upload size={24} />
             Upload New Content
@@ -113,7 +117,7 @@ export default function AdminContentPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ staggerChildren: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12"
+          className="mb-12 grid grid-cols-1 gap-6 md:grid-cols-3"
         >
           {[
             {
@@ -146,7 +150,7 @@ export default function AdminContentPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.1 }}
-              className={`${stat.bgColor} rounded-2xl p-8 border-2 border-transparent hover:border-${stat.textColor}`}
+              className={`${stat.bgColor} rounded-2xl border-2 border-transparent p-6 sm:p-8`}
             >
               <div className={`${stat.textColor} mb-4`}>{stat.icon}</div>
               <div className="text-gray-900 font-semibold text-lg">{stat.label}</div>
@@ -162,45 +166,45 @@ export default function AdminContentPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-white rounded-2xl shadow-lg p-8"
+          className="rounded-2xl bg-white p-5 shadow-lg sm:p-8"
         >
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Quick Access</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <a
+            <Link
               href="/blogs"
               className="p-6 border-2 border-gray-200 hover:border-blue-500 rounded-lg hover:bg-blue-50 transition-all group"
             >
               <FileText className="text-blue-600 mb-3 group-hover:scale-110 transition-transform" size={32} />
               <h3 className="font-bold text-gray-900 mb-2">View Articles</h3>
               <p className="text-gray-600">Browse all published articles</p>
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/videos"
               className="p-6 border-2 border-gray-200 hover:border-purple-500 rounded-lg hover:bg-purple-50 transition-all group"
             >
               <Video className="text-purple-600 mb-3 group-hover:scale-110 transition-transform" size={32} />
               <h3 className="font-bold text-gray-900 mb-2">View Videos</h3>
               <p className="text-gray-600">Browse all published videos</p>
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/images"
               className="p-6 border-2 border-gray-200 hover:border-pink-500 rounded-lg hover:bg-pink-50 transition-all group"
             >
               <ImageIcon className="text-pink-600 mb-3 group-hover:scale-110 transition-transform" size={32} />
               <h3 className="font-bold text-gray-900 mb-2">View Gallery</h3>
               <p className="text-gray-600">Browse all published images</p>
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/admin"
               className="p-6 border-2 border-gray-200 hover:border-gray-500 rounded-lg hover:bg-gray-50 transition-all group"
             >
               <Upload className="text-gray-600 mb-3 group-hover:scale-110 transition-transform" size={32} />
               <h3 className="font-bold text-gray-900 mb-2">Admin Panel</h3>
               <p className="text-gray-600">Back to main admin dashboard</p>
-            </a>
+            </Link>
           </div>
         </motion.div>
       </div>

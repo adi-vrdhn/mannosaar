@@ -74,7 +74,7 @@ const ReviewsSection = () => {
   return (
     <section
       id="reviews"
-      className="py-16 sm:py-24 bg-gradient-to-br from-purple-100/50 via-purple-50 to-purple-100/50"
+      className="bg-[#cbb7df] py-16 sm:py-24"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
@@ -113,7 +113,7 @@ const ReviewsSection = () => {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.3 }}
-                className="absolute inset-0 bg-white rounded-2xl sm:rounded-3xl shadow-xl p-6 sm:p-8 lg:p-10 border border-purple-100/50"
+                className="absolute inset-0 rounded-2xl border border-purple-200/70 bg-[#f4edf8] p-6 shadow-xl sm:rounded-3xl sm:p-8 lg:p-10"
               >
                 <div className="space-y-4 sm:space-y-6 h-full flex flex-col justify-between">
                   {/* Rating */}
@@ -159,7 +159,7 @@ const ReviewsSection = () => {
               <motion.div
                 key={review.id}
                 whileHover={{ y: -5, boxShadow: '0 20px 25px rgba(0,0,0,0.1)' }}
-                className="bg-gradient-to-br from-purple-50 to-white rounded-lg sm:rounded-2xl p-3 sm:p-6 border border-purple-100/50 cursor-pointer"
+                className="cursor-pointer rounded-lg border border-purple-200/70 bg-[#f2e8f7] p-3 sm:rounded-2xl sm:p-6"
                 onClick={() => setActiveIndex(idx)}
               >
                 <div className="flex gap-1 mb-2 sm:mb-4">
