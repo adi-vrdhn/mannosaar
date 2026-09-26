@@ -29,12 +29,14 @@ export const metadata: Metadata = {
     description:
       "Private online counselling and emotional support with Neetu Rathore for personal, relationship and everyday emotional concerns.",
     url: "/",
+    images: [{ url: "/images/social/community-hero.png", width: 1200, height: 630, alt: "Mannosaar online counselling" }],
   },
   twitter: {
     card: "summary",
     title: "Online Counselling in India | Mannosaar",
     description:
       "Private online counselling and emotional support with Neetu Rathore for personal, relationship and everyday emotional concerns.",
+    images: ["/images/social/community-hero.png"],
   },
   icons: {
     icon: "/favicon.ico",
