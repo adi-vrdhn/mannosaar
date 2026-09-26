@@ -6,7 +6,7 @@
     "node": ">=20 <23"
   },
   "scripts": {
-    "predev": "node scripts/patch-framer-motion.mjs",
+    "predev": "node scripts/clean-next-dev.mjs && node scripts/patch-framer-motion.mjs",
     "prebuild": "node scripts/patch-framer-motion.mjs",
     "postinstall": "node scripts/patch-framer-motion.mjs",
     "dev": "next dev --webpack",

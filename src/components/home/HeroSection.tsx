@@ -21,13 +21,13 @@ const HeroSection = () => {
           <div className="relative z-10 grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:gap-4">
             <motion.div initial="hidden" animate="visible" transition={{ staggerChildren: 0.11, delayChildren: 0.08 }} className="order-2 max-w-xl lg:order-1 lg:pb-8">
               <motion.p variants={riseIn} className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-purple-700">
-                <span className="h-px w-8 bg-purple-500" /> Online mental health consultations
+                <span className="h-px w-8 bg-purple-500" /> Private online counselling
               </motion.p>
               <motion.h1 variants={riseIn} className="font-playfair text-4xl font-bold leading-[0.98] tracking-[-0.045em] text-[#3f2a4d] sm:text-5xl lg:text-7xl">
-                Your mind deserves <span className="text-purple-700">space to heal.</span>
+                Online counselling for <span className="text-purple-700">life&apos;s difficult moments.</span>
               </motion.h1>
               <motion.p variants={riseIn} className="mt-6 max-w-lg text-base leading-7 text-[#62576b] sm:text-lg">
-                Mannosaar is a mental health consultation service where you can speak with an experienced psychologist about anxiety, relationships, work, family, or whatever feels difficult right now—all in a safe, judgement-free space.
+                Mannosaar is a practitioner-led space for private conversations with Neetu Rathore about personal concerns, relationships, stress, work, family, or whatever feels difficult right now.
               </motion.p>
               <motion.div variants={riseIn} className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link href="/book-session" className="group inline-flex items-center justify-center gap-2 rounded-full bg-purple-700 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(107,61,125,0.2)] transition hover:-translate-y-0.5 hover:bg-purple-800">

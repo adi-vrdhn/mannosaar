@@ -21,12 +21,13 @@ export const refundPercent = (start: string, now = Date.now()) => {
   const hours = (Date.parse(start) - now) / 3_600_000;
   return hours > 24 ? 100 : hours >= 12 ? 50 : 0;
 };
-export type State = 'START' | 'SELECT_SERVICE' | 'SELECT_THERAPIST' | 'SELECT_DATE' | 'SELECT_TIME' | 'COLLECT_NAME' | 'COLLECT_EMAIL' | 'REVIEW_BOOKING' | 'AWAITING_PAYMENT' | 'MANAGE_BOOKING' | 'RESCHEDULE_DATE' | 'RESCHEDULE_TIME' | 'CANCEL_CONFIRMATION';
+export type State = 'START' | 'MAIN_MENU' | 'SELECT_SERVICE' | 'SELECT_THERAPIST' | 'SELECT_DATE' | 'SELECT_TIME' | 'COLLECT_NAME' | 'COLLECT_EMAIL' | 'REVIEW_BOOKING' | 'ACCEPT_CONSENT' | 'AWAITING_PAYMENT' | 'MANAGE_BOOKING' | 'RESCHEDULE_DATE' | 'RESCHEDULE_TIME' | 'CANCEL_CONFIRMATION';
 export interface Choice { id: string; title: string; description?: string }
 export interface SessionData {
   service?: 'personal' | 'couple'; therapist?: string; date?: string; slot?: string;
   name?: string; email?: string; quotedAmount?: number; hold?: string; booking?: string;
   choices?: Choice[]; page?: number; paymentUrl?: string;
+  consentAcceptedAt?: string; consentReceiptId?: string;
 }
 export interface Session { id: string; wa_id: string; state: State; data: SessionData; expires_at: string; last_message_at: string; user_id?: string }
 export interface Inbound { id: string; from: string; timestamp: string; input: string; interactive: boolean }

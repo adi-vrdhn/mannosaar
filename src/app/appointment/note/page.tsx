@@ -25,7 +25,9 @@ function AppointmentNotePageContent() {
   const [loadingPrices, setLoadingPrices] = useState(true);
   const [pricing, setPricing] = useState<BundlePricing>({ ...DEFAULT_BUNDLE_PRICING });
   const [note, setNote] = useState('');
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [bundleSize, setBundleSize] = useState<1 | 2 | 3>(1);
+  const [bundleSchedule, setBundleSchedule] = useState<'all' | 'progressive'>('all');
 
   useEffect(() => {
     const fetchPricing = async () => {
@@ -50,6 +52,7 @@ function AppointmentNotePageContent() {
 
     const storedNote = window.sessionStorage.getItem('appointmentNote') || '';
     const storedBundleSize = window.sessionStorage.getItem('appointmentBundleSize');
+    const storedBundleSchedule = window.sessionStorage.getItem('appointmentBundleSchedule');
 
     if (storedNote) {
       setNote(storedNote);
@@ -58,6 +61,7 @@ function AppointmentNotePageContent() {
     if (storedBundleSize === '2' || storedBundleSize === '3') {
       setBundleSize(Number(storedBundleSize) as 2 | 3);
     }
+    if (storedBundleSchedule === 'progressive') setBundleSchedule('progressive');
   }, []);
 
   useEffect(() => {
@@ -76,22 +80,24 @@ function AppointmentNotePageContent() {
   };
 
   const handleContinue = () => {
-    const trimmedNote = note.trim();
-
-    if (!trimmedNote) {
-      alert('Please tell your problem in brief before continuing.');
+    if (!ageConfirmed) {
+      alert('You must confirm that you are 18 years of age or older to continue.');
       return;
     }
+    const trimmedNote = note.trim();
 
     if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem('appointmentNote', trimmedNote);
+      if (trimmedNote) window.sessionStorage.setItem('appointmentNote', trimmedNote);
+      else window.sessionStorage.removeItem('appointmentNote');
       window.sessionStorage.setItem('appointmentSessionType', sessionType);
       window.sessionStorage.setItem('appointmentBundleSize', String(bundleSize));
+      window.sessionStorage.setItem('appointmentBundleSchedule', bundleSize > 1 ? bundleSchedule : 'all');
     }
 
     const params = new URLSearchParams({
       type: sessionType,
       bundle: String(bundleSize),
+      schedule: bundleSize > 1 ? bundleSchedule : 'all',
     });
 
     router.push(`/appointment/slots?${params.toString()}`);
@@ -124,11 +130,8 @@ function AppointmentNotePageContent() {
               Step 2 of 3 · Share what you need
             </p>
             <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl md:text-[2.7rem]">
-              Tell us a little about what is on your mind
+              Add context only if you want to
             </h1>
-            <p className="mx-auto max-w-xl text-base text-gray-600 sm:text-lg">
-              A few words help us prepare for your session. Share only what feels comfortable.
-            </p>
             <p className="text-sm font-semibold text-[#5b267a]">
               Selected: {selectedService.name} ·{' '}
               <Link href="/appointment/type" className="underline decoration-[#5b267a]/35 underline-offset-4 hover:text-[#3f165b]">
@@ -138,25 +141,30 @@ function AppointmentNotePageContent() {
           </div>
 
           <div className="border border-white/70 bg-white/45 p-5 shadow-[0_18px_50px_rgba(60,31,79,0.09)] sm:p-7 lg:p-8">
+            <label className={`mb-7 flex cursor-pointer items-start gap-3 rounded-2xl border p-4 ${ageConfirmed ? 'border-purple-400 bg-purple-50' : 'border-purple-200 bg-white/80'}`}>
+              <input type="checkbox" checked={ageConfirmed} onChange={event => setAgeConfirmed(event.target.checked)} className="mt-0.5 h-5 w-5 rounded text-purple-700 focus:ring-purple-600" />
+              <span><strong className="block text-sm text-slate-950">Eligibility</strong><span className="mt-1 block text-sm leading-6 text-slate-600">I confirm that I am 18 years of age or older.</span></span>
+            </label>
             <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)] lg:gap-10">
-              <div>
+              <div className={!ageConfirmed ? 'pointer-events-none select-none opacity-40' : ''} aria-disabled={!ageConfirmed}>
                 <div className="mb-3 flex items-end justify-between gap-4">
                   <label htmlFor="appointment-note" className="text-sm font-semibold text-gray-700">
-                    Your note
+                    Optional note
                   </label>
-                  <span className="text-xs text-gray-500">{note.length}/1000</span>
+                  <span className="text-xs text-gray-500">{note.length}/500</span>
                 </div>
                 <textarea
                   id="appointment-note"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   rows={7}
-                  maxLength={1000}
-                  placeholder="For example: I have been feeling overwhelmed at work and would like someone to talk to."
+                  maxLength={500}
+                  placeholder="Optional: share a short, general note for your therapist."
                   className="min-h-[210px] w-full resize-none border border-[#6f4b88]/25 bg-white/75 px-4 py-4 text-gray-900 placeholder:text-gray-400 focus:border-[#5b267a] focus:outline-none focus:ring-2 focus:ring-[#5b267a]/20 sm:min-h-[235px]"
+                  disabled={!ageConfirmed}
                 />
                 <p className="mt-3 text-sm text-gray-600">
-                  Keep it brief and comfortable for you. Your therapist will read this before the session.
+                  Avoid detailed medical or crisis information in this booking form. Your therapist will read any note before the session.
                 </p>
               </div>
 
@@ -206,9 +214,27 @@ function AppointmentNotePageContent() {
                   })}
                 </div>
 
+                {bundleSize > 1 && (
+                  <div className="mt-5 border-t border-[#6f4b88]/20 pt-5">
+                    <p className="text-sm font-semibold text-gray-900">When do you want to choose the dates?</p>
+                    <div className="mt-3 grid gap-2">
+                      <button type="button" onClick={() => setBundleSchedule('all')} className={`rounded-xl border p-3 text-left transition ${bundleSchedule === 'all' ? 'border-[#5b267a] bg-purple-50' : 'border-slate-200 bg-white'}`}>
+                        <span className="block text-sm font-semibold text-slate-900">Choose all dates now</span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-600">Reserve every session before paying.</span>
+                      </button>
+                      <button type="button" onClick={() => setBundleSchedule('progressive')} className={`rounded-xl border p-3 text-left transition ${bundleSchedule === 'progressive' ? 'border-[#5b267a] bg-purple-50' : 'border-slate-200 bg-white'}`}>
+                        <span className="block text-sm font-semibold text-slate-900">Choose one date at a time</span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-600">Choose session 1 now. The next session unlocks after each completed session.</span>
+                      </button>
+                    </div>
+                    <p className="mt-3 text-xs font-medium text-[#5b267a]">The complete {bundleSize}-session bundle is paid upfront in either option.</p>
+                  </div>
+                )}
+
                 <button
                   onClick={handleContinue}
-                  className="mt-6 w-full bg-[#5b267a] px-6 py-3.5 font-semibold text-white transition-all hover:bg-[#472061] hover:shadow-lg"
+                  disabled={!ageConfirmed}
+                  className="mt-6 w-full bg-[#5b267a] px-6 py-3.5 font-semibold text-white transition-all hover:bg-[#472061] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Continue to Slots
                 </button>

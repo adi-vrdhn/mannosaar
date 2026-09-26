@@ -7,6 +7,9 @@ import {
   createPayUPaymentHtml,
   createPayUPaymentFields,
 } from '@/lib/payu';
+import { auth } from '@/lib/auth';
+import { isSameOrigin } from '@/lib/compliance';
+import { allowRequest, validateConsentReceipt } from '@/lib/compliance-server';
 
 interface CreatePayUOrderBody {
   amount?: number;
@@ -20,11 +23,13 @@ interface CreatePayUOrderBody {
   startTime?: string;
   endTime?: string;
   bundle?: number;
+  bundleSchedule?: 'all' | 'progressive';
   sessionDates?: PayUSessionDate[];
   notes?: string;
   returnUrl?: string;
   paymentMode?: PayUPaymentMode;
   upiAppName?: PayUUpiAppName;
+  consentReceiptId?: string;
 }
 
 interface PayUSmartIntentResponse {
@@ -129,6 +134,7 @@ async function persistPayUContext(
   const {
     amount,
     bundle,
+    bundleSchedule,
     date,
     notes,
     returnUrl,
@@ -146,6 +152,7 @@ async function persistPayUContext(
     userId,
     userName,
     userPhone,
+    consentReceiptId,
   } = request;
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -165,6 +172,7 @@ async function persistPayUContext(
           context: {
             amount,
             bundle: bundle || null,
+            bundleSchedule: bundleSchedule || 'all',
             date: date || null,
             startTime: startTime || null,
             endTime: endTime || null,
@@ -181,6 +189,7 @@ async function persistPayUContext(
             userId,
             userName,
             userPhone: userPhone || null,
+            consentReceiptId: consentReceiptId || null,
           },
         },
         { onConflict: 'txnid' }
@@ -198,6 +207,10 @@ async function persistPayUContext(
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth();
+    if (!session?.user?.id || !session.user.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isSameOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    if (!(await allowRequest('payment-order', session.user.id, 10, 60))) return NextResponse.json({ error: 'Too many payment attempts. Please try again shortly.' }, { status: 429 });
     const requestText = await request.text();
 
     if (!requestText.trim()) {
@@ -223,31 +236,35 @@ export async function POST(request: NextRequest) {
       startTime,
       endTime,
       bundle,
+      bundleSchedule,
       sessionDates,
       notes,
       returnUrl,
       paymentMode,
       upiAppName,
+      consentReceiptId,
     } = body;
 
-    console.log('Create PayU request:', {
-      amount,
-      sessionType,
-      userEmail,
-      userId,
-      slotId,
-      date,
-      bundle,
-      paymentMode,
-      upiAppName: upiAppName || null,
-    });
-
-    if (!amount || !sessionType || !userEmail || !userId || !userName) {
-      console.error('Missing required fields:', { amount, sessionType, userEmail, userId, userName });
+    if (!amount || !sessionType || !userEmail || !userId || !userName || !consentReceiptId) {
+      console.error('Missing required fields for PayU order');
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
+    }
+
+    if (userId !== session.user.id || userEmail.toLowerCase() !== session.user.email.toLowerCase()) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    if (!['personal', 'couple'].includes(sessionType) || !(await validateConsentReceipt(consentReceiptId, userId))) {
+      return NextResponse.json({ error: 'Valid booking consent is required.' }, { status: 400 });
+    }
+
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+    const bundleSize = Number(bundle || (Array.isArray(sessionDates) ? sessionDates.length : 0) || 1);
+    const { data: officialPrice, error: priceError } = await supabase.from('pricing_config').select('price,currency').eq('session_type', sessionType).eq('bundle_size', bundleSize).eq('currency', 'INR').single();
+    if (priceError || !officialPrice || Number(officialPrice.price).toFixed(2) !== Number(amount).toFixed(2)) {
+      return NextResponse.json({ error: 'The booking price changed. Refresh and review the current price.' }, { status: 409 });
     }
 
     const callbackUrl = new URL('/api/payments/payu/response', request.url).toString();
@@ -264,6 +281,7 @@ export async function POST(request: NextRequest) {
       startTime,
       endTime,
       bundle,
+      bundleSchedule,
       sessionDates,
       notes,
       returnUrl,
@@ -272,6 +290,7 @@ export async function POST(request: NextRequest) {
       s2sClientIp: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || '',
       s2sDeviceInfo: request.headers.get('user-agent') || '',
       callbackUrl,
+      consentReceiptId,
     };
 
     if (isSmartIntentMode(paymentMode)) {

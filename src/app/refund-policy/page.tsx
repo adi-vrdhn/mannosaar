@@ -7,6 +7,7 @@ const sections = [
     ],
   },
   {
+    id: 'cancellation',
     title: '2. Appointment Cancellation Policy',
     body: ['Users may cancel or reschedule therapy sessions through the platform or by contacting our support team.'],
     list: [
@@ -69,6 +70,7 @@ const sections = [
     ],
   },
   {
+    id: 'rescheduling',
     title: '9. Rescheduling Policy',
     body: [
       'Users may request to reschedule appointments subject to therapist availability.',
@@ -95,12 +97,14 @@ const sections = [
 ] as const;
 
 function SectionCard({
+  id,
   title,
   body,
   list,
   extra,
   contact,
 }: {
+  id?: string;
   title: string;
   body: readonly string[];
   list?: readonly string[];
@@ -108,7 +112,7 @@ function SectionCard({
   contact?: { company: string; website: string; email: string };
 }) {
   return (
-    <section className="rounded-3xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
+    <section id={id} className="scroll-mt-28 rounded-3xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
       <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">
         {title}
       </h2>
@@ -173,7 +177,7 @@ export default function RefundPolicyPage() {
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-gray-900">
             Refund & Cancellation Policy
           </h1>
-          <p className="mt-3 text-gray-600">Last updated: May 16, 2026</p>
+          <p className="mt-3 text-gray-600">Version 1.0 · Effective September 25, 2026</p>
         </div>
 
         <div className="space-y-5">

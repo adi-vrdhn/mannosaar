@@ -66,18 +66,18 @@ export default async function AdminCalendarPage() {
   }, {});
 
   return (
-    <div className="min-h-screen bg-[#f8f7ff] px-4 py-6 text-slate-950 sm:px-6 sm:py-8 lg:px-10">
-      <div className="mx-auto max-w-6xl">
-        <AdminSectionNav className="mb-5" />
+    <div className="min-h-screen bg-[#faf9f7] px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <AdminSectionNav className="mb-8" />
 
         <Link href="/admin" className="mb-6 inline-flex items-center gap-2 text-sm font-black text-violet-700">
           <ChevronLeft size={18} />
           Back to dashboard
         </Link>
 
-        <div className="mb-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-          <p className="text-sm font-black uppercase tracking-[0.2em] text-violet-600">Admin Calendar</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Session calendar</h1>
+        <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-6">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#5b267a]">Calendar</p>
+          <h1 className="mt-2 font-playfair text-3xl font-semibold text-[#34213f] sm:text-4xl">Session calendar</h1>
           <p className="mt-2 text-slate-500">Upcoming sessions grouped by date for quick planning.</p>
         </div>
 
@@ -90,7 +90,7 @@ export default async function AdminCalendarPage() {
             </div>
           ) : (
             Object.entries(groupedBookings).map(([date, sessions]) => (
-              <section key={date} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+              <section key={date} className="rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-bold text-violet-600">{format(new Date(date), 'EEEE')}</p>

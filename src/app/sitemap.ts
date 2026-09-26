@@ -1,16 +1,27 @@
 import type { MetadataRoute } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
-const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.mannosaar.com').replace(/\/$/, '');
+const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://mannosaar.com').replace(/\/$/, '');
 
 const publicPages: MetadataRoute.Sitemap = [
   { url: siteUrl, lastModified: new Date(), changeFrequency: 'weekly', priority: 1 },
   { url: `${siteUrl}/services`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.9 },
   { url: `${siteUrl}/about`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.9 },
+  { url: `${siteUrl}/counselling/individual`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.8 },
+  { url: `${siteUrl}/counselling/couples`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.8 },
+  { url: `${siteUrl}/support/overthinking`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.7 },
+  { url: `${siteUrl}/support/stress`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.7 },
+  { url: `${siteUrl}/how-it-works`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.7 },
+  { url: `${siteUrl}/faq`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.6 },
   { url: `${siteUrl}/blogs`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
+  { url: `${siteUrl}/social`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
   { url: `${siteUrl}/privacy`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
   { url: `${siteUrl}/terms`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
   { url: `${siteUrl}/refund-policy`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
+  { url: `${siteUrl}/online-therapy-consent`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
+  { url: `${siteUrl}/emergency`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
+  { url: `${siteUrl}/data-rights`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
+  { url: `${siteUrl}/compliance`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
 ];
 
 interface PublishedBlog {

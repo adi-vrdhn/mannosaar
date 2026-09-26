@@ -95,6 +95,12 @@ const Navbar = ({ onLogout }: NavbarProps) => {
               Blog
             </Link>
             <Link
+              href="/social"
+              className="text-[#34213f] hover:text-[#34213f]/70 transition-colors font-medium text-sm"
+            >
+              Social
+            </Link>
+            <Link
               href="/#reviews"
               className="text-[#34213f] hover:text-[#34213f]/70 transition-colors font-medium text-sm"
             >
@@ -216,6 +222,13 @@ const Navbar = ({ onLogout }: NavbarProps) => {
                 className="block rounded-lg px-4 py-3 font-medium text-[#34213f] hover:bg-white/15 transition-colors"
               >
                 Blog
+              </Link>
+              <Link
+                href="/social"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block rounded-lg px-4 py-3 font-medium text-[#34213f] hover:bg-white/15 transition-colors"
+              >
+                Social
               </Link>
               <Link
                 href="/#reviews"

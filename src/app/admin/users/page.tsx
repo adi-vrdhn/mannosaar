@@ -98,17 +98,17 @@ export default function UsersManagementPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-cyan-50 to-white pb-12 pt-20 sm:pt-24">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AdminSectionNav className="mb-5" />
+    <div className="min-h-screen bg-[#faf9f7] pb-12 pt-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <AdminSectionNav className="mb-8" />
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <Link href="/admin" className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 mb-4">
+          <Link href="/admin" className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-[#5b267a]">
             <ArrowLeft size={20} />
             Back to Dashboard
           </Link>
-          <h1 className="mb-2 text-3xl font-bold text-gray-900 sm:text-5xl">Users Management</h1>
+          <h1 className="mb-2 font-playfair text-3xl font-semibold text-[#34213f] sm:text-4xl">Clients</h1>
           <p className="text-base text-gray-600 sm:text-xl">
             View and manage all users and their booking history
           </p>
@@ -118,14 +118,14 @@ export default function UsersManagementPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8 rounded-2xl bg-gradient-to-br from-cyan-500 to-cyan-600 p-6 text-white shadow-lg sm:p-8"
+          className="mb-6 rounded-xl border border-slate-200 bg-white p-5 sm:p-6"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-cyan-100 text-sm font-semibold uppercase tracking-wide">Total Users</p>
-              <p className="mt-2 text-4xl font-bold sm:text-5xl">{users.length}</p>
+              <p className="text-sm font-medium text-slate-500">Total clients</p>
+              <p className="mt-2 text-4xl font-semibold text-slate-950">{users.length}</p>
             </div>
-            <Users size={48} className="text-cyan-200 opacity-50" />
+            <Users size={32} className="text-[#5b267a]" />
           </div>
         </motion.div>
 
@@ -133,7 +133,7 @@ export default function UsersManagementPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8 rounded-2xl bg-white p-5 shadow-lg sm:p-6"
+          className="mb-6 rounded-xl border border-slate-200 bg-white p-5 sm:p-6"
         >
           <div className="relative">
             <Search size={20} className="absolute left-3 top-3 text-gray-400" />
@@ -142,7 +142,7 @@ export default function UsersManagementPage() {
               placeholder="Search by name, email, or phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 text-lg"
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 text-base focus:border-[#5b267a] focus:outline-none"
             />
           </div>
         </motion.div>
@@ -164,9 +164,9 @@ export default function UsersManagementPage() {
           ) : filteredUsers.length === 0 ? (
             <motion.div
               variants={itemVariants}
-              className="col-span-1 md:col-span-2 bg-white rounded-2xl shadow-lg p-12 text-center"
+              className="col-span-1 rounded-xl border border-slate-200 bg-white p-12 text-center md:col-span-2"
             >
-              <Users size={48} className="mx-auto text-cyan-300 mb-4" />
+              <Users size={40} className="mx-auto mb-4 text-slate-300" />
               <p className="text-xl text-gray-600">
                 {users.length === 0 ? 'No users found' : 'No users match your search'}
               </p>
@@ -177,15 +177,15 @@ export default function UsersManagementPage() {
                 key={user.id}
                 variants={itemVariants}
                 onClick={() => handleUserClick(user)}
-                className="bg-white rounded-2xl shadow-lg p-6 cursor-pointer hover:shadow-xl transition transform hover:-translate-y-1"
+                className="cursor-pointer rounded-xl border border-slate-200 bg-white p-6 transition hover:border-slate-300"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <h3 className="text-2xl font-bold text-gray-900 mb-1">{user.name}</h3>
-                    <p className="text-cyan-600 font-medium mb-2">{user.email}</p>
+                    <p className="mb-2 font-medium text-[#5b267a]">{user.email}</p>
                     {user.phone && <p className="text-gray-600 text-sm mb-2">📞 {user.phone}</p>}
                   </div>
-                  <span className="inline-block bg-cyan-100 text-cyan-800 px-4 py-2 rounded-full font-bold text-lg">
+                  <span className="inline-block rounded-full bg-[#eee7f2] px-4 py-2 text-lg font-semibold text-[#5b267a]">
                     {user.total_sessions}
                   </span>
                 </div>
@@ -216,15 +216,15 @@ export default function UsersManagementPage() {
             className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
           >
             {/* Modal Header */}
-            <div className="sticky top-0 flex items-start justify-between gap-3 border-b border-gray-200 bg-gradient-to-r from-cyan-500 to-cyan-600 p-4 text-white sm:p-6">
+            <div className="sticky top-0 flex items-start justify-between gap-3 border-b border-slate-200 bg-white p-4 text-slate-900 sm:p-6">
                 <div>
                   <h2 className="text-2xl font-bold">{selectedUser.name}</h2>
-                  <p className="text-cyan-100">{selectedUser.email}</p>
-                  {selectedUser.phone && <p className="text-cyan-100">{selectedUser.phone}</p>}
+                  <p className="text-slate-500">{selectedUser.email}</p>
+                  {selectedUser.phone && <p className="text-slate-500">{selectedUser.phone}</p>}
                 </div>
                 <button
                   onClick={() => setSelectedUser(null)}
-                  className="p-2 hover:bg-cyan-700 rounded-lg transition"
+                  className="rounded-lg p-2 hover:bg-slate-100"
                   title="Close modal"
                 >
                   <X size={24} />

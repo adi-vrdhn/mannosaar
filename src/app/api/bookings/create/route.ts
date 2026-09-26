@@ -5,6 +5,13 @@ import { createGoogleCalendarEvent } from '@/lib/google-calendar';
 import { sendBookingConfirmationEmail } from '@/lib/email';
 import { getTherapistNotificationRecipients } from '@/lib/therapist-email';
 import { sendBookingConfirmationWhatsApp } from '@/lib/whatsapp';
+import { isSameOrigin, requestIp } from '@/lib/compliance';
+import { linkConsentReceipt, validateConsentReceipt, writeAudit } from '@/lib/compliance-server';
+import { normalizePayUAmount, verifyPayUPayment } from '@/lib/payu';
+
+interface BookingSessionDate { date: string; slotId: string; startTime: string; endTime: string }
+interface BookingSlot { id: string; date: string; start_time: string; end_time: string; therapist_id?: string }
+interface BookingUser { id: string; name?: string; email: string; phone?: string; phone_number?: string }
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -12,9 +19,9 @@ export async function POST(request: Request) {
   if (!session?.user?.email || !session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
+  if (!isSameOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
   try {
-    const { userId, slotId, sessionType, sessionDates, bundle, notes } = await request.json();
+    const { userId, slotId, sessionType, sessionDates, bundle, notes, consentReceiptId, recoveryTxnId } = await request.json() as { userId?: string; slotId?: string; sessionType?: string; sessionDates?: BookingSessionDate[]; bundle?: number; bundleSchedule?: 'all' | 'progressive'; notes?: string; consentReceiptId?: string; recoveryTxnId?: string };
     
     const isBundleBooking = sessionDates && sessionDates.length > 0;
     
@@ -37,6 +44,49 @@ export async function POST(request: Request) {
     }
 
     if (userId !== session.user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    let recoveredPayment: Awaited<ReturnType<typeof verifyPayUPayment>>['transaction'] = null;
+    if (recoveryTxnId) {
+      const verification = await verifyPayUPayment(recoveryTxnId);
+      recoveredPayment = verification.transaction;
+
+      if (!verification.isSuccess || !recoveredPayment || recoveredPayment.txnid !== recoveryTxnId) {
+        return NextResponse.json({ error: 'The PayU payment could not be verified.' }, { status: 400 });
+      }
+
+      const expectedBundle = Math.max(1, Number(bundle || sessionDates?.length || 1));
+      const { data: officialPrice } = await supabase
+        .from('pricing_config')
+        .select('price')
+        .eq('session_type', sessionType)
+        .eq('bundle_size', expectedBundle)
+        .eq('currency', 'INR')
+        .single();
+      const productInfo = String(recoveredPayment.raw.productinfo || '');
+
+      if (
+        !officialPrice
+        || normalizePayUAmount(Number(officialPrice.price)) !== normalizePayUAmount(Number(recoveredPayment.amount))
+        || (expectedBundle > 1 && !productInfo.includes(`x${expectedBundle}`))
+      ) {
+        return NextResponse.json({ error: 'The captured payment does not match this booking.' }, { status: 400 });
+      }
+
+      const { data: existingBooking } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('payment_id', recoveredPayment.mihpayid)
+        .maybeSingle();
+      if (existingBooking) {
+        return NextResponse.json({ success: true, booking: existingBooking, recovered: true });
+      }
+    } else if (!consentReceiptId || !(await validateConsentReceipt(consentReceiptId, userId))) {
+      return NextResponse.json({ error: 'Valid booking consent is required.' }, { status: 400 });
+    }
 
     // Validate either slotId (single) or sessionDates (bundle) is provided
     if (!isBundleBooking && !slotId) {
@@ -55,16 +105,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    let slotData: any = null;
-    let userData: any = null;
+    let slotData: BookingSlot = { id: '', date: '', start_time: '', end_time: '' };
 
     // Fetch user details
-    console.log('🔵 Fetching user:', userId);
     const { data: userDataResult, error: userError } = await supabase
       .from('users')
       .select('*')
@@ -78,8 +121,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    userData = userDataResult;
-    console.log('✅ User found:', userData);
+    const userData = userDataResult as BookingUser;
 
     // For single bookings, fetch slot details
     if (!isBundleBooking) {
@@ -130,7 +172,7 @@ export async function POST(request: Request) {
       console.warn('⚠️ Could not calculate previous booking count:', countError);
     }
     
-    let bookingPayload: any = {
+    const bookingPayload: Record<string, unknown> = {
       user_id: userId,
       user_name: userData.name || 'Client',
       user_email: userData.email,
@@ -141,11 +183,17 @@ export async function POST(request: Request) {
       sessions_taken_before: (previousBookingCount || 0) + 1,
     };
 
+    if (recoveredPayment) {
+      bookingPayload.payment_id = recoveredPayment.mihpayid;
+      bookingPayload.payment_status = 'completed';
+      bookingPayload.payment_amount = Number(recoveredPayment.amount);
+    }
+
     if (isBundleBooking) {
       // Bundle booking
       console.log('🔵 Processing bundle booking with', sessionDates.length, 'sessions');
-      bookingPayload.number_of_sessions = sessionDates.length;
-      bookingPayload.session_dates = sessionDates.map((session: any) => ({
+      bookingPayload.number_of_sessions = Math.max(sessionDates.length, Number(bundle || sessionDates.length));
+      bookingPayload.session_dates = sessionDates.map((session) => ({
         date: session.date,
         slot_id: session.slotId,
         start_time: session.startTime,
@@ -167,7 +215,7 @@ export async function POST(request: Request) {
     }
 
     const insertBooking = async (initialPayload: Record<string, unknown>) => {
-      let payload = { ...initialPayload };
+      const payload = { ...initialPayload };
 
       for (let attempt = 0; attempt < 8; attempt += 1) {
         const { data, error } = await supabase
@@ -190,8 +238,7 @@ export async function POST(request: Request) {
         }
 
         console.warn(`⚠️ bookings.${missingColumn} is unavailable, retrying without the field`);
-        const { [missingColumn]: _ignored, ...nextPayload } = payload;
-        payload = nextPayload;
+        delete payload[missingColumn];
       }
 
       const { data, error } = await supabase
@@ -202,7 +249,7 @@ export async function POST(request: Request) {
       return { data, error };
     };
 
-    let { data: bookingData, error: bookingError } = await insertBooking(bookingPayload);
+    const { data: bookingData, error: bookingError } = await insertBooking(bookingPayload);
 
     if (bookingError) {
       console.error('❌ Booking creation error:', bookingError);
@@ -213,7 +260,23 @@ export async function POST(request: Request) {
     if (!booking) {
       return NextResponse.json({ error: 'Booking could not be created' }, { status: 400 });
     }
-    console.log('✅ Booking created:', booking);
+    if (consentReceiptId) {
+      await linkConsentReceipt(consentReceiptId, userId, booking.id);
+    }
+    await writeAudit({ userId, actorRole: session.user.role || 'user', action: 'BOOKING_CREATED', resourceType: 'booking', resourceId: booking.id, ipAddress: requestIp(request.headers), metadata: { channel: recoveredPayment ? 'PAYU_RECOVERY' : 'WEB_TEST', sessionType } });
+
+    if (recoveredPayment) {
+      await supabase.from('payments').upsert({
+        booking_id: booking.id,
+        user_id: userId,
+        provider: 'PAYU',
+        provider_transaction_id: recoveredPayment.mihpayid,
+        amount: Number(recoveredPayment.amount),
+        currency: 'INR',
+        status: 'COMPLETED',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'provider_transaction_id' });
+    }
 
     // Mark slots as unavailable
     if (isBundleBooking) {
@@ -287,7 +350,6 @@ export async function POST(request: Request) {
           sessionType
         );
 
-        console.log('✅ Calendar result:', calendarResult);
 
         if (calendarResult?.meetLink) {
           meetingLinks.push(calendarResult.meetLink);
@@ -301,9 +363,9 @@ export async function POST(request: Request) {
       // Update booking with meeting links
       if (meetingLinks.length > 0) {
         console.log('🔵 Updating booking with meeting links...');
-        const updatePayload: any = {};
+        const updatePayload: Record<string, unknown> = {};
 
-        if (isBundleBooking && meetingLinks.length > 1) {
+        if (isBundleBooking) {
           // Store all meeting links as JSON array for bundle
           updatePayload.meeting_links = meetingLinks;
           updatePayload.meeting_link = meetingLinks[0]; // Also store first link in meeting_link for backward compatibility
@@ -354,7 +416,7 @@ export async function POST(request: Request) {
       const emailStartTime = isBundleBooking ? 'Varies' : slotData.start_time;
       const emailEndTime = isBundleBooking ? 'Varies' : slotData.end_time;
       const sessionSchedule = isBundleBooking
-        ? sessionDates.map((session: any) => ({
+        ? sessionDates.map((session) => ({
             date: session.date,
             startTime: session.startTime,
             endTime: session.endTime,
@@ -378,6 +440,7 @@ export async function POST(request: Request) {
         endTime: emailEndTime,
         sessionSchedule,
         meetingLink: meetingLinks[0] || '',
+        clientNote: notes?.trim() || null,
       });
     } catch (emailError) {
       console.warn('⚠️ Email sending error (non-blocking):', emailError);
@@ -418,7 +481,7 @@ export async function POST(request: Request) {
           sessionType,
         });
         
-        console.log('✅ WhatsApp confirmation sent to:', profileData.whatsapp_number);
+        console.log('✅ WhatsApp confirmation sent');
       } else {
         console.log('ℹ️ User has no WhatsApp number linked, skipping WhatsApp notification');
       }
@@ -427,7 +490,7 @@ export async function POST(request: Request) {
       // Don't fail the booking if WhatsApp fails
     }
 
-    console.log('✅ Booking API returning:', { booking });
+    console.log('✅ Booking API completed:', booking.id);
     return NextResponse.json({ success: true, booking }, { status: 201 });
   } catch (error) {
     console.error('❌ Create booking error:', error);

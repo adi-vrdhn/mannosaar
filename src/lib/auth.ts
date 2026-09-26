@@ -1,7 +1,8 @@
-import NextAuth, { type NextAuthConfig, type Session, type User } from 'next-auth';
+import NextAuth, { type NextAuthConfig } from 'next-auth';
 import Google from 'next-auth/providers/google';
 import { createClient } from '@supabase/supabase-js';
-import { JWT } from 'next-auth/jwt';
+import type {} from 'next-auth/jwt';
+import { sendWelcomeEmail } from '@/lib/email';
 
 // Extend the default NextAuth types
 declare module 'next-auth' {
@@ -47,7 +48,7 @@ const authConfig: NextAuthConfig = {
     }),
   ],
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn() {
       // Allow all signins - user creation happens in session callback
       return true;
     },
@@ -72,7 +73,7 @@ const authConfig: NextAuthConfig = {
           if (!error && dbUser) {
             token.role = dbUser.role;
           }
-        } catch (err) {
+        } catch {
           // Keep existing role if database query fails
         }
       }
@@ -93,7 +94,6 @@ const authConfig: NextAuthConfig = {
           session.user.email = (token.email as string) || '';
           session.user.name = (token.name as string) || '';
 
-          console.log('🔐 [Session] Processing user:', token.email);
 
           // Ensure user exists in Supabase
           // CRITICAL: Must always resolve to a valid Supabase user ID
@@ -110,7 +110,6 @@ const authConfig: NextAuthConfig = {
               // User found in database
               supabaseUserId = existingUser.id;
               session.user.role = existingUser.role;
-              console.log('✅ [Session] User found:', existingUser.id);
             } else if (selectError) {
               console.error('❌ [Session] Query error:', selectError);
               // Don't return early - try to create user instead
@@ -118,7 +117,6 @@ const authConfig: NextAuthConfig = {
 
             // If user not found, create them
             if (!supabaseUserId) {
-              console.log('📝 [Session] Creating new user:', token.email);
               const { data: newUser, error: insertError } = await supabase
                 .from('users')
                 .insert([
@@ -141,14 +139,17 @@ const authConfig: NextAuthConfig = {
               if (newUser) {
                 supabaseUserId = newUser.id;
                 session.user.role = newUser.role;
-                console.log('✅ [Session] User created:', newUser.id);
+                await sendWelcomeEmail(
+                  newUser.email,
+                  newUser.name || 'there',
+                  new URL('/profile', process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').toString()
+                );
               }
             }
 
             // CRITICAL: Always set the Supabase user ID
             if (supabaseUserId) {
               session.user.id = supabaseUserId;
-              console.log('✅ [Session] Final user ID set:', supabaseUserId);
             } else {
               console.error('❌ [Session] Failed to resolve Supabase user ID');
               session.user.role = 'user';

@@ -42,6 +42,25 @@ interface StoredSlotInfo {
 
 const CONFIRMATION_SLOT_INFO_STORAGE_KEY = 'pendingConfirmationSlotInfo';
 
+function parseStoredSessions(value: string | null): SessionDate[] {
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((entry): entry is SessionDate => {
+      if (!entry || typeof entry !== 'object') return false;
+      const session = entry as Record<string, unknown>;
+      return ['date', 'slotId', 'startTime', 'endTime'].every(
+        (field) => typeof session[field] === 'string' && Boolean(session[field]),
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
 const BookingConfirmation = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -54,6 +73,7 @@ const BookingConfirmation = () => {
   const selectedStartTime = searchParams.get('startTime');
   const selectedEndTime = searchParams.get('endTime');
   const bundle = searchParams.get('bundle') ? parseInt(searchParams.get('bundle')!) : null;
+  const bundleSchedule = searchParams.get('schedule') === 'progressive' ? 'progressive' : 'all';
 
   // Price state - now supports bundle pricing
   const [prices, setPrices] = useState<BundlePricing>({ ...DEFAULT_BUNDLE_PRICING });
@@ -90,22 +110,19 @@ const BookingConfirmation = () => {
         }
       }
 
-      const storedSessions = sessionStorage.getItem('pendingSessionDates');
-      if (storedSessions) {
-        try {
-          const parsed = JSON.parse(storedSessions);
-          setSessionSlots(parsed);
-          // Clear from storage after reading
-          sessionStorage.removeItem('pendingSessionDates');
-        } catch (err) {
-          console.error('Failed to parse sessionDates from storage:', err);
-        }
+      const storedSessions = parseStoredSessions(sessionStorage.getItem('pendingSessionDates'));
+      const urlSessions = parseStoredSessions(searchParams.get('sessionDates'));
+      const recoveredSessions = storedSessions.length > 0 ? storedSessions : urlSessions;
+
+      if (recoveredSessions.length > 0) {
+        setSessionSlots(recoveredSessions);
+        sessionStorage.setItem('pendingSessionDates', JSON.stringify(recoveredSessions));
       }
     }
-  }, []);
+  }, [searchParams, slotId]);
 
   // Calculate bundleSize from sessionDates when set
-  const bundleSize = sessionSlots.length > 0 ? sessionSlots.length : 1;
+  const bundleSize = bundle && bundle > 1 ? bundle : 1;
   const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
   const sessionPrice = prices[priceKey] || 0;
   const totalPrice = sessionPrice;
@@ -325,8 +342,7 @@ const BookingConfirmation = () => {
 
     try {
       if (isBundleBooking) {
-        // Bundle booking - persist sessions for the payment page and still
-        // include them in the URL as a fallback for direct links.
+        // Keep appointment details in same-tab session storage rather than URLs.
         if (typeof window !== 'undefined') {
           window.sessionStorage.setItem('pendingPaymentSessionDates', JSON.stringify(sessionSlots));
           window.sessionStorage.removeItem('pendingPaymentSlotInfo');
@@ -335,6 +351,7 @@ const BookingConfirmation = () => {
         const params = new URLSearchParams({
           type: sessionType,
           bundle: bundle!.toString(),
+          schedule: bundleSchedule,
           sessionDates: JSON.stringify(sessionSlots),
         });
         router.push(`/appointment/payment?${params.toString()}`);
@@ -356,9 +373,6 @@ const BookingConfirmation = () => {
         const params = new URLSearchParams({
           type: sessionType,
           slotId: slotId!,
-          date: slotInfo!.date,
-          startTime: slotInfo!.start_time,
-          endTime: slotInfo!.end_time,
         });
         router.push(`/appointment/payment?${params.toString()}`);
       }
@@ -479,6 +493,11 @@ const BookingConfirmation = () => {
                         </span>
                       </div>
                     ))}
+                    {bundleSchedule === 'progressive' && bundleSize > sessionSlots.length && (
+                      <div className="rounded-xl border border-dashed border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-800">
+                        Sessions 2–{bundleSize} will unlock one at a time after the previous session is completed.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

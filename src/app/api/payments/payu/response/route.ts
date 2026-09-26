@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createGoogleCalendarEvent } from '@/lib/google-calendar';
-import { sendBookingConfirmationEmail } from '@/lib/email';
+import { sendBookingConfirmationEmail, sendPaymentReceiptEmail } from '@/lib/email';
 import { getTherapistNotificationRecipients } from '@/lib/therapist-email';
 import {
   PayUBookingContext,
@@ -12,6 +12,7 @@ import {
   normalizePayUAmount,
   verifyPayUPayment,
 } from '@/lib/payu';
+import { linkConsentReceipt, validateConsentReceipt, writeAudit } from '@/lib/compliance-server';
 
 type ErrorField = 'code' | 'message' | 'details';
 
@@ -38,8 +39,9 @@ function getSafeRedirectTarget(value: string | null | undefined, baseUrl: string
 
   try {
     const url = new URL(value, baseUrl);
+    if (url.origin !== new URL(baseUrl).origin) return fallback;
     decodeURIComponent(url.search);
-    return value;
+    return `${url.pathname}${url.search}`;
   } catch {
     return fallback;
   }
@@ -76,6 +78,27 @@ function isMissingPayUContextTableError(error: unknown) {
     message.includes("Could not find the table 'public.payu_payment_contexts'") ||
     message.includes('schema cache')
   );
+}
+
+function getRecordedPaymentMethod(raw: Record<string, unknown>, fallback?: string) {
+  const value = raw.mode || raw.payment_mode || raw.paymentMode || raw.card_type || fallback || '';
+  const normalized = String(value).trim().toLowerCase();
+  const labels: Record<string, string> = {
+    cc: 'Credit card',
+    credit: 'Credit card',
+    dc: 'Debit card',
+    debit: 'Debit card',
+    nb: 'Net banking',
+    netbanking: 'Net banking',
+    upi: 'UPI',
+    upi_intent: 'UPI',
+    upi_qr: 'UPI QR',
+    wallet: 'Wallet',
+    wallets: 'Wallet',
+    cards: 'Card',
+    auto: 'PayU checkout',
+  };
+  return labels[normalized] || (value ? String(value) : null);
 }
 
 function parseSessionDatesParam(value?: string | null): PayUSessionDate[] {
@@ -186,8 +209,10 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
     const receivedHash = payload.hash || '';
     const amount = payload.amount || '';
     const productinfo = payload.productinfo || '';
-    const decodedContext = decodePayUContext(payload.udf1);
-    const rawInitialReturnUrl = payload.udf2 || '';
+    const decodedContext = decodePayUContext(
+      [payload.udf1, payload.udf2, payload.udf3, payload.udf4, payload.udf5].join('')
+    );
+    const rawInitialReturnUrl = decodedContext?.returnUrl || payload.udf2 || '';
     const initialReturnUrl = getSafeRedirectTarget(rawInitialReturnUrl, request.url);
 
     const { key, salt } = getPayUConfig();
@@ -263,7 +288,9 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
       }
     }
 
-    const userContext = decodedContext || storedContext;
+    // The database is the primary copy. The UDF fallback is encrypted by us and
+    // also covered by PayU's verified response hash.
+    const userContext = storedContext || decodedContext;
     const returnUrlContext = getContextFromReturnUrl(rawInitialReturnUrl || userContext?.returnUrl || '', request.url);
     const contextSessionDates = normalizeSessionDates(userContext?.sessionDates);
     const returnUrlSessionDates = normalizeSessionDates(returnUrlContext.sessionDates);
@@ -300,15 +327,11 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
     const userPhone = userContext?.userPhone || payload.phone || '';
     const notes = userContext?.notes || '';
     const expectedAmount = typeof userContext?.amount === 'number' ? normalizePayUAmount(userContext.amount) : '';
+    const consentReceiptId = userContext?.consentReceiptId || '';
 
     console.log('PayU response received:', {
       status,
       txnid,
-      paymentId,
-      userId,
-      userEmail,
-      sessionType,
-      slotDate,
       isBundleBooking: sessionDates.length > 0,
       hasStoredContext: !!storedContext,
       hasDecodedContext: !!decodedContext,
@@ -386,6 +409,35 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+    // Preserve the verified payment method alongside the checkout context so
+    // profile pages can show UPI/card/net-banking details without guessing.
+    if (storedContext) {
+      const paymentMethod = getRecordedPaymentMethod(
+        verifiedPayment.transaction.raw,
+        userContext?.paymentMode
+      );
+      const { error: contextUpdateError } = await supabase
+        .from('payu_payment_contexts')
+        .update({
+          context: {
+            ...storedContext,
+            paymentMethod,
+            providerTransactionId: paymentId,
+          },
+        })
+        .eq('txnid', txnid);
+      if (contextUpdateError && !isMissingPayUContextTableError(contextUpdateError)) {
+        console.warn('Unable to save PayU payment method:', contextUpdateError.message);
+      }
+    }
+
+    if (!consentReceiptId || !(await validateConsentReceipt(consentReceiptId, userId))) {
+      return NextResponse.redirect(getRedirectUrl(request, returnUrl || '/appointment/payment', {
+        paymentStatus: 'failed',
+        paymentError: 'consent-required',
+      }), 303);
+    }
+
     const { data: existingBooking } = await supabase
       .from('bookings')
       .select('id')
@@ -393,10 +445,22 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
       .maybeSingle();
 
     if (existingBooking?.id) {
+      await linkConsentReceipt(consentReceiptId, userId, existingBooking.id);
+      await supabase.from('payments').upsert({
+        booking_id: existingBooking.id,
+        user_id: userId,
+        provider: 'PAYU',
+        provider_transaction_id: paymentId,
+        amount: Number(amount),
+        currency: 'INR',
+        status: 'COMPLETED',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'provider_transaction_id' });
       return NextResponse.redirect(getRedirectUrl(request, '/appointment/success', { bookingId: existingBooking.id }), 303);
     }
 
-    const isBundleBooking = sessionDates.length > 0;
+    const bundleCount = Math.max(1, Number(userContext?.bundle || sessionDates.length || 1));
+    const isBundleBooking = bundleCount > 1 && sessionDates.length > 0;
     let slotDataForCalendar: SlotData | null = null;
 
     const bookingPayload: Record<string, unknown> = {
@@ -412,7 +476,7 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
     };
 
     if (isBundleBooking) {
-      bookingPayload.number_of_sessions = sessionDates.length;
+      bookingPayload.number_of_sessions = bundleCount;
       bookingPayload.session_dates = sessionDates.map((session) => ({
         date: session.date,
         slot_id: session.slotId,
@@ -595,6 +659,20 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
       }), 303);
     }
 
+    await linkConsentReceipt(consentReceiptId, userId, booking.id);
+    await supabase.from('payments').upsert({
+      booking_id: booking.id,
+      user_id: userId,
+      provider: 'PAYU',
+      provider_transaction_id: paymentId,
+      amount: Number(amount),
+      currency: 'INR',
+      status: 'COMPLETED',
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'provider_transaction_id' });
+    await writeAudit({ userId, action: 'PAYMENT_COMPLETED', resourceType: 'booking', resourceId: booking.id, metadata: { provider: 'PAYU', transactionId: paymentId } });
+    await writeAudit({ userId, action: 'BOOKING_CREATED', resourceType: 'booking', resourceId: booking.id, metadata: { channel: 'WEB', sessionType } });
+
     const meetingLinks: string[] = [];
     let googleCalendarEventId = booking.google_calendar_event_id || '';
     const calendarTherapistId = 'default-therapist';
@@ -647,7 +725,7 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
       }
 
       if (meetingLinks.length > 0) {
-        const updatePayload: Record<string, unknown> = isBundleBooking && meetingLinks.length > 1
+        const updatePayload: Record<string, unknown> = isBundleBooking
           ? { meeting_links: meetingLinks, meeting_link: meetingLinks[0] }
           : { meeting_link: meetingLinks[0] };
 
@@ -679,7 +757,7 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
         clientName: userName,
         therapistEmail: getTherapistNotificationRecipients(therapistData?.email),
         therapistName: therapistData?.name || 'Therapist',
-        sessionType,
+        sessionType: bundleCount > 1 ? `${sessionType} · ${bundleCount}-session bundle` : sessionType,
         date: isBundleBooking ? `${sessionDates.length} sessions scheduled` : notificationSlot?.date || 'Session scheduled',
         startTime: isBundleBooking ? 'Varies' : notificationSlot?.startTime || 'Varies',
         endTime: isBundleBooking ? 'Varies' : notificationSlot?.endTime || 'Varies',
@@ -699,6 +777,17 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
             ]
           : [],
         meetingLink: meetingLinks[0] || '',
+        clientNote: notes || null,
+      });
+      await sendPaymentReceiptEmail({
+        clientEmail: userEmail,
+        clientName: userName,
+        amount: Number(amount),
+        currency: 'INR',
+        reference: paymentId,
+        provider: 'PayU',
+        method: getRecordedPaymentMethod(verifiedPayment.transaction.raw, userContext?.paymentMode),
+        sessionType: bundleCount > 1 ? `${sessionType} · ${bundleCount}-session bundle` : sessionType,
       });
     } catch (processingError) {
       console.error('PayU calendar/email processing failed:', processingError);

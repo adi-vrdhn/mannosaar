@@ -27,6 +27,15 @@ test('PayU authenticity validates hash, merchant and additional charges',async()
  fields.hash=payu.buildPayUResponseHash({...fields,salt:'test-salt'});
  assert.equal(await api.validatePayUWebhook(fields),true);assert.equal(await api.validatePayUWebhook({...fields,amount:'1.00'}),false);assert.equal(await api.validatePayUWebhook({...fields,key:'other'}),false);
 });
+test('PayU booking context survives encrypted stateless callback recovery',()=>{
+ process.env.NEXTAUTH_SECRET='context-test-secret';
+ const payu=load('src/lib/payu.ts');
+ const context={userId:'user-1',userEmail:'patient@example.test',userName:'Patient',sessionType:'personal',amount:9,bundle:2,bundleSchedule:'progressive',sessionDates:[{date:'2030-09-08',slotId:'slot-1',startTime:'10:00:00',endTime:'10:40:00'}],consentReceiptId:'signed-consent'};
+ const encoded=payu.encodePayUContext(context);
+ assert.deepEqual(payu.decodePayUContext(encoded),context);
+ const last=encoded.at(-1);const tampered=encoded.slice(0,-1)+(last==='a'?'b':'a');
+ assert.equal(payu.decodePayUContext(tampered),null);
+});
 test('availability subtracts Calendar busy, holds, block ranges and enforces four-hour lead time',async()=>{
  const date='2030-09-08';const rows=['10:00','11:00','12:00','13:00'].map((time,i)=>({id:`slot-${i}`,date,start_time:time+':00',end_time:time.slice(0,2)+':45:00',duration_minutes:45}));
  const api=load('src/lib/bookings/availability.ts',{

@@ -3,6 +3,7 @@ import type { Hold } from '@/lib/payments/whatsapp';
 import { NextResponse } from 'next/server';
 import { isWhatsAppAdmin } from '@/lib/whatsapp/admin';
 import { check, db, origin, rpc } from '@/lib/whatsapp/server';
+import { sendRefundStatusEmail } from '@/lib/email';
 export async function GET(request: Request) {
   if (!await isWhatsAppAdmin()) return new Response('Forbidden', { status: 403 });
   const therapistId = new URL(request.url).searchParams.get('therapist');
@@ -25,6 +26,32 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   if (!await isWhatsAppAdmin() || request.headers.get('origin') !== origin()) return new Response('Forbidden', { status: 403 });
   const body = await request.json();
+  if (body.action === 'refund-status') {
+    const allowedStatuses = new Set(['PROCESSING', 'REFUNDED', 'REJECTED']);
+    const status = String(body.status || '').toUpperCase();
+    if (typeof body.id !== 'string' || !allowedStatuses.has(status)) return new Response('Invalid refund update', { status: 400 });
+    const refund = await db().from('whatsapp_refund_requests').select('id,txnid,amount,reason,status').eq('id', body.id).single();
+    check(refund.error);
+    if (!refund.data) return new Response('Refund request not found', { status: 404 });
+    const payment = await db().from('whatsapp_payments').select('user_id,currency').eq('txnid', refund.data.txnid).single();
+    check(payment.error);
+    const user = await db().from('users').select('email,name').eq('id', payment.data!.user_id).single();
+    check(user.error);
+    const updated = await db().from('whatsapp_refund_requests').update({ status }).eq('id', body.id).select('id,status').single();
+    check(updated.error);
+    if (user.data?.email) {
+      await sendRefundStatusEmail({
+        clientEmail: user.data.email,
+        clientName: user.data.name || 'Client',
+        amount: Number(refund.data.amount),
+        currency: payment.data?.currency || 'INR',
+        reference: refund.data.txnid,
+        status,
+        reason: refund.data.reason,
+      });
+    }
+    return NextResponse.json({ refund: updated.data });
+  }
   if (['cancel','reschedule'].includes(body.action)) {
     if (typeof body.id !== 'string') return new Response('Invalid booking', { status: 400 });
     const payment = await db().from('whatsapp_payments').select('session_id,booking:bookings(id,slot_id,fulfillment_status,booking_version)').eq('booking_id', body.id).single(); check(payment.error);

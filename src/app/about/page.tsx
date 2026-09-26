@@ -4,8 +4,14 @@ import Link from 'next/link';
 import { ArrowRight, Check, ChevronDown, Languages } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'About Neetu Rathore | Mannosaar',
-  description: 'Learn about Neetu Rathore, psychologist, family therapist, and career counsellor with 24+ years of clinical experience.',
+  title: 'About Neetu Rathore, Counsellor | Mannosaar',
+  description: 'Meet Neetu Rathore, the practitioner behind Mannosaar, and learn about her experience, approach, education and online counselling sessions.',
+  alternates: { canonical: '/about' },
+  openGraph: {
+    title: 'About Neetu Rathore | Mannosaar',
+    description: 'Learn about the practitioner behind Mannosaar and her approach to online counselling.',
+    url: '/about',
+  },
 };
 
 const experiences = [
@@ -43,7 +49,7 @@ export default function AboutPage() {
           <div className="order-2 lg:order-1">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5b267a]">Meet Neetu Rathore</p>
             <h1 className="mt-4 max-w-2xl font-playfair text-4xl font-bold leading-[1.02] tracking-[-0.045em] sm:text-5xl lg:text-6xl">A thoughtful space for the parts of life that feel hard to carry alone.</h1>
-            <p className="mt-6 max-w-xl text-base leading-8 text-[#4c4052] sm:text-lg">Neetu is a psychologist, family therapist, and career counsellor with over 24 years of clinical experience. Her work is grounded in empathy, practical tools, and the belief that meaningful change begins with being heard.</p>
+            <p className="mt-6 max-w-xl text-base leading-8 text-[#4c4052] sm:text-lg">Neetu is a psychologist, family therapist, and career counsellor with over 24 years of experience. Her work is grounded in empathy, practical tools, and the belief that meaningful change begins with being heard.</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link href="/appointment/type" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#5b267a] px-6 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#481d61]">Book a session <ArrowRight size={16} /></Link>
               <a href="https://www.linkedin.com/in/neeturathore9/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center rounded-full border border-[#5b267a]/35 px-6 py-3.5 text-sm font-bold text-[#5b267a] transition hover:border-[#5b267a] hover:bg-white/25">Connect on LinkedIn</a>

@@ -1,6 +1,9 @@
 import { protectToken, revealToken } from './google-calendar/token-protection';
 import { createClient } from '@supabase/supabase-js';
 
+interface GoogleCredential { user_id: string; access_token: string; refresh_token: string; token_expiry?: string | null; email?: string | null }
+interface GoogleEventData { id?: string; htmlLink?: string; summary?: string; hangoutLink?: string; conferenceData?: { entryPoints?: Array<{ entryPointType?: string; uri?: string }> } }
+
 async function getTherapistGoogleCredentials(therapistId: string) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -47,8 +50,7 @@ async function getTherapistGoogleCredentials(therapistId: string) {
   }
 
   // Try to get credentials for the first admin with valid credentials
-  let adminCredentials = null;
-  let selectedAdmin = null;
+  let adminCredentials: GoogleCredential | null = null;
 
   for (const admin of adminDataList) {
     const { data: creds, error: credError } = await supabase
@@ -57,22 +59,20 @@ async function getTherapistGoogleCredentials(therapistId: string) {
       .eq('user_id', admin.id)
       .maybeSingle();
 
-    console.log(`🔍 Checking credentials for admin ${admin.email}:`, { 
+    console.log('🔍 Checking calendar credentials:', {
       hasCredentials: !!creds, 
-      error: credError,
-      adminId: admin.id
+      hasError: !!credError,
     });
 
     if (creds && !credError) {
       adminCredentials = creds;
-      selectedAdmin = admin;
-      console.log(`✅ Using credentials from admin: ${admin.email}`);
+      console.log('✅ Calendar credentials selected');
       break;
     }
   }
 
   if (!adminCredentials) {
-    throw new Error(`No admin has connected their Google account. ${adminDataList.map((a: any) => a.email).join(', ')}`);
+    throw new Error('No administrator has connected a Google Calendar account.');
   }
 
   return adminCredentials;
@@ -96,12 +96,12 @@ async function getAllAdminEmails() {
     return [];
   }
 
-  const emails = admins.map((a: any) => a.email).filter((e: string) => e);
-  console.log('✅ Found admin emails:', emails);
+  const emails = admins.map((a: { email: string | null }) => a.email).filter((email): email is string => Boolean(email));
+  console.log('✅ Calendar notification recipients resolved:', emails.length);
   return emails;
 }
 
-async function getOrRefreshAccessToken(credentials: any) {
+async function getOrRefreshAccessToken(credentials: GoogleCredential) {
   const now = new Date();
 
   // If token is still valid, return it
@@ -147,7 +147,7 @@ async function getOrRefreshAccessToken(credentials: any) {
   return tokenData.access_token;
 }
 
-function extractMeetLink(eventData: any) {
+function extractMeetLink(eventData: GoogleEventData | null) {
   if (!eventData) return null;
 
   if (eventData.hangoutLink) {
@@ -156,7 +156,7 @@ function extractMeetLink(eventData: any) {
 
   const entryPoints = eventData.conferenceData?.entryPoints || [];
   const meetEntry = entryPoints.find(
-    (entry: any) =>
+    (entry) =>
       entry.entryPointType === 'video' || entry.uri?.includes('meet.google.com')
   );
 
@@ -170,15 +170,14 @@ export async function createGoogleCalendarEvent(
   slotDate: string,
   slotTime: string,
   slotEndTime: string,
-  sessionType: string = 'personal',
+  _sessionType: string = 'personal',
   additionalEmails: string[] = []
 ) {
+  void _sessionType;
   try {
     // Get therapist's Google credentials
     const credentials = await getTherapistGoogleCredentials(therapistId);
-    console.log('✅ Got credentials:', { 
-      email: credentials.email, 
-      userId: credentials.user_id,
+    console.log('✅ Got calendar credentials:', {
       hasAccessToken: !!credentials.access_token,
       hasRefreshToken: !!credentials.refresh_token
     });
@@ -213,11 +212,11 @@ export async function createGoogleCalendarEvent(
     const endDateTime = formatLocalDateTime(slotEndDate);
 
     console.log('🔄 Creating Google Calendar event:', {
-      summary: `Therapy Session - ${sessionType.charAt(0).toUpperCase() + sessionType.slice(1)}`,
+      summary: 'Mannosaar Online Session',
       start: startDateTime,
       end: endDateTime,
       timezone: 'Asia/Kolkata',
-      attendees: [clientEmail, ...adminEmails, ...additionalEmails],
+      attendeeCount: 1 + adminEmails.length + additionalEmails.length,
     });
 
     // Build attendees list with client and all admins
@@ -239,8 +238,9 @@ export async function createGoogleCalendarEvent(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        summary: `Therapy Session - ${sessionType.charAt(0).toUpperCase() + sessionType.slice(1)}`,
-        description: `${sessionType.charAt(0).toUpperCase() + sessionType.slice(1)} therapy session`,
+        summary: 'Mannosaar Online Session',
+        description: 'Scheduled online session. Please use the attached Google Meet link.',
+        visibility: 'private',
         start: {
           dateTime: startDateTime,
           timeZone: 'Asia/Kolkata',
@@ -278,35 +278,21 @@ export async function createGoogleCalendarEvent(
 
     const event = await eventResponse.json();
 
-    console.log('📋 Full Google Calendar event response:', JSON.stringify(event, null, 2));
-
-    // If conferenceData is not in initial response, fetch the event again
+    // Google may create the event before its Meet entry point is ready. Poll the
+    // event briefly so callers never persist an old or empty meeting link.
     let finalEvent = event;
-    if (!event.conferenceData && event.id) {
-      console.log('⏳ Conference data not in initial response, fetching updated event...');
-      
+    let meetLink = extractMeetLink(finalEvent);
+    for (let attempt = 0; !meetLink && event.id && attempt < 4; attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
       const getEventResponse = await fetch(
         `https://www.googleapis.com/calendar/v3/calendars/primary/events/${event.id}?conferenceDataVersion=1`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
+        { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } }
       );
-
       if (getEventResponse.ok) {
         finalEvent = await getEventResponse.json();
-        console.log('✅ Updated event with conferenceData:', JSON.stringify(finalEvent, null, 2));
+        meetLink = extractMeetLink(finalEvent);
       }
     }
-
-    // Extract the Google Meet link
-    const meetLink = extractMeetLink(finalEvent);
-
-    console.log('🔗 Conference data:', finalEvent.conferenceData);
-    console.log('📞 Entry points:', finalEvent.conferenceData?.entryPoints);
-    console.log('✅ Meet link:', meetLink);
 
     const response = {
       success: true,
@@ -318,7 +304,7 @@ export async function createGoogleCalendarEvent(
 
     console.log('✅ Google Calendar event created successfully:', {
       eventId: finalEvent.id,
-      meetLink,
+      meetCreated: Boolean(meetLink),
     });
 
     return response;

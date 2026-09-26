@@ -14,16 +14,17 @@ export interface AdminNavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+  roles: Array<'admin' | 'therapist'>;
 }
 
 export const adminNavItems: AdminNavItem[] = [
-  { label: 'Dashboard', href: '/admin', icon: Home },
-  { label: 'Appointments', href: '/admin/bookings', icon: CalendarDays },
-  { label: 'Calendar', href: '/admin/calendar', icon: Calendar },
-  { label: 'Clients', href: '/admin/users', icon: Users },
-  { label: 'Slots', href: '/admin/slots', icon: Clock3 },
-  { label: 'WhatsApp', href: '/admin/whatsapp', icon: CalendarDays },
-  { label: 'Payments', href: '/admin/payments', icon: CreditCard },
-  { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
-  { label: 'Settings', href: '/admin/settings', icon: Settings },
+  { label: 'Dashboard', href: '/admin', icon: Home, roles: ['admin', 'therapist'] },
+  { label: 'Appointments', href: '/admin/bookings', icon: CalendarDays, roles: ['admin', 'therapist'] },
+  { label: 'Calendar', href: '/admin/calendar', icon: Calendar, roles: ['admin', 'therapist'] },
+  { label: 'Clients', href: '/admin/users', icon: Users, roles: ['admin'] },
+  { label: 'Slots', href: '/admin/slots', icon: Clock3, roles: ['admin'] },
+  { label: 'WhatsApp', href: '/admin/whatsapp', icon: CalendarDays, roles: ['admin'] },
+  { label: 'Payments', href: '/admin/payments', icon: CreditCard, roles: ['admin', 'therapist'] },
+  { label: 'Analytics', href: '/admin/analytics', icon: BarChart3, roles: ['admin', 'therapist'] },
+  { label: 'Settings', href: '/admin/settings', icon: Settings, roles: ['admin', 'therapist'] },
 ];

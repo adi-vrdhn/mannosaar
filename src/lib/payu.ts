@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { deflateRawSync, inflateRawSync } from 'node:zlib';
 import PayU from 'payu-websdk';
 
 export interface PayUSessionDate {
@@ -23,6 +24,7 @@ export interface PayUBookingContext {
   startTime?: string | null;
   endTime?: string | null;
   bundle?: number | null;
+  bundleSchedule?: 'all' | 'progressive';
   sessionDates?: PayUSessionDate[];
   notes?: string;
   returnUrl?: string;
@@ -31,6 +33,7 @@ export interface PayUBookingContext {
   s2sClientIp?: string;
   s2sDeviceInfo?: string;
   upiAppName?: PayUUpiAppName | null;
+  consentReceiptId?: string;
 }
 
 export type PayUInitiationInput = PayUBookingContext;
@@ -120,33 +123,23 @@ export function getPayUConfig() {
 
 function buildPayUPaymentPayload(input: PayUInitiationInput, txnid = generatePayUTxnId()) {
   const { paymentUrl } = getPayUConfig();
-  const bundleSize = input.sessionDates?.length || input.bundle || 1;
+  const bundleSize = input.bundle || input.sessionDates?.length || 1;
   const productinfo = getPayUProductInfo(input.sessionType, bundleSize);
   const amount = normalizePayUAmount(input.amount);
-  const firstSession = input.sessionDates?.[0];
   const paymentMode = input.paymentMode || 'auto';
-  const encodedContext = encodePayUContext({
-    userId: input.userId,
-    userEmail: input.userEmail,
-    userName: input.userName,
-    userPhone: input.userPhone,
-    sessionType: input.sessionType,
-    amount: input.amount,
-    slotId: input.slotId,
-    date: input.date,
-    startTime: input.startTime,
-    endTime: input.endTime,
-    bundle: input.bundle,
-    sessionDates: input.sessionDates,
-    notes: input.notes,
-    returnUrl: input.returnUrl,
-    paymentMode,
-    s2sClientIp: input.s2sClientIp,
-    s2sDeviceInfo: input.s2sDeviceInfo,
-    upiAppName: input.upiAppName,
-  });
-
   const paymentModeFields = getPayUPaymentModeFields(paymentMode, input.upiAppName);
+  const encodedContext = encodePayUContext(input);
+
+  // PayU supports five UDF values. Keep each comfortably below the common
+  // 255-character provider limit. The client note remains inside this encrypted
+  // context so it reaches the booking and admin dashboard after payment.
+  if (encodedContext.length > 1_200) {
+    throw new Error('The booking note is too long for secure payment handoff. Please shorten it and try again.');
+  }
+
+  const contextParts = Array.from({ length: 5 }, (_, index) =>
+    encodedContext.slice(index * 240, (index + 1) * 240)
+  );
   const params: Record<string, string> = {
     txnid,
     amount,
@@ -156,11 +149,14 @@ function buildPayUPaymentPayload(input: PayUInitiationInput, txnid = generatePay
     phone: input.userPhone || '',
     surl: input.callbackUrl || input.returnUrl || '',
     furl: input.callbackUrl || input.returnUrl || '',
-    udf1: encodedContext,
-    udf2: input.returnUrl || '',
-    udf3: input.sessionType,
-    udf4: String(input.userId),
-    udf5: input.slotId || firstSession?.slotId || '',
+    // The database remains the primary copy. This encrypted fallback prevents
+    // a successful payment from becoming detached from its booking when that
+    // table is unavailable.
+    udf1: contextParts[0],
+    udf2: contextParts[1],
+    udf3: contextParts[2],
+    udf4: contextParts[3],
+    udf5: contextParts[4],
     service_provider: 'payu_paisa',
   };
 
@@ -197,7 +193,17 @@ function buildPayUPaymentPayload(input: PayUInitiationInput, txnid = generatePay
 }
 
 export function encodePayUContext(context: PayUBookingContext): string {
-  return Buffer.from(JSON.stringify(context), 'utf8').toString('base64');
+  const secret = process.env.NEXTAUTH_SECRET || getPayUConfig().salt;
+  if (!secret) throw new Error('PAYU_CONTEXT_SECRET_MISSING');
+
+  const key = crypto.createHash('sha256').update(secret).digest();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const compressed = deflateRawSync(Buffer.from(JSON.stringify(context), 'utf8'));
+  const encrypted = Buffer.concat([cipher.update(compressed), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return Buffer.concat([Buffer.from([1]), iv, tag, encrypted]).toString('base64url');
 }
 
 export function decodePayUContext(encodedContext?: string | null): PayUBookingContext | null {
@@ -206,8 +212,23 @@ export function decodePayUContext(encodedContext?: string | null): PayUBookingCo
   }
 
   try {
-    const decoded = Buffer.from(encodedContext, 'base64').toString('utf8');
-    return JSON.parse(decoded) as PayUBookingContext;
+    const packed = Buffer.from(encodedContext, 'base64url');
+
+    if (packed[0] === 1 && packed.length > 29) {
+      const secret = process.env.NEXTAUTH_SECRET || getPayUConfig().salt;
+      if (!secret) return null;
+      const key = crypto.createHash('sha256').update(secret).digest();
+      const iv = packed.subarray(1, 13);
+      const tag = packed.subarray(13, 29);
+      const encrypted = packed.subarray(29);
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+      decipher.setAuthTag(tag);
+      const compressed = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+      return JSON.parse(inflateRawSync(compressed).toString('utf8')) as PayUBookingContext;
+    }
+
+    // Backward compatibility for older non-encrypted development callbacks.
+    return JSON.parse(Buffer.from(encodedContext, 'base64').toString('utf8')) as PayUBookingContext;
   } catch (error) {
     console.error('Failed to decode PayU context:', error);
     return null;
@@ -259,8 +280,8 @@ export function normalizePayUAmount(amount: number) {
 }
 
 export function getPayUProductInfo(sessionType: string, bundleSize: number) {
-  const typeLabel = sessionType === 'couple' ? 'Couple Therapy' : 'Personal Therapy';
-  return bundleSize > 1 ? `${typeLabel} Bundle x${bundleSize}` : `${typeLabel} Session`;
+  void sessionType;
+  return bundleSize > 1 ? `Mannosaar Online Sessions x${bundleSize}` : 'Mannosaar Online Session';
 }
 
 export function getPayUUpiAppCode(upiAppName?: PayUUpiAppName | null) {

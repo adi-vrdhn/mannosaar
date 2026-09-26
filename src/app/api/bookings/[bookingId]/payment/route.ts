@@ -3,6 +3,7 @@
 import { auth } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { sendRefundStatusEmail } from '@/lib/email';
 
 export async function PATCH(
   request: Request,
@@ -48,7 +49,7 @@ export async function PATCH(
       .from('bookings')
       .update({ payment_status })
       .eq('id', bookingId)
-      .select()
+      .select('*,user:users(email,name)')
       .single();
 
     if (error || !booking) {
@@ -56,6 +57,26 @@ export async function PATCH(
     }
 
     console.log('✅ Payment status updated:', { bookingId, payment_status });
+
+    if (payment_status === 'refunded') {
+      const payment = await supabase
+        .from('payments')
+        .select('amount,currency,provider_transaction_id')
+        .eq('booking_id', bookingId)
+        .maybeSingle();
+      const bookingUser = Array.isArray(booking.user) ? booking.user[0] : booking.user;
+      const clientEmail = bookingUser?.email || booking.user_email;
+      if (clientEmail) {
+        await sendRefundStatusEmail({
+          clientEmail,
+          clientName: bookingUser?.name || booking.user_name || 'Client',
+          amount: payment.data?.amount == null ? null : Number(payment.data.amount),
+          currency: payment.data?.currency || 'INR',
+          reference: payment.data?.provider_transaction_id || booking.payment_id || bookingId,
+          status: 'REFUNDED',
+        });
+      }
+    }
 
     return NextResponse.json({
       message: 'Payment status updated successfully',

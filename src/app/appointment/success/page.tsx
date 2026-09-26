@@ -183,7 +183,27 @@ function SuccessPageContent() {
                       {formatSessionType(booking.session_type)}
                     </span>
                   </div>
-                  {booking.slot_date ? (
+                  {booking.number_of_sessions && booking.number_of_sessions > 1 && booking.session_dates && booking.session_dates.length > 0 ? (
+                    <>
+                      <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3">
+                        <span className="text-sm text-gray-500">Bundle</span>
+                        <span className="text-sm font-semibold text-gray-900">{booking.number_of_sessions} sessions · {booking.session_dates.length} scheduled</span>
+                      </div>
+                      <div className="space-y-2 pt-1">
+                        {booking.session_dates.map((session, idx) => (
+                          <div key={idx} className="rounded-2xl bg-gray-50 px-4 py-3">
+                            <p className="text-sm font-semibold text-gray-900">Session {idx + 1}</p>
+                            <p className="mt-1 text-sm text-gray-600">{format(new Date(session.date), 'MMM dd, yyyy')} • {formatTime(session.startTime)} - {formatTime(session.endTime)}</p>
+                          </div>
+                        ))}
+                        {booking.session_dates.length < booking.number_of_sessions && (
+                          <p className="rounded-2xl border border-dashed border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-800">
+                            The next session will become available to schedule from your profile after the previous session is completed.
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  ) : booking.slot_date ? (
                     <>
                       <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3">
                         <span className="text-sm text-gray-500">Date</span>

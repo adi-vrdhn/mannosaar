@@ -21,7 +21,7 @@ export default async function BookingsPage() {
     .eq('email', session.user?.email)
     .single();
 
-  if (error || user?.role !== 'admin') {
+  if (error || (user?.role !== 'admin' && user?.role !== 'therapist')) {
     redirect('/');
   }
 

@@ -222,9 +222,9 @@ const BlockScheduleManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pb-12 pt-20 sm:pt-24">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AdminSectionNav className="mb-5" />
+    <div className="min-h-screen bg-[#faf9f7] pb-12 pt-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <AdminSectionNav className="mb-8" />
 
         {/* Go Back Button */}
         <motion.button
@@ -237,7 +237,7 @@ const BlockScheduleManagement = () => {
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="mb-4 text-3xl font-bold text-gray-900 sm:text-4xl">Block Schedule</h1>
+          <h1 className="mb-3 font-playfair text-3xl font-semibold text-[#34213f] sm:text-4xl">Block schedule</h1>
           <p className="text-gray-600">Block entire days or specific time slots to prevent bookings</p>
         </motion.div>
 

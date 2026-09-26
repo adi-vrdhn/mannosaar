@@ -13,31 +13,44 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   CreditCard,
   Edit2,
-  Filter,
   FileText,
   Link as LinkIcon,
   Mail,
-  MoreHorizontal,
   Phone,
   Settings,
-  ShieldCheck,
-  StickyNote,
-  User,
+  Trash2,
 } from 'lucide-react';
 import NoteModal from '@/components/shared/NoteModal';
+import PrivacyRequestPanel from '@/components/profile/PrivacyRequestPanel';
+import SupportRequestPanel from '@/components/profile/SupportRequestPanel';
 
 interface Booking {
   id: string;
   session_type: string;
   status: string;
   notes?: string | null;
+  therapist_note_for_client?: string | null;
   sessions_taken_before?: number | null;
   meeting_link?: string;
   meeting_links?: string[];
   meeting_password?: string;
+  payment_status?: string;
+  payment_id?: string;
+  payment_details?: {
+    provider: string;
+    method: string | null;
+    app: string | null;
+    amount: number | null;
+    amountSource?: 'recorded' | 'checkout' | 'current_price' | 'unavailable';
+    currency: string;
+    status: string;
+    paidAt: string | null;
+    reference: string | null;
+  };
   user_id?: string;
   user_name?: string;
   user_email?: string;
@@ -51,10 +64,24 @@ interface Booking {
     date: string;
     start_time: string;
     end_time: string;
+    startTime?: string;
+    endTime?: string;
     slotId?: string;
+    rescheduled_at?: string;
+    reschedule_count?: number;
+    original_date?: string;
+    original_start_time?: string;
+    original_end_time?: string;
   }>;
   sessionNumber?: number;
   totalSessions?: number;
+  isUnscheduled?: boolean;
+  canSchedule?: boolean;
+  wasRescheduled?: boolean;
+  rescheduledAt?: string;
+  originalDate?: string;
+  originalStartTime?: string;
+  originalEndTime?: string;
   user?: {
     name: string;
     email: string;
@@ -81,8 +108,9 @@ const ProfilePage = () => {
   const supabase = createClient();
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
   const [pastBookings, setPastBookings] = useState<Booking[]>([]);
+  const [sessionsToBook, setSessionsToBook] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'past' | 'toBook'>('upcoming');
   const [error, setError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -91,6 +119,9 @@ const ProfilePage = () => {
   const [editError, setEditError] = useState<string | null>(null);
   const [editSuccess, setEditSuccess] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [expandedBookingKey, setExpandedBookingKey] = useState<string | null>(null);
+  const [expandedPaymentKey, setExpandedPaymentKey] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [sortOption, setSortOption] = useState<'recent' | 'oldest' | 'created'>('recent');
   const [noteModal, setNoteModal] = useState<{ title: string; note: string | null } | null>(null);
@@ -206,8 +237,8 @@ const ProfilePage = () => {
 
       if (response.ok) {
         setShowDeleteModal(false);
-        // Sign out and redirect after successful deletion
-        await signOut({ callbackUrl: '/' });
+        const data = await response.json();
+        alert(data.message || 'Deletion request submitted for review.');
       } else {
         const data = await response.json();
         alert(data.error || 'Failed to delete profile');
@@ -259,6 +290,7 @@ const ProfilePage = () => {
           console.error('Error fetching bookings:', bookingsError);
           setUpcomingBookings([]);
           setPastBookings([]);
+          setSessionsToBook([]);
           setLoading(false);
           return;
         }
@@ -267,6 +299,7 @@ const ProfilePage = () => {
           console.log('⚠️ No bookings found');
           setUpcomingBookings([]);
           setPastBookings([]);
+          setSessionsToBook([]);
           setLoading(false);
           return;
         }
@@ -276,14 +309,19 @@ const ProfilePage = () => {
         
         bookings.forEach((b) => {
           const sessionDates = Array.isArray(b.session_dates) ? b.session_dates : [];
+          const bundleTotal = Math.max(Number(b.number_of_sessions || 1), sessionDates.length);
           const baseBooking = {
             id: b.id,
             session_type: b.session_type,
             status: b.status,
             notes: b.notes,
+            therapist_note_for_client: b.therapist_note_for_client,
             sessions_taken_before: b.sessions_taken_before,
             meeting_link: b.meeting_link,
             meeting_password: b.meeting_password,
+            payment_status: b.payment_status,
+            payment_id: b.payment_id,
+            payment_details: b.payment_details,
             user_id: b.user_id,
             user_name: b.user_name,
             user_email: b.user_email,
@@ -305,9 +343,31 @@ const ProfilePage = () => {
                 meeting_link: b.meeting_links && b.meeting_links[index] ? b.meeting_links[index] : b.meeting_link,
                 // Add session number info for display
                 sessionNumber: index + 1,
-                totalSessions: sessionDates.length,
+                totalSessions: bundleTotal,
+                wasRescheduled: Boolean(sessionDate.rescheduled_at || Number(sessionDate.reschedule_count || 0) > 0),
+                rescheduledAt: sessionDate.rescheduled_at,
+                originalDate: sessionDate.original_date,
+                originalStartTime: sessionDate.original_start_time,
+                originalEndTime: sessionDate.original_end_time,
               });
             });
+            for (let index = sessionDates.length; index < bundleTotal; index += 1) {
+              const previousSession = sessionDates[index - 1];
+              const previousEnd = previousSession
+                ? new Date(`${previousSession.date}T${previousSession.end_time || previousSession.endTime || '23:59'}+05:30`)
+                : null;
+              processedBookings.push({
+                ...baseBooking,
+                slot_date: undefined,
+                slot_start_time: undefined,
+                slot_end_time: undefined,
+                meeting_link: undefined,
+                sessionNumber: index + 1,
+                totalSessions: bundleTotal,
+                isUnscheduled: true,
+                canSchedule: index === sessionDates.length && Boolean(previousEnd && previousEnd.getTime() <= Date.now()),
+              });
+            }
           } else {
             // Single session booking
             processedBookings.push({
@@ -324,13 +384,17 @@ const ProfilePage = () => {
           console.log('👨‍💼 Admin/Therapist view - showing all', processedBookings.length, 'client bookings');
           setUpcomingBookings(processedBookings);
           setPastBookings([]);
+          setSessionsToBook([]);
         } else {
-          // For regular users, separate upcoming and past bookings
+          // Keep unscheduled package sessions separate from dated appointments.
           const upcoming: Booking[] = [];
           const past: Booking[] = [];
+          const toBook: Booking[] = [];
 
           processedBookings.forEach((booking) => {
-            if (booking.slot_date && booking.slot_date >= dateString) {
+            if (booking.isUnscheduled) {
+              toBook.push(booking);
+            } else if (booking.slot_date && booking.slot_date >= dateString) {
               upcoming.push(booking);
             } else {
               past.push(booking);
@@ -340,6 +404,7 @@ const ProfilePage = () => {
           console.log('👤 User view - upcoming:', upcoming.length, 'past:', past.length);
           setUpcomingBookings(upcoming);
           setPastBookings(past);
+          setSessionsToBook(toBook);
         }
       } catch (err) {
         console.error('Error fetching bookings:', err);
@@ -375,19 +440,6 @@ const ProfilePage = () => {
     }
   }, [session?.user?.email]);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-  };
-
   const getNotePreview = (note?: string | null) => {
     const trimmedNote = note?.trim();
     if (!trimmedNote) {
@@ -398,20 +450,20 @@ const ProfilePage = () => {
   };
 
   const renderNoteCell = (booking: Booking) => {
-    const hasNote = Boolean(booking.notes?.trim());
+    const hasNote = Boolean(booking.therapist_note_for_client?.trim());
 
     return (
-      <div className="max-w-xs">
-        <p className={`whitespace-pre-wrap break-words text-sm ${hasNote ? 'text-gray-800' : 'italic text-gray-400'}`}>
-          {getNotePreview(booking.notes)}
+      <div className={`max-w-xl border-l-2 pl-3 ${hasNote ? 'border-[#7b3f98]' : 'border-slate-200'}`}>
+        <p className={`whitespace-pre-wrap break-words text-sm ${hasNote ? 'text-slate-700' : 'text-slate-400'}`}>
+          {hasNote ? getNotePreview(booking.therapist_note_for_client) : 'No note from your therapist yet.'}
         </p>
         {hasNote && (
           <button
             type="button"
             onClick={() =>
               setNoteModal({
-                title: `Note for ${booking.user_name || 'booking'}`,
-                note: booking.notes || null,
+                title: 'Note from your therapist',
+                note: booking.therapist_note_for_client || null,
               })
             }
             className="mt-2 text-xs font-semibold text-purple-700 underline underline-offset-4 hover:text-purple-900"
@@ -475,169 +527,286 @@ const ProfilePage = () => {
     const dateB = new Date(`${b.slot_date || ''}T${b.slot_start_time || '00:00:00'}`);
     return dateA.getTime() - dateB.getTime();
   })[0];
-  const visibleBookings = activeTab === 'upcoming' ? sortedUpcomingBookings : pastBookings;
-  const totalSessions = upcomingBookings.length + pastBookings.length;
+  const visibleBookings = activeTab === 'upcoming'
+    ? sortedUpcomingBookings
+    : activeTab === 'toBook'
+    ? sessionsToBook
+    : pastBookings;
+  const totalSessions = upcomingBookings.length + pastBookings.length + sessionsToBook.length;
   const completedSessions = pastBookings.length;
   const progressPercent = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
   const displayName = userProfile?.name || session?.user?.name || 'User';
   const displayEmail = userProfile?.email || session?.user?.email || '';
-  const memberSinceDate = [...upcomingBookings, ...pastBookings]
-    .map((booking) => booking.created_at)
-    .filter(Boolean)
-    .sort()[0];
-  const memberSinceLabel = memberSinceDate ? format(new Date(memberSinceDate), 'MMM yyyy') : 'New member';
 
   const formatTime = (time?: string) => (time ? time.slice(0, 5) : 'N/A');
   const formatSessionDate = (date?: string) => (date ? format(new Date(date), 'MMM dd, yyyy') : 'N/A');
   const getSessionDay = (date?: string) => (date ? format(new Date(date), 'EEEE') : 'Session');
 
-  const navItems = [
-    { label: 'My Profile', icon: User, href: '#profile', active: true },
-    { label: 'My Sessions', icon: CalendarDays, href: '#sessions' },
-    { label: 'Book Session', icon: CalendarDays, href: '/appointment/type' },
-    { label: 'Notes', icon: StickyNote, href: '#notes' },
-    { label: 'Payments', icon: CreditCard, href: '#payments' },
-    { label: 'Documents', icon: FileText, href: '#documents' },
-    { label: 'Settings', icon: Settings, href: '#settings' },
-  ];
-
   const tabItems = [
     { key: 'upcoming' as const, label: 'Upcoming Sessions', icon: CalendarDays, count: upcomingBookings.length },
     { key: 'past' as const, label: 'Past Sessions', icon: CheckCircle2, count: pastBookings.length },
+    { key: 'toBook' as const, label: 'Sessions to Book', icon: Clock3, count: sessionsToBook.length },
   ];
 
   const renderSessionCard = (booking: Booking, muted = false) => {
     const isBundle = booking.totalSessions && booking.totalSessions > 1;
     const hasMeetingLink = Boolean(booking.meeting_link);
+    const bookingKey = `${booking.id}-${booking.sessionNumber || 0}`;
+    const isExpanded = expandedBookingKey === bookingKey;
+    const isPaymentExpanded = expandedPaymentKey === bookingKey;
+    const payment = booking.payment_details;
+    const paymentStatus = String(payment?.status || booking.payment_status || 'unknown').replaceAll('_', ' ').toLowerCase();
+    const paymentAmount = payment?.amount == null
+      ? 'Not available'
+      : new Intl.NumberFormat('en-IN', { style: 'currency', currency: payment.currency || 'INR' }).format(payment.amount);
+    const paymentMethodLabels: Record<string, string> = {
+      auto: 'PayU checkout',
+      cards: 'Card',
+      cc: 'Credit card',
+      dc: 'Debit card',
+      netbanking: 'Net banking',
+      nb: 'Net banking',
+      wallets: 'Wallet',
+      upi: 'UPI',
+      upi_intent: 'UPI',
+      upi_qr: 'UPI QR',
+    };
+    const upiAppLabels: Record<string, string> = {
+      gpay: 'Google Pay',
+      phonepe: 'PhonePe',
+      paytm: 'Paytm',
+      bhim: 'BHIM',
+      qr: 'QR code',
+      any: 'UPI app',
+    };
+    const paymentMethod = payment?.method
+      ? paymentMethodLabels[payment.method.toLowerCase()] || payment.method
+      : 'Not recorded';
+    const paymentApp = payment?.app
+      ? upiAppLabels[payment.app.toLowerCase()] || payment.app
+      : null;
+
+    if (booking.isUnscheduled) {
+      return (
+        <article key={`${booking.id}-unscheduled-${booking.sessionNumber}`} className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-[#f3eef6] px-2.5 py-1 text-xs font-medium text-[#5b267a]">Session {booking.sessionNumber} of {booking.totalSessions}</span>
+                <span className="text-xs capitalize text-slate-500">{booking.session_type || 'personal'}</span>
+              </div>
+              <h3 className="mt-2 font-semibold text-slate-900">Choose a date for this session</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                {booking.canSchedule ? 'Your previous session is complete. Choose the next date and time.' : 'This session unlocks after your previous session is completed.'}
+              </p>
+              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                <div>
+                  <dt className="text-xs text-slate-500">Package</dt>
+                  <dd className="mt-1 font-medium text-slate-800">{booking.totalSessions}-session bundle</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Payment</dt>
+                  <dd className="mt-1 font-medium capitalize text-slate-800">{paymentStatus}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Package amount</dt>
+                  <dd className="mt-1 font-medium text-slate-800">{paymentAmount}</dd>
+                </div>
+              </dl>
+            </div>
+            {booking.canSchedule ? (
+              <Link href={`/appointment/slots?type=${encodeURIComponent(booking.session_type)}&bundle=${booking.totalSessions}&scheduleBundle=${encodeURIComponent(booking.id)}&sessionIndex=${(booking.sessionNumber || 1) - 1}`} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#5b267a] px-5 py-3 text-sm font-semibold text-white hover:bg-[#4a1f64]">
+                Choose date and time
+              </Link>
+            ) : (
+              <span className="inline-flex rounded-full bg-slate-100 px-3 py-2 text-xs font-medium text-slate-500">Locked</span>
+            )}
+          </div>
+        </article>
+      );
+    }
 
     return (
-      <motion.article
+      <article
         key={`${booking.id}-${muted ? 'past' : 'upcoming'}-${booking.sessionNumber || 0}`}
-        variants={itemVariants}
-        className={`group rounded-3xl border border-purple-100/80 bg-white/85 p-4 shadow-[0_14px_45px_rgba(88,28,135,0.08)] backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_55px_rgba(88,28,135,0.14)] ${
-          muted ? 'opacity-75' : ''
-        }`}
+        className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5"
       >
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <div className="flex gap-4">
-            <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-50 to-purple-100 text-purple-900 shadow-inner">
-              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-purple-500">
+            <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-lg bg-[#f3eef6] text-[#4d2465]">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">
                 {booking.slot_date ? format(new Date(booking.slot_date), 'MMM') : '---'}
               </span>
-              <span className="text-xl font-black leading-none">
+              <span className="text-xl font-semibold leading-none">
                 {booking.slot_date ? format(new Date(booking.slot_date), 'dd') : '--'}
               </span>
             </div>
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-gray-500">{getSessionDay(booking.slot_date)}</p>
+                <p className="text-sm font-medium text-slate-900">{getSessionDay(booking.slot_date)}</p>
                 {isBundle && (
-                  <span className="rounded-full bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-700">
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
                     Session {booking.sessionNumber} of {booking.totalSessions}
                   </span>
                 )}
-                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-bold capitalize text-indigo-700">
+                <span className="text-xs capitalize text-slate-500">
                   {booking.session_type || 'personal'}
                 </span>
               </div>
 
-              <h3 className="mt-2 flex items-center gap-2 text-base font-black text-gray-950 sm:text-lg">
-                <Clock3 size={18} className="text-purple-500" />
+              <h3 className="mt-1 flex items-center gap-2 text-sm font-medium text-slate-600">
+                <Clock3 size={15} aria-hidden="true" />
                 {formatTime(booking.slot_start_time)} - {formatTime(booking.slot_end_time)}
               </h3>
 
-              <div className="mt-3 border-l-2 border-purple-200 pl-3">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-600">Meeting Note</p>
+              <div className="mt-3">
+                <p className="text-xs font-semibold text-slate-500">Note from therapist</p>
                 <div className="mt-1 text-sm">{renderNoteCell(booking)}</div>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 md:justify-end">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             {hasMeetingLink ? (
               <a
                 href={booking.meeting_link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-purple-700 shadow-sm ring-1 ring-purple-100 transition hover:bg-purple-50"
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#5b267a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#4a1f64]"
               >
                 <LinkIcon size={16} />
-                Join Meeting
+                Join meeting
               </a>
             ) : (
-              <span className="rounded-full bg-gray-100 px-4 py-2 text-sm font-bold text-gray-500">Not available</span>
+              <span className="text-sm text-slate-500">Link pending</span>
             )}
-            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-black ${
-              muted ? 'bg-gray-100 text-gray-500' : 'bg-emerald-50 text-emerald-700'
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium ${
+              booking.wasRescheduled
+                ? 'bg-amber-50 text-amber-700'
+                : muted ? 'bg-slate-100 text-slate-600' : 'bg-emerald-50 text-emerald-700'
             }`}>
               <CheckCircle2 size={15} />
-              {muted ? 'Completed' : 'Confirmed'}
+              {booking.wasRescheduled ? 'Rescheduled' : muted ? 'Completed' : 'Confirmed'}
             </span>
+            <button
+              type="button"
+              onClick={() => {
+                setExpandedBookingKey(isExpanded ? null : bookingKey);
+                if (isExpanded) setExpandedPaymentKey(null);
+              }}
+              className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              aria-expanded={isExpanded}
+            >
+              More
+              <ChevronDown size={15} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            </button>
           </div>
         </div>
-      </motion.article>
+        {isExpanded && (
+          <div className="mt-4 border-t border-slate-200 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm text-slate-500">
+                Booking ID: <span className="font-mono text-xs text-slate-600">{booking.id}</span>
+              </div>
+              {!muted && !booking.wasRescheduled && (
+                <Link
+                  href={`/appointment/slots?reschedule=${encodeURIComponent(booking.id)}${booking.sessionNumber ? `&sessionIndex=${booking.sessionNumber - 1}` : ''}`}
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg border border-[#5b267a] px-4 py-2 text-sm font-semibold text-[#5b267a] transition hover:bg-[#f7f1fa]"
+                >
+                  Reschedule session
+                </Link>
+              )}
+            </div>
+
+            {booking.wasRescheduled && (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <p className="font-semibold">This session was rescheduled.</p>
+                {booking.originalDate && (
+                  <p className="mt-1 text-amber-800">
+                    Previous time: {formatSessionDate(booking.originalDate)} · {formatTime(booking.originalStartTime)}–{formatTime(booking.originalEndTime)}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-amber-700">The one allowed reschedule has been used.</p>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setExpandedPaymentKey(isPaymentExpanded ? null : bookingKey)}
+              className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              aria-expanded={isPaymentExpanded}
+            >
+              <CreditCard size={15} />
+              Payment details
+              <ChevronDown size={15} className={`transition-transform ${isPaymentExpanded ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+        )}
+        {isExpanded && isPaymentExpanded && (
+          <div className="mt-4 border-t border-slate-200 pt-4">
+            <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
+              <div>
+                <p className="text-xs text-slate-500">Payment status</p>
+                <p className="mt-1 font-medium capitalize text-slate-900">{paymentStatus}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">{payment?.amountSource === 'current_price' ? 'Current session price' : 'Amount paid'}</p>
+                <p className="mt-1 font-medium text-slate-900">{paymentAmount}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Provider</p>
+                <p className="mt-1 font-medium text-slate-900">{payment?.provider || 'Payment provider'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Payment method</p>
+                <p className="mt-1 font-medium text-slate-900">{paymentMethod}</p>
+                {paymentApp && <p className="mt-0.5 text-xs text-slate-500">via {paymentApp}</p>}
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Paid on</p>
+                <p className="mt-1 font-medium text-slate-900">{payment?.paidAt ? format(new Date(payment.paidAt), 'MMM dd, yyyy') : 'Not available'}</p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+              <span>Payment reference</span>
+              <span className="font-mono text-slate-700">{payment?.reference || (booking.payment_id ? `•••• ${booking.payment_id.slice(-8)}` : 'Not available')}</span>
+            </div>
+            {isBundle && <p className="mt-2 text-xs text-slate-500">This payment covers the complete session package.</p>}
+            {payment?.amountSource === 'current_price' && <p className="mt-2 text-xs text-amber-700">The original payment amount was not recorded, so the current listed price is shown.</p>}
+          </div>
+        )}
+      </article>
     );
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#f4eaff_0,#fbf8ff_34%,#ffffff_72%)] pt-20 text-slate-950">
-      <div className="mx-auto grid w-full max-w-[1560px] gap-6 px-4 pb-10 sm:px-6 lg:grid-cols-[250px_minmax(0,1fr)] lg:px-8">
-        <aside className="hidden rounded-[1.75rem] border border-purple-100 bg-white/85 p-4 shadow-[0_18px_60px_rgba(88,28,135,0.07)] backdrop-blur-xl lg:sticky lg:top-24 lg:block lg:h-[calc(100vh-7rem)]">
-          <div className="mb-6 rounded-3xl bg-gradient-to-br from-purple-50 to-white p-4">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-purple-500">Mannosaar</p>
-            <p className="mt-1 text-sm font-semibold text-slate-500">Heal • Grow • Transform</p>
-          </div>
-
-          <nav className="space-y-2">
-            {navItems.map(({ label, icon: Icon, href, active }) => (
-              <a
-                key={label}
-                href={href}
-                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black transition ${
-                  active
-                    ? 'bg-gradient-to-r from-purple-100 to-fuchsia-50 text-purple-700 shadow-sm'
-                    : 'text-slate-500 hover:bg-purple-50 hover:text-purple-700'
-                }`}
-              >
-                <Icon size={18} />
-                {label}
-              </a>
-            ))}
-          </nav>
-        </aside>
-
+    <div className="min-h-screen bg-[#faf9f7] py-12 text-slate-950">
+      <div className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6 lg:px-8">
         <main className="min-w-0">
-          <div className="mb-4 flex gap-2 overflow-x-auto pb-2 lg:hidden">
-            {navItems.map(({ label, icon: Icon, href, active }) => (
-              <a
-                key={label}
-                href={href}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-black ${
-                  active ? 'bg-purple-600 text-white' : 'bg-white text-slate-600 ring-1 ring-purple-100'
-                }`}
-              >
-                <Icon size={16} />
-                {label}
-              </a>
-            ))}
-          </div>
-
-          <div className="mb-5 flex items-center justify-between gap-4 rounded-[1.5rem] border border-purple-100 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-xl">
+          <header className="mb-8 flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-purple-500">Profile dashboard</p>
-              <p className="truncate text-sm font-semibold text-slate-500">Manage bookings, notes, and upcoming sessions</p>
+              <h1 className="font-playfair text-2xl font-semibold text-[#34213f] sm:text-4xl">Your account</h1>
+              <p className="mt-2 hidden text-sm text-slate-600 sm:block">Manage your details and therapy sessions.</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:gap-2 sm:px-4"
+              >
+                <Settings size={16} />
+                Settings
+              </button>
               <button
                 type="button"
                 onClick={() => signOut({ callbackUrl: '/' })}
-                className="hidden rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-600 shadow-sm ring-1 ring-purple-100 transition hover:bg-purple-50 sm:inline-flex"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:px-4"
               >
-                Logout
+                Log out
               </button>
             </div>
-          </div>
+          </header>
 
           {error && (
             <motion.div
@@ -651,41 +820,20 @@ const ProfilePage = () => {
 
           <motion.section
             id="profile"
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="relative mb-6 overflow-hidden rounded-[2rem] border border-purple-100 bg-white/85 p-5 shadow-[0_20px_70px_rgba(88,28,135,0.1)] backdrop-blur-xl sm:p-7 lg:p-8"
+            className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7"
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_25%,rgba(168,85,247,0.12),transparent_28%)]" />
-
-            <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-center">
-              <motion.div variants={itemVariants} className="grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
-                <div className="relative mx-auto flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 via-purple-500 to-fuchsia-500 text-white shadow-[0_22px_45px_rgba(147,51,234,0.35)] ring-8 ring-white sm:mx-0">
-                  <User size={58} strokeWidth={1.8} />
-                  <button
-                    type="button"
-                    onClick={() => setShowEditModal(true)}
-                    className="absolute -bottom-1 -right-1 rounded-full bg-white p-3 text-purple-700 shadow-xl ring-1 ring-purple-100"
-                    aria-label="Edit profile"
-                  >
-                    <Edit2 size={17} />
-                  </button>
-                </div>
-
-                <div className="text-center sm:text-left">
-                  <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-purple-100 px-3 py-1 text-xs font-black text-purple-700">
-                    <ShieldCheck size={15} />
-                    Verified
-                  </div>
-                  <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl lg:text-5xl">
+            <div className="flex flex-col items-center gap-6 text-center">
+              <motion.div className="w-full">
+                <div className="flex flex-col items-center">
+                  <h2 className="text-2xl font-semibold text-slate-950">
                     {displayName}
-                  </h1>
-                  <div className="mt-4 grid gap-2 text-sm font-semibold text-slate-500 sm:text-base">
-                    <span className="inline-flex min-w-0 items-center justify-center gap-2 sm:justify-start">
+                  </h2>
+                  <div className="mt-3 grid justify-items-center gap-2 text-sm text-slate-600">
+                    <span className="inline-flex min-w-0 items-center justify-center gap-2">
                       <Mail size={17} className="shrink-0" />
                       <span className="truncate">{displayEmail}</span>
                     </span>
-                    <span className={`inline-flex items-center justify-center gap-2 sm:justify-start ${
+                    <span className={`inline-flex items-center justify-center gap-2 ${
                       userProfile?.phone_number ? '' : 'text-amber-600'
                     }`}>
                       {userProfile?.phone_number ? <Phone size={17} /> : <AlertTriangle size={17} />}
@@ -695,50 +843,37 @@ const ProfilePage = () => {
                 </div>
               </motion.div>
 
-              <motion.div variants={itemVariants} className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+              <motion.div className="flex flex-wrap justify-center gap-3">
                 <Link
                   href="/appointment/type"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-purple-600 to-fuchsia-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-purple-200 transition hover:-translate-y-0.5"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#5b267a] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#4a1f64]"
                 >
                   <CalendarDays size={18} />
-                  Book New Session
+                  Book a session
                 </Link>
                 <button
                   type="button"
                   onClick={() => setShowEditModal(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-700 shadow-sm ring-1 ring-purple-100 transition hover:bg-purple-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   <Edit2 size={18} />
                   Edit Profile
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteModal(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/85 px-5 py-4 text-sm font-black text-slate-500 shadow-sm ring-1 ring-purple-100 transition hover:bg-red-50 hover:text-red-700"
-                >
-                  <MoreHorizontal size={18} />
-                  More
-                </button>
               </motion.div>
             </div>
 
-            <motion.div variants={itemVariants} className="relative mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <motion.div className="mt-3 grid w-full grid-cols-3 divide-x divide-slate-200 pt-3">
               {[
-                { label: 'Member Since', value: memberSinceLabel, icon: CalendarDays },
-                { label: 'Total Sessions', value: totalSessions, icon: BarChart3 },
                 { label: 'Completed', value: completedSessions, icon: CheckCircle2 },
                 { label: 'Upcoming', value: upcomingBookings.length, icon: Clock3 },
+                { label: 'Total', value: totalSessions, icon: CalendarDays },
               ].map(({ label, value, icon: Icon }) => (
-                <div key={label} className="rounded-3xl border border-purple-100 bg-white/80 p-4 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-2xl bg-purple-100 p-3 text-purple-700">
-                      <Icon size={20} />
-                    </span>
-                    <div>
-                      <p className="text-xs font-bold text-slate-500">{label}</p>
-                      <p className="text-lg font-black text-slate-950">{value}</p>
-                    </div>
+                <div key={label} className="px-3 text-center first:pl-0 last:pr-0">
+                  <div className="flex items-center justify-center gap-2">
+                    <Icon size={16} className="hidden text-slate-400 sm:block" />
+                    <p className="text-lg font-semibold text-slate-950">{value}</p>
                   </div>
+                  <p className="mt-0.5 text-xs text-slate-500">{label}</p>
                 </div>
               ))}
             </motion.div>
@@ -876,10 +1011,10 @@ const ProfilePage = () => {
                   <AlertTriangle size={24} className="text-red-600" />
                 </div>
                 
-                <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">Delete Profile?</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">Request account deletion?</h2>
                 
                 <p className="text-gray-600 text-center mb-6">
-                  Are you sure you want to delete your profile? This action cannot be undone and all your bookings and data will be permanently deleted.
+                  We will review your request and delete or de-identify eligible data. Some booking, payment, consent, or safety records may need to be retained where required by law.
                 </p>
 
                 <div className="flex gap-3">
@@ -895,7 +1030,7 @@ const ProfilePage = () => {
                     disabled={deleteLoading}
                     className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-all disabled:opacity-50"
                   >
-                    {deleteLoading ? 'Deleting...' : 'Yes, Delete'}
+                    {deleteLoading ? 'Submitting...' : 'Submit request'}
                   </button>
                 </div>
               </motion.div>
@@ -903,29 +1038,26 @@ const ProfilePage = () => {
           )}
         </AnimatePresence>
 
-        <section id="sessions" className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <section id="sessions">
           <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="overflow-hidden rounded-[2rem] border border-purple-100 bg-white/85 shadow-[0_20px_70px_rgba(88,28,135,0.07)] backdrop-blur-xl"
+            className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
           >
             <span id="notes" className="sr-only">Notes</span>
-            <div className="flex gap-1 overflow-x-auto border-b border-purple-100 px-4 pt-4 sm:px-6">
+            <div className="flex gap-6 overflow-x-auto border-b border-slate-200 px-5 sm:px-6">
               {tabItems.map(({ key, label, icon: Icon, count }) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setActiveTab(key)}
-                  className={`relative inline-flex shrink-0 items-center gap-2 px-4 py-3 text-sm font-black transition ${
-                    activeTab === key ? 'text-purple-700' : 'text-slate-500 hover:text-purple-700'
+                  className={`relative inline-flex shrink-0 items-center gap-2 py-4 text-sm font-medium transition ${
+                    activeTab === key ? 'text-[#5b267a]' : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
                   <Icon size={17} />
                   {label}
-                  <span className="rounded-full bg-purple-50 px-2 py-0.5 text-xs text-purple-700">{count}</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{count}</span>
                   {activeTab === key && (
-                    <span className="absolute inset-x-2 bottom-0 h-1 rounded-full bg-purple-600" />
+                    <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#5b267a]" />
                   )}
                 </button>
               ))}
@@ -934,77 +1066,76 @@ const ProfilePage = () => {
             <div className="p-4 sm:p-6">
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-2xl font-black text-slate-950">
-                    {activeTab === 'upcoming' ? `Upcoming Sessions (${upcomingBookings.length})` : `Past Sessions (${pastBookings.length})`}
+                  <h2 className="text-xl font-semibold text-slate-950">
+                    {activeTab === 'upcoming'
+                      ? 'Upcoming sessions'
+                      : activeTab === 'toBook'
+                      ? 'Sessions to book'
+                      : 'Past sessions'}
                   </h2>
-                  <p className="mt-1 text-sm font-medium text-slate-500">
-                    Notes, meeting links, and booking details in one place.
+                  <p className="mt-1 text-sm text-slate-500">
+                    {activeTab === 'toBook'
+                      ? 'Sessions included in your paid package that still need a date and time.'
+                      : 'Your appointment details and meeting links.'}
                   </p>
                 </div>
 
                 {activeTab === 'upcoming' && upcomingBookings.length > 0 && (
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-                    <span className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-purple-50 px-3 py-2 text-sm font-black text-purple-700">
-                      <Filter size={16} />
-                      Sort
-                    </span>
-                    {[
-                      ['recent', 'Recent'],
-                      ['oldest', 'Oldest'],
-                      ['created', 'Booked'],
-                    ].map(([key, label]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setSortOption(key as typeof sortOption)}
-                        className={`shrink-0 rounded-2xl px-3 py-2 text-sm font-black transition ${
-                          sortOption === key
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-white text-slate-500 ring-1 ring-purple-100 hover:bg-purple-50'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    Sort
+                    <select
+                      value={sortOption}
+                      onChange={(event) => setSortOption(event.target.value as typeof sortOption)}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#5b267a] focus:outline-none"
+                    >
+                      <option value="recent">Latest date</option>
+                      <option value="oldest">Earliest date</option>
+                      <option value="created">Date booked</option>
+                    </select>
+                  </label>
                 )}
               </div>
 
               {loading ? (
-                <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl bg-purple-50/70 p-8 text-center">
-                  <div className="mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-purple-600" />
-                  <p className="font-bold text-slate-600">Loading your sessions...</p>
+                <div className="flex min-h-56 flex-col items-center justify-center p-8 text-center">
+                  <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-[#5b267a]" />
+                  <p className="text-sm text-slate-600">Loading your sessions...</p>
                 </div>
               ) : visibleBookings.length === 0 ? (
-                <motion.div variants={itemVariants} className="rounded-3xl border border-dashed border-purple-200 bg-purple-50/70 p-8 text-center">
-                  <p className="text-lg font-black text-slate-800">
-                    {activeTab === 'upcoming' ? 'No upcoming sessions' : 'No past sessions yet'}
+                <motion.div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                  <p className="text-lg font-semibold text-slate-800">
+                    {activeTab === 'upcoming'
+                      ? 'No upcoming sessions'
+                      : activeTab === 'toBook'
+                      ? 'No sessions waiting to be booked'
+                      : 'No past sessions yet'}
                   </p>
-                  <p className="mt-2 text-sm font-medium text-slate-500">
+                  <p className="mt-2 text-sm text-slate-500">
                     {activeTab === 'upcoming'
                       ? "You haven't booked any therapy sessions yet."
+                      : activeTab === 'toBook'
+                      ? 'Any remaining sessions from a package will appear here.'
                       : 'Completed sessions will show here.'}
                   </p>
                   {activeTab === 'upcoming' && (
                     <Link
                       href="/appointment/type"
-                      className="mt-5 inline-flex items-center justify-center rounded-full bg-purple-600 px-5 py-3 text-sm font-black text-white transition hover:bg-purple-700"
+                      className="mt-5 inline-flex items-center justify-center rounded-lg bg-[#5b267a] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#4a1f64]"
                     >
                       Book Your First Appointment
                     </Link>
                   )}
                 </motion.div>
               ) : (
-                <motion.div variants={containerVariants} className="space-y-4">
+                <motion.div className="space-y-3">
                   {visibleBookings.map((booking) => renderSessionCard(booking, activeTab === 'past'))}
                 </motion.div>
               )}
             </div>
           </motion.div>
 
-          <aside className="space-y-5">
+          <aside className="hidden">
             <motion.div
-              variants={itemVariants}
               initial="hidden"
               animate="visible"
               className="rounded-[2rem] border border-purple-100 bg-white/85 p-5 shadow-[0_20px_70px_rgba(88,28,135,0.07)] backdrop-blur-xl"
@@ -1045,7 +1176,6 @@ const ProfilePage = () => {
             </motion.div>
 
             <motion.div
-              variants={itemVariants}
               initial="hidden"
               animate="visible"
               className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-purple-600 via-fuchsia-500 to-violet-500 p-5 text-white shadow-[0_18px_55px_rgba(147,51,234,0.22)]"
@@ -1092,7 +1222,7 @@ const ProfilePage = () => {
           </aside>
         </section>
 
-        <section className="mt-5 grid gap-4 md:grid-cols-3">
+        <section className="hidden">
           <div id="payments" className="rounded-[1.75rem] border border-purple-100 bg-white/85 p-5 shadow-[0_16px_55px_rgba(88,28,135,0.06)]">
             <div className="flex items-center gap-3">
               <span className="rounded-2xl bg-purple-100 p-3 text-purple-700">
@@ -1135,6 +1265,60 @@ const ProfilePage = () => {
             </div>
           </div>
         </section>
+
+        <AnimatePresence>
+          {showSettingsModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSettingsModal(false)}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 12 }}
+                onClick={(event) => event.stopPropagation()}
+                className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-[#faf9f7] p-5 shadow-xl sm:p-7"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="settings-title"
+              >
+                <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-5">
+                  <div>
+                    <h2 id="settings-title" className="font-playfair text-2xl font-semibold text-[#34213f]">Settings</h2>
+                    <p className="mt-1 text-sm text-slate-600">Account help, privacy, and data controls.</p>
+                  </div>
+                  <button type="button" onClick={() => setShowSettingsModal(false)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Close</button>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <button type="button" onClick={() => { setShowSettingsModal(false); setShowEditModal(true); }} className="rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300">
+                    <span className="font-semibold text-slate-900">Personal details</span>
+                    <span className="mt-1 block text-sm text-slate-500">Update your name, phone, or WhatsApp number.</span>
+                  </button>
+                  <button type="button" onClick={() => document.getElementById('support-request-form')?.scrollIntoView({ behavior: 'smooth' })} className="rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300">
+                    <span className="font-semibold text-slate-900">Report a problem</span>
+                    <span className="mt-1 block text-sm text-slate-500">Submit a website, payment, or booking issue.</span>
+                  </button>
+                </div>
+
+                <div id="support-request-form"><SupportRequestPanel /></div>
+                <PrivacyRequestPanel />
+
+                <div className="mt-6 border-t border-slate-200 pt-5">
+                  <h3 className="text-sm font-semibold text-slate-900">Delete account</h3>
+                  <p className="mt-1 text-sm text-slate-500">Submit your account for deletion review, subject to legal retention requirements.</p>
+                  <button type="button" onClick={() => { setShowSettingsModal(false); setShowDeleteModal(true); }} className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-red-700 hover:text-red-800">
+                    <Trash2 size={16} />
+                    Request account deletion
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <NoteModal
           isOpen={!!noteModal}

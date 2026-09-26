@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { sendBookingPostponedEmail } from '@/lib/email';
 import { createGoogleCalendarEvent, deleteGoogleCalendarEvent } from '@/lib/google-calendar';
+import { isSameOrigin, requestIp } from '@/lib/compliance';
+import { writeAudit } from '@/lib/compliance-server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +16,7 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+    if (!isSameOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -164,6 +167,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+    await writeAudit({ userId: session.user.id, actorRole: 'admin', action: 'BOOKING_UPDATED', resourceType: 'booking', resourceId: bookingId, ipAddress: requestIp(request.headers), metadata: { change: 'ADMIN_RESCHEDULE' } });
 
     // Send postponement email notification
     try {

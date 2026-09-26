@@ -14,21 +14,21 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pb-12 pt-20 sm:pt-24">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AdminSectionNav className="mb-5" />
+    <div className="min-h-screen bg-[#faf9f7] pb-12 pt-8">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        <AdminSectionNav className="mb-8" />
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="mb-2 text-3xl font-bold text-gray-900 sm:text-5xl">Settings</h1>
+          <h1 className="mb-2 font-playfair text-3xl font-semibold text-[#34213f] sm:text-4xl">Settings</h1>
           <p className="text-base text-gray-600 sm:text-xl">Manage integrations and preferences</p>
         </div>
 
         {/* Settings Sections */}
         <div className="space-y-8">
           {/* Google Calendar Integration Section */}
-          <div className="rounded-2xl bg-white p-5 shadow-lg sm:p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">📱 Integrations</h2>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-8">
+            <h2 className="mb-6 text-xl font-semibold text-gray-900">Integrations</h2>
             
             <GoogleConnectButton />
           </div>
@@ -40,8 +40,8 @@ export default async function SettingsPage() {
           <ReviewsManagement userRole={session?.user?.role} />
 
           {/* User Information Section */}
-          <div className="rounded-2xl bg-white p-5 shadow-lg sm:p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">👤 Account Information</h2>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-8">
+            <h2 className="mb-6 text-xl font-semibold text-gray-900">Account information</h2>
             
             <div className="space-y-4">
               <div className="flex justify-between items-start">

@@ -20,6 +20,7 @@ type BookingRecord = {
   user_email?: string | null;
   meeting_link?: string | null;
   meeting_links?: string[] | null;
+  number_of_sessions?: number | null;
   slot_id?: string | null;
   slot_date?: string | null;
   slot_start_time?: string | null;
@@ -153,6 +154,7 @@ export async function POST(request: NextRequest) {
         user_email,
         meeting_link,
         meeting_links,
+        number_of_sessions,
         slot_id,
         slot_date,
         slot_start_time,
@@ -264,8 +266,8 @@ export async function POST(request: NextRequest) {
               startTime: formatTime(session.startTime),
               endTime: formatTime(session.endTime),
               meetingLink,
-              sessionNumber: sessions.length > 1 ? session.index + 1 : undefined,
-              totalSessions: sessions.length > 1 ? sessions.length : undefined,
+              sessionNumber: (booking.number_of_sessions || sessions.length) > 1 ? session.index + 1 : undefined,
+              totalSessions: (booking.number_of_sessions || sessions.length) > 1 ? (booking.number_of_sessions || sessions.length) : undefined,
             });
           }
 
@@ -280,8 +282,8 @@ export async function POST(request: NextRequest) {
               startTime: formatTime(session.startTime),
               endTime: formatTime(session.endTime),
               meetingLink,
-              sessionNumber: sessions.length > 1 ? session.index + 1 : undefined,
-              totalSessions: sessions.length > 1 ? sessions.length : undefined,
+              sessionNumber: (booking.number_of_sessions || sessions.length) > 1 ? session.index + 1 : undefined,
+              totalSessions: (booking.number_of_sessions || sessions.length) > 1 ? (booking.number_of_sessions || sessions.length) : undefined,
             });
           }
 

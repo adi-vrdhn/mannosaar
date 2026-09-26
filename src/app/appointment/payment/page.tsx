@@ -10,7 +10,11 @@ import {
   DEFAULT_BUNDLE_PRICING,
   type BundlePricing,
 } from '@/lib/services';
-import PaymentAgreement from '@/components/booking/PaymentAgreement';
+import ComplianceConsentCard, {
+  allRequiredConsentsAccepted,
+  emptyConsentSelections,
+} from '@/components/booking/ComplianceConsentCard';
+import type { ConsentSelections } from '@/lib/compliance';
 
 interface SlotInfo {
   id: string;
@@ -58,9 +62,36 @@ interface BookingCreateResponse {
   error?: string;
 }
 
+interface ApiResponse {
+  error?: string;
+  [key: string]: unknown;
+}
+
 const PAYMENT_SESSION_DATES_STORAGE_KEY = 'pendingPaymentSessionDates';
 const PAYMENT_SLOT_INFO_STORAGE_KEY = 'pendingPaymentSlotInfo';
 const PAYU_PENDING_TXN_STORAGE_KEY = 'payuPendingTxnId';
+
+async function readJsonResponse<T extends ApiResponse>(response: Response): Promise<T> {
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return {
+      error: response.ok
+        ? 'The server returned an empty response. Please try again.'
+        : `The request failed (${response.status}). Please try again.`,
+    } as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return {
+      error: response.ok
+        ? 'The server returned an invalid response. Please try again.'
+        : `The request failed (${response.status}). Please try again.`,
+    } as T;
+  }
+}
 
 function parseSessionDates(value: string | null): SessionDate[] {
   if (!value) {
@@ -121,12 +152,14 @@ function PaymentPageContent() {
   const paymentStatus = searchParams.get('paymentStatus');
   const paymentError = searchParams.get('paymentError');
   const bundle = searchParams.get('bundle') ? parseInt(searchParams.get('bundle')!) : null;
+  const bundleSchedule = searchParams.get('schedule') === 'progressive' ? 'progressive' : 'all';
   const hasBundleContext = Boolean(bundle || searchParams.get('sessionDates'));
   const [sessionDates, setSessionDates] = useState<SessionDate[]>([]);
   const [sessionDatesLoaded, setSessionDatesLoaded] = useState(false);
 
   const isBundleBooking = sessionDatesLoaded ? sessionDates.length > 0 : false;
-  const bundleSize = isBundleBooking ? sessionDates.length : 1;
+  const bundleSize = bundle && bundle > 1 ? bundle : 1;
+  const isBundlePurchase = bundleSize > 1;
 
   const [slotInfo, setSlotInfo] = useState<SlotInfo | null>(null);
   const [cachedSlotInfo, setCachedSlotInfo] = useState<SlotInfo | null>(null);
@@ -137,7 +170,7 @@ function PaymentPageContent() {
   const [processingMode, setProcessingMode] = useState<'payu' | 'test' | null>(null);
   const [error, setError] = useState('');
   const [agreementError, setAgreementError] = useState('');
-  const [agreementChecked, setAgreementChecked] = useState(false);
+  const [consentSelections, setConsentSelections] = useState<ConsentSelections>({ ...emptyConsentSelections });
   const [appointmentNote, setAppointmentNote] = useState('');
 
   // Calculate price based on bundle size
@@ -183,10 +216,19 @@ function PaymentPageContent() {
     }
 
     const storedSessionDates = window.sessionStorage.getItem(PAYMENT_SESSION_DATES_STORAGE_KEY);
+    const confirmationSessionDates = window.sessionStorage.getItem('pendingSessionDates');
     const parsedStoredSessionDates = parseSessionDates(storedSessionDates);
+    const parsedConfirmationSessionDates = parseSessionDates(confirmationSessionDates);
 
     if (parsedStoredSessionDates.length > 0) {
       setSessionDates(parsedStoredSessionDates);
+      setSessionDatesLoaded(true);
+      return;
+    }
+
+    if (parsedConfirmationSessionDates.length > 0) {
+      setSessionDates(parsedConfirmationSessionDates);
+      window.sessionStorage.setItem(PAYMENT_SESSION_DATES_STORAGE_KEY, JSON.stringify(parsedConfirmationSessionDates));
       setSessionDatesLoaded(true);
       return;
     }
@@ -228,7 +270,7 @@ function PaymentPageContent() {
       try {
         const response = await fetch('/api/admin/pricing');
         if (response.ok) {
-          const data = await response.json();
+          const data = await readJsonResponse<ApiResponse & { pricing?: BundlePricing }>(response);
           // API returns { success, pricing, timestamp } - extract pricing only
           if (data.pricing) {
             setPrices(data.pricing);
@@ -255,14 +297,11 @@ function PaymentPageContent() {
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
-        console.log('Fetching user profile...');
         const response = await fetch('/api/user/update-profile');
-        console.log('Profile response status:', response.status);
 
         if (response.ok) {
-          const data = await response.json();
-          console.log('Profile data received:', data);
-          setUserProfile(data);
+          const data = await readJsonResponse<ApiResponse & UserProfile>(response);
+          if (data.id) setUserProfile(data);
         } else {
           const errorText = await response.text();
           console.error('Profile fetch failed:', response.status, errorText);
@@ -303,8 +342,11 @@ function PaymentPageContent() {
       return;
     }
 
-    if (isBundleBooking) {
+    if (isBundlePurchase) {
       // For bundles, we don't fetch a single slot - just mark as loaded
+      if (!isBundleBooking) {
+        setError('Your selected time is missing. Please choose the first session time again.');
+      }
       setLoading(false);
       return;
     }
@@ -366,20 +408,22 @@ function PaymentPageContent() {
     };
 
     fetchSlotInfo();
-  }, [slotId, isBundleBooking, sessionDatesLoaded, supabase]);
+  }, [slotId, isBundleBooking, isBundlePurchase, sessionDatesLoaded, supabase]);
 
-  const getBookingPayload = (userId: string) => {
+  const getBookingPayload = (userId: string, consentReceiptId?: string) => {
     const payload: Record<string, unknown> = {
       userId,
       sessionType,
       notes:
         appointmentNote ||
         (typeof window !== 'undefined' ? window.sessionStorage.getItem('appointmentNote') || undefined : undefined),
+      consentReceiptId,
     };
 
     if (isBundleBooking) {
       payload.bundle = bundle;
       payload.sessionDates = sessionDates;
+      payload.bundleSchedule = bundleSchedule;
     } else {
       payload.slotId = slotId;
     }
@@ -395,12 +439,14 @@ function PaymentPageContent() {
     window.sessionStorage.removeItem('appointmentNote');
     window.sessionStorage.removeItem('appointmentSessionType');
     window.sessionStorage.removeItem('appointmentBundleSize');
+    window.sessionStorage.removeItem('appointmentBundleSchedule');
+    window.sessionStorage.removeItem('pendingSessionDates');
     window.sessionStorage.removeItem(PAYMENT_SLOT_INFO_STORAGE_KEY);
     window.sessionStorage.removeItem(PAYMENT_SESSION_DATES_STORAGE_KEY);
     window.sessionStorage.removeItem(PAYU_PENDING_TXN_STORAGE_KEY);
   };
 
-  const getPayUOrderPayload = (userId: string, paymentMode: string) => {
+  const getPayUOrderPayload = (userId: string, paymentMode: string, consentReceiptId: string) => {
     const orderPayload: Record<string, unknown> = {
       amount: totalPrice,
       sessionType,
@@ -410,11 +456,13 @@ function PaymentPageContent() {
       userPhone: userProfile?.phone_number || '',
       notes: getBookingPayload(userId).notes,
       paymentMode,
+      consentReceiptId,
     };
 
     if (isBundleBooking) {
       orderPayload.bundle = bundle;
       orderPayload.sessionDates = sessionDates;
+      orderPayload.bundleSchedule = bundleSchedule;
     } else {
       orderPayload.slotId = slotId;
       orderPayload.date = resolvedSingleSlotInfo?.date;
@@ -423,22 +471,31 @@ function PaymentPageContent() {
     }
 
     if (typeof window !== 'undefined') {
-      const returnUrl = new URL(window.location.href);
-      returnUrl.searchParams.delete('paymentStatus');
-      returnUrl.searchParams.delete('paymentError');
+      const returnUrl = new URL('/appointment/payment', window.location.origin);
       orderPayload.returnUrl = returnUrl.toString();
     }
 
     return orderPayload;
   };
 
-  const createPayUOrder = async (paymentMode: string) => {
+  const recordConsent = async () => {
+    const response = await fetch('/api/compliance/consents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selections: consentSelections }),
+    });
+    const data = await readJsonResponse<ApiResponse & { receiptId?: string }>(response);
+    if (!response.ok || !data.receiptId) throw new Error(data.error || 'Unable to record consent.');
+    return String(data.receiptId);
+  };
+
+  const createPayUOrder = async (paymentMode: string, consentReceiptId: string) => {
     const userResponse = await fetch('/api/user/get-id');
     if (!userResponse.ok) {
       throw new Error('User not found');
     }
 
-    const userData = await userResponse.json();
+    const userData = await readJsonResponse<ApiResponse & { userId?: string }>(userResponse);
     const { userId } = userData;
 
     if (!userId) {
@@ -448,7 +505,7 @@ function PaymentPageContent() {
     const paymentResponse = await fetch('/api/payments/create-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(getPayUOrderPayload(userId, paymentMode)),
+      body: JSON.stringify(getPayUOrderPayload(userId, paymentMode, consentReceiptId)),
     });
 
     const paymentText = await paymentResponse.text();
@@ -487,14 +544,17 @@ function PaymentPageContent() {
       return false;
     }
 
-    if (!isBundleBooking && !slotId) {
+    if (isBundlePurchase && !isBundleBooking) {
+      setError('Your selected time is missing. Please choose the first session time again.');
+      return false;
+    }
+
+    if (!isBundlePurchase && !slotId) {
       setError('No booking information provided');
       return false;
     }
 
-    if (isBundleBooking && !slotInfo) {
-      console.warn('Slot info not loaded for bundle booking, but continuing...');
-    } else if (!isBundleBooking) {
+    if (!isBundlePurchase) {
       if (!resolvedSingleSlotInfo) {
         setError('Slot information not loaded');
         return false;
@@ -509,12 +569,12 @@ function PaymentPageContent() {
   };
 
   const validateAgreementAcceptance = () => {
-    if (agreementChecked) {
+    if (allRequiredConsentsAccepted(consentSelections)) {
       setAgreementError('');
       return true;
     }
 
-    setAgreementError('Accept terms and conditions to continue.');
+    setAgreementError('Complete every required eligibility and consent acknowledgement to continue.');
     return false;
   };
 
@@ -533,13 +593,12 @@ function PaymentPageContent() {
     setError('');
 
     try {
-      const paymentData = await createPayUOrder('auto');
+      const consentReceiptId = await recordConsent();
+      const paymentData = await createPayUOrder('auto', consentReceiptId);
 
       if (paymentData.flow !== 'hosted_checkout') {
         throw new Error('Invalid PayU hosted checkout payload');
       }
-
-      clearPendingBookingStorage();
 
       if (paymentData.paymentHtml) {
         document.open();
@@ -612,20 +671,21 @@ function PaymentPageContent() {
         throw new Error('User not found');
       }
 
-      const userData = await userResponse.json();
+      const userData = await readJsonResponse<ApiResponse & { userId?: string }>(userResponse);
       const { userId } = userData;
 
       if (!userId) {
         throw new Error('User not found');
       }
 
+      const consentReceiptId = await recordConsent();
       const bookingResponse = await fetch('/api/bookings/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(getBookingPayload(userId)),
+        body: JSON.stringify(getBookingPayload(userId, consentReceiptId)),
       });
 
-      const bookingData = (await bookingResponse.json()) as BookingCreateResponse;
+      const bookingData = await readJsonResponse<BookingCreateResponse & ApiResponse>(bookingResponse);
 
       if (!bookingResponse.ok || !bookingData.booking?.id) {
         throw new Error(bookingData.error || 'Failed to create test booking');
@@ -647,6 +707,9 @@ function PaymentPageContent() {
     visible: { opacity: 1, scale: 1, transition: { duration: 0.5 } },
   };
 
+  const hasMissingBookingDetails = !loading
+    && ((isBundlePurchase && !isBundleBooking) || (!isBundlePurchase && !slotInfo));
+
   return (
     <div className="booking-theme min-h-screen pt-24 pb-12">
       <div className="max-w-2xl mx-auto px-4">
@@ -660,7 +723,7 @@ function PaymentPageContent() {
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Payment</h1>
           <p className="text-gray-600 mb-8">Complete your booking by making the payment</p>
 
-          {error && (
+          {error && !hasMissingBookingDetails && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -675,10 +738,21 @@ function PaymentPageContent() {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
               <p className="text-gray-600">Loading booking details...</p>
             </div>
-          ) : !isBundleBooking && !slotInfo ? (
+          ) : hasMissingBookingDetails ? (
             <div className="text-center py-12">
               <p className="text-red-600 font-semibold">Failed to load booking details</p>
-              <p className="text-gray-500 text-sm mt-2">{error || 'Slot not found'}</p>
+              <p className="text-gray-500 text-sm mt-2">
+                {isBundlePurchase
+                  ? 'Your selected time was not carried to payment. Choose the first session time again.'
+                  : error || 'Slot not found'}
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push(`/appointment/slots?type=${encodeURIComponent(sessionType)}&bundle=${bundleSize}&schedule=${bundleSchedule}`)}
+                className="mt-5 rounded-xl bg-purple-700 px-5 py-3 text-sm font-semibold text-white hover:bg-purple-800"
+              >
+                Choose a time
+              </button>
             </div>
           ) : (
             <>
@@ -773,6 +847,11 @@ function PaymentPageContent() {
                           <span className="font-medium">Session {idx + 1}:</span> {format(new Date(session.date), 'MMM dd')} at {session.startTime}
                         </div>
                       ))}
+                      {bundleSchedule === 'progressive' && bundleSize > sessionDates.length && (
+                        <div className="ml-4 text-sm font-medium text-purple-700">
+                          Remaining {bundleSize - sessionDates.length} session{bundleSize - sessionDates.length > 1 ? 's' : ''} will be scheduled later from your profile.
+                        </div>
+                      )}
                     </div>
 
                     <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
@@ -795,14 +874,11 @@ function PaymentPageContent() {
                 </p>
               </motion.div>
 
-              {/* Payment Agreement */}
-              <PaymentAgreement
-                isChecked={agreementChecked}
-                onCheck={(checked) => {
-                  setAgreementChecked(checked);
-                  if (checked) {
-                    setAgreementError('');
-                  }
+              <ComplianceConsentCard
+                selections={consentSelections}
+                onChange={(next) => {
+                  setConsentSelections(next);
+                  if (allRequiredConsentsAccepted(next)) setAgreementError('');
                 }}
               />
 
@@ -820,10 +896,10 @@ function PaymentPageContent() {
                 </p>
                 <button
                   onClick={handlePayUPayment}
-                  disabled={processing}
+                  disabled={processing || !allRequiredConsentsAccepted(consentSelections)}
                   className="mt-5 w-full rounded-xl bg-green-600 px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50"
                 >
-                  {processingMode === 'payu' ? 'Redirecting to PayU...' : 'Pay with PayU'}
+                  {processingMode === 'payu' ? 'Recording consent and redirecting...' : 'Continue to Payment'}
                 </button>
                 {agreementError && (
                   <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">

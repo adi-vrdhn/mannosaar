@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { Copy, X, Edit2, Save, XCircle } from 'lucide-react';
 
@@ -29,6 +29,7 @@ interface BookingDetails {
   status: string;
   payment_status?: string;
   notes?: string | null;
+  therapist_note_for_client?: string | null;
   sessions_taken_before?: number | null;
   meeting_link?: string;
   meeting_links?: string[]; // for bundle bookings
@@ -38,9 +39,17 @@ interface BookingDetails {
   number_of_sessions?: number; // for bundle bookings
   session_dates?: Array<{
     date: string;
-    start_time: string;
-    end_time: string;
-    slotId: string;
+    start_time?: string;
+    end_time?: string;
+    startTime?: string;
+    endTime?: string;
+    slotId?: string;
+    slot_id?: string;
+    rescheduled_at?: string;
+    reschedule_count?: number;
+    original_date?: string;
+    original_start_time?: string;
+    original_end_time?: string;
   }>; // for bundle bookings
 }
 
@@ -62,22 +71,42 @@ export default function BookingDetailsModal({
   const [postponeReason, setPostponeReason] = useState('');
   const [updatingBooking, setUpdatingBooking] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [therapistNote, setTherapistNote] = useState('');
+  const [savingTherapistNote, setSavingTherapistNote] = useState(false);
+  const [therapistNoteMessage, setTherapistNoteMessage] = useState('');
 
-  // Fetch booking details when modal opens
-  if (bookingId && !loading && !booking && !error) {
+  // Fetch only when a booking is opened. Keeping this out of render prevents
+  // duplicate requests and stale modal state when switching bookings.
+  useEffect(() => {
+    if (!bookingId) return;
+
+    const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/bookings/${bookingId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error) {
-          setError(data.error);
-        } else {
-          setBooking(data);
+    setBooking(null);
+    setError(null);
+
+    fetch(`/api/bookings/${bookingId}`, { signal: controller.signal, cache: 'no-store' })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || data.error) {
+          throw new Error(data.error || 'Unable to load booking details');
         }
+        return data;
       })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }
+      .then((data) => {
+        setBooking(data);
+        setTherapistNote(data.therapist_note_for_client || '');
+      })
+      .catch((fetchError) => {
+        if (fetchError instanceof DOMException && fetchError.name === 'AbortError') return;
+        setError(fetchError instanceof Error ? fetchError.message : 'Unable to load booking details');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [bookingId]);
 
   const handleClose = () => {
     setBooking(null);
@@ -87,7 +116,31 @@ export default function BookingDetailsModal({
     setNewStartTime('');
     setNewEndTime('');
     setPostponeReason('');
+    setTherapistNote('');
+    setTherapistNoteMessage('');
     onClose();
+  };
+
+  const saveTherapistNote = async () => {
+    if (!bookingId) return;
+    setSavingTherapistNote(true);
+    setTherapistNoteMessage('');
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ therapistNoteForClient: therapistNote }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to save note');
+      setBooking(current => current ? { ...current, therapist_note_for_client: data.booking.therapist_note_for_client } : current);
+      setTherapistNoteMessage('Note saved. The client can now see it.');
+      onRefresh?.();
+    } catch (saveError) {
+      setTherapistNoteMessage(saveError instanceof Error ? saveError.message : 'Unable to save note');
+    } finally {
+      setSavingTherapistNote(false);
+    }
   };
 
   const handleEditClick = () => {
@@ -206,10 +259,19 @@ export default function BookingDetailsModal({
         return 'bg-blue-100 text-blue-800';
       case 'cancelled':
         return 'bg-red-100 text-red-800';
+      case 'rescheduled':
+        return 'bg-amber-100 text-amber-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const rescheduledSessions = booking?.session_dates?.filter(
+    (session) => session.rescheduled_at || Number(session.reschedule_count || 0) > 0
+  ) || [];
+  const displayStatus = booking?.status === 'confirmed' && rescheduledSessions.length > 0
+    ? 'rescheduled'
+    : booking?.status || '';
 
   return (
     <AnimatePresence>
@@ -301,6 +363,11 @@ export default function BookingDetailsModal({
                               <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-purple-100 text-purple-800">
                                 Session {idx + 1} of {booking.number_of_sessions}
                               </span>
+                              {(session.rescheduled_at || Number(session.reschedule_count || 0) > 0) && (
+                                <span className="inline-block rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
+                                  Rescheduled
+                                </span>
+                              )}
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-sm">
                               <div>
@@ -309,9 +376,14 @@ export default function BookingDetailsModal({
                               </div>
                               <div>
                                 <p className="text-gray-600">Time</p>
-                                <p className="font-semibold text-gray-900">{session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)}</p>
+                                <p className="font-semibold text-gray-900">{(session.start_time || session.startTime || '').substring(0, 5)} - {(session.end_time || session.endTime || '').substring(0, 5)}</p>
                               </div>
                             </div>
+                            {session.original_date && (
+                              <p className="mt-3 text-xs text-amber-800">
+                                Previously {format(new Date(session.original_date), 'MMM dd, yyyy')} at {(session.original_start_time || '').substring(0, 5)} - {(session.original_end_time || '').substring(0, 5)}
+                              </p>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -352,6 +424,13 @@ export default function BookingDetailsModal({
                     </div>
                   </section>
 
+                  {rescheduledSessions.length > 0 && (
+                    <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                      <p className="font-semibold">This booking was rescheduled.</p>
+                      <p className="mt-1 text-sm text-amber-800">The current date, time, and meeting link above replace the original session details.</p>
+                    </section>
+                  )}
+
                   {/* Client Note */}
                   <section>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b-2 border-purple-200">
@@ -365,6 +444,30 @@ export default function BookingDetailsModal({
                     </div>
                   </section>
 
+                  <section>
+                    <h3 className="mb-2 text-lg font-semibold text-gray-900">Note for client</h3>
+                    <p className="mb-3 text-sm text-gray-600">This note is visible to the client in their profile. Do not use it for private clinical notes.</p>
+                    <textarea
+                      value={therapistNote}
+                      onChange={(event) => setTherapistNote(event.target.value)}
+                      maxLength={2000}
+                      rows={4}
+                      placeholder="Add a short note or follow-up for the client…"
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-purple-600 focus:outline-none"
+                    />
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={saveTherapistNote}
+                        disabled={savingTherapistNote}
+                        className="rounded-lg bg-purple-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                      >
+                        {savingTherapistNote ? 'Saving…' : 'Save client note'}
+                      </button>
+                      {therapistNoteMessage && <p className="text-sm text-gray-600" aria-live="polite">{therapistNoteMessage}</p>}
+                    </div>
+                  </section>
+
                   {/* Status Information */}
                   <section>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b-2 border-purple-200">
@@ -375,10 +478,10 @@ export default function BookingDetailsModal({
                         <p className="text-sm text-gray-600 mb-2">Booking Status</p>
                         <span
                           className={`inline-block px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(
-                            booking.status
+                            displayStatus
                           )}`}
                         >
-                          {booking.status.toUpperCase()}
+                          {displayStatus.toUpperCase()}
                         </span>
                       </div>
                       {booking.payment_status && (

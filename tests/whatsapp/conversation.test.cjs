@@ -25,7 +25,7 @@ function harness(state='START',data={}){
 }
 test('complete deterministic service → therapist → date → slot → details → review → payment flow',async()=>{
  const h=harness();
- for(const [input,state] of [['book','SELECT_SERVICE'],['personal','SELECT_THERAPIST'],['therapist-a','SELECT_DATE'],['2030-09-08','SELECT_TIME'],['slot-a','COLLECT_NAME'],['Patient','COLLECT_EMAIL'],['patient@example.test','REVIEW_BOOKING'],['pay','AWAITING_PAYMENT']]){
+ for(const [input,state] of [['hi','MAIN_MENU'],['book','SELECT_SERVICE'],['personal','SELECT_THERAPIST'],['therapist-a','SELECT_DATE'],['2030-09-08','SELECT_TIME'],['slot-a','COLLECT_NAME'],['Patient','COLLECT_EMAIL'],['patient@example.test','REVIEW_BOOKING'],['review_consent','ACCEPT_CONSENT'],['accept_consent','REVIEW_BOOKING'],['pay','AWAITING_PAYMENT']]){
   await h.input(input);assert.equal(h.session.state,state,input);
  }
  assert.equal(h.effects.filter(x=>x==='wa_hold').length,1);assert.equal(h.effects.filter(x=>x==='payment').length,1);assert.match(h.reply.text.body,/https:\/\/example.test\/pay/);
@@ -36,7 +36,14 @@ test('arbitrary therapist identifiers and stale interactive replies do not advan
 test('invalid email is rejected without creating payment or holding a slot',async()=>{
  const h=harness('COLLECT_EMAIL',{service:'personal',therapist:'therapist-a',slot:'slot-a'});await h.input('not-an-email');assert.equal(h.session.state,'COLLECT_EMAIL');assert.ok(!h.effects.includes('payment'));
 });
-test('hello resumes an incomplete conversation and expiry returns to service selection',async()=>{
+test('hello resumes an incomplete conversation and expiry returns to the main menu',async()=>{
  const h=harness('COLLECT_NAME');await h.input('hello');assert.equal(h.session.state,'COLLECT_NAME');assert.match(h.reply.text.body,/name/);
- h.session.expires_at='2000-01-01';await h.input('Patient');assert.equal(h.session.state,'SELECT_SERVICE');
+ h.session.expires_at='2000-01-01';await h.input('Patient');assert.equal(h.session.state,'MAIN_MENU');
+});
+test('main menu exposes booking, management, pricing and support options',async()=>{
+ const h=harness();await h.input('hi');
+ assert.equal(h.session.state,'MAIN_MENU');
+ assert.deepEqual(h.reply.interactive.action.sections[0].rows.map(row=>row.id),['book','manage','pricing','support']);
+ await h.input('pricing',true);assert.equal(h.session.state,'MAIN_MENU');assert.match(h.reply.interactive.body.text,/Personal session — ₹2500/);
+ await h.input('support',true);assert.equal(h.session.state,'MAIN_MENU');assert.match(h.reply.interactive.body.text,/example\.test/);
 });

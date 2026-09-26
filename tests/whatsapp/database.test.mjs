@@ -9,7 +9,7 @@ let therapist, s1, s2, slots;
 test.before(async () => {
  await pg.exec(`create role anon; create role authenticated; create role service_role bypassrls; create schema auth; create function auth.uid() returns uuid language sql as 'select null::uuid';`);
  await pg.exec(await readFile('database-schema.sql','utf8'));
- for (const file of ['add-payment-status.sql','add-booking-details.sql','add-bundle-sessions.sql','add-payu-payment-contexts.sql','20260905_whatsapp_booking.sql']) await pg.exec(await readFile(`scripts/migrations/${file}`,'utf8'));
+ for (const file of ['add-payment-status.sql','add-booking-details.sql','add-bundle-sessions.sql','add-payu-payment-contexts.sql','20260905_whatsapp_booking.sql','20260925_compliance_layer.sql']) await pg.exec(await readFile(`scripts/migrations/${file}`,'utf8'));
  therapist=(await sql(`insert into users(email,name,role) values('therapist@example.test','Therapist','admin') returning id`))[0].id;
  await sql(`insert into whatsapp_therapists(therapist_id,oauth_user_id,display_name,active) values($1,$1,'Therapist',true)`,[therapist]);
  s1=(await sql(`insert into whatsapp_sessions(wa_id) values('919000000001') returning id`))[0].id;
@@ -114,8 +114,18 @@ test('browser roles cannot read private tables or call booking RPCs',async()=>{
  await pg.exec('set role anon');
  await assert.rejects(sql('select * from whatsapp_sessions'),{code:'42501'});
  await assert.rejects(sql('select * from bookings'),{code:'42501'});
+ await assert.rejects(sql('select * from consents'),{code:'42501'});
+ await assert.rejects(sql('select * from audit_logs'),{code:'42501'});
  await assert.rejects(sql(`select * from wa_hold($1,$2,'attack')`,[s1,slots[4].id]),{code:'42501'});
  await pg.exec('reset role');
+});
+test('consent evidence is immutable except for one-time booking linkage',async()=>{
+ const user=(await sql(`select user_id from whatsapp_payments where txnid='txn-a'`))[0].user_id;
+ const receipt='20000000-0000-0000-0000-000000000001';
+ await sql(`insert into consents(receipt_id,user_id,consent_type,consent_version,policy_version,accepted) values($1,$2,'AGE_18','1.0','1.0',true)`,[receipt,user]);
+ await sql(`update consents set booking_id=$1 where receipt_id=$2`,[booking.id,receipt]);
+ await assert.rejects(sql(`update consents set accepted=false where receipt_id=$1`,[receipt]),/CONSENT_HISTORY_IS_IMMUTABLE/);
+ await assert.rejects(sql(`delete from consents where receipt_id=$1`,[receipt]),/CONSENT_HISTORY_IS_IMMUTABLE/);
 });
 test('website bundles reserve every session and conflicting bundles roll back completely',async()=>{
  await assert.rejects(sql(`insert into bookings(user_id,slot_id,session_type,session_dates) values($1,$2,'personal',$3)`,[therapist,slots[4].id,JSON.stringify([{slot_id:slots[4].id},{slot_id:slots[3].id}])]),{code:'23P01'});

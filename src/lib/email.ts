@@ -64,6 +64,120 @@ function getFromAddress() {
   return process.env.EMAIL_FROM || process.env.EMAIL_USER || '';
 }
 
+function escapeHtml(value: string | number | null | undefined) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function transactionalHtml(title: string, intro: string, rows: Array<[string, string]>, action?: { label: string; href: string }) {
+  return `<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;padding:24px;background:#faf7fc">
+    <div style="background:#fff;padding:28px;border:1px solid #e9e2ed;border-radius:16px">
+      <p style="margin:0 0 8px;color:#6b2a86;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">Mannosaar</p>
+      <h2 style="margin:0 0 16px;color:#25152e;font-size:26px">${escapeHtml(title)}</h2>
+      <p style="color:#475569;font-size:16px;line-height:1.65">${escapeHtml(intro)}</p>
+      ${rows.length ? `<div style="margin-top:20px;padding:16px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">${rows.map(([label, value]) => `<p style="margin:8px 0;color:#334155"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join('')}</div>` : ''}
+      ${action ? `<p style="margin:24px 0 4px"><a href="${escapeHtml(action.href)}" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#5b267a;color:#fff;text-decoration:none;font-weight:700">${escapeHtml(action.label)}</a></p>` : ''}
+      <p style="margin:24px 0 0;padding-top:16px;border-top:1px solid #e2e8f0;color:#64748b;font-size:13px">Need help? Email care@mannosaar.com.</p>
+    </div>
+  </div>`;
+}
+
+async function sendTransactional(to: string | string[], subject: string, html: string) {
+  try {
+    await ensureTransporterReady();
+    await getTransporter().sendMail({ from: getFromAddress(), to, subject, html });
+    return true;
+  } catch (error) {
+    console.error(`Failed to send transactional email (${subject}):`, error);
+    return false;
+  }
+}
+
+export async function sendPaymentReceiptEmail(data: {
+  clientEmail: string; clientName: string; amount: number; currency?: string; reference: string;
+  provider: string; method?: string | null; sessionType: string;
+}) {
+  const amount = new Intl.NumberFormat('en-IN', { style: 'currency', currency: data.currency || 'INR' }).format(data.amount);
+  return sendTransactional(
+    data.clientEmail,
+    'Payment receipt for your Mannosaar booking',
+    transactionalHtml('Payment received', `Hi ${data.clientName}, your payment has been received successfully.`, [
+      ['Amount paid', amount], ['Session', data.sessionType], ['Provider', data.provider],
+      ['Payment method', data.method || 'Not recorded'], ['Reference', data.reference],
+    ])
+  );
+}
+
+export async function sendRefundStatusEmail(data: {
+  clientEmail: string; clientName: string; amount?: number | null; currency?: string; reference: string; status: string; reason?: string;
+}) {
+  const amount = data.amount == null ? 'Not available' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: data.currency || 'INR' }).format(data.amount);
+  const status = data.status.replaceAll('_', ' ').toLowerCase();
+  return sendTransactional(
+    data.clientEmail,
+    `Refund ${status} – Mannosaar`,
+    transactionalHtml(`Refund ${status}`, `Hi ${data.clientName}, here is the latest update on your refund.`, [
+      ['Status', status], ['Refund amount', amount], ['Payment reference', data.reference],
+      ...(data.reason ? [['Reason', data.reason] as [string, string]] : []),
+    ])
+  );
+}
+
+export async function sendTherapistNoteNotificationEmail(data: {
+  clientEmail: string; clientName: string; therapistName: string; profileUrl: string;
+}) {
+  return sendTransactional(
+    data.clientEmail,
+    'A note from your therapist is available',
+    transactionalHtml('New therapist note', `Hi ${data.clientName}, ${data.therapistName} added a note to your session. For privacy, the note is available only after you sign in.`, [], { label: 'View note securely', href: data.profileUrl })
+  );
+}
+
+export async function sendPrivacyRequestAcknowledgementEmail(data: {
+  clientEmail: string; clientName: string; requestType: string; requestId: string;
+}) {
+  return sendTransactional(
+    data.clientEmail,
+    'We received your privacy request',
+    transactionalHtml('Privacy request received', `Hi ${data.clientName}, we have recorded your request and will review it.`, [
+      ['Request type', data.requestType.replaceAll('_', ' ').toLowerCase()], ['Request ID', data.requestId], ['Status', 'Submitted'],
+    ])
+  );
+}
+
+export async function sendSupportRequestEmails(data: {
+  clientEmail: string; clientName: string; subject: string; message: string; requestId: string; supportEmail: string;
+}) {
+  const acknowledgement = await sendTransactional(
+    data.clientEmail,
+    'We received your Mannosaar support request',
+    transactionalHtml('Support request received', `Hi ${data.clientName}, our team has received your message.`, [
+      ['Subject', data.subject], ['Request ID', data.requestId],
+    ])
+  );
+  const notification = await sendTransactional(
+    data.supportEmail,
+    `Support request: ${data.subject}`,
+    transactionalHtml('New support request', 'A user submitted a support request from their account.', [
+      ['Name', data.clientName], ['Email', data.clientEmail], ['Request ID', data.requestId], ['Subject', data.subject], ['Message', data.message],
+    ])
+  );
+  return acknowledgement && notification;
+}
+
+export async function sendWelcomeEmail(email: string, name: string, profileUrl: string) {
+  return sendTransactional(
+    email,
+    'Welcome to Mannosaar',
+    transactionalHtml('Welcome to Mannosaar', `Hi ${name}, your account is ready. You can book sessions and manage appointments from your private profile.`, [], { label: 'Open your account', href: profileUrl })
+  );
+}
+
+
 interface BookingEmailData {
   clientEmail: string;
   clientName: string;
@@ -80,6 +194,7 @@ interface BookingEmailData {
   }>;
   meetingLink?: string;
   meetingPassword?: string;
+  clientNote?: string | null;
 }
 
 interface SessionReminderEmailData {
@@ -109,6 +224,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
     sessionSchedule,
     meetingLink,
     meetingPassword,
+    clientNote,
   } = data;
 
   try {
@@ -172,6 +288,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
             `}
             <p style="${detailStyle}"><strong>Therapist:</strong> ${therapistName}</p>
             ${meetingPassword ? `<p style="${detailStyle}"><strong>Meeting password:</strong> ${meetingPassword}</p>` : ''}
+            ${clientNote ? `<div style="margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0;"><p style="${detailStyle}"><strong>Client note:</strong></p><p style="margin:6px 0 0;color:#475569;white-space:pre-wrap;">${escapeHtml(clientNote)}</p></div>` : ''}
           </div>
 
           ${meetingLink ? `
@@ -226,6 +343,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
               <p style="${detailStyle}"><strong>Time:</strong> ${schedule[0].startTime} - ${schedule[0].endTime}</p>
             `}
             ${meetingPassword ? `<p style="${detailStyle}"><strong>Meeting password:</strong> ${meetingPassword}</p>` : ''}
+            ${clientNote ? `<div style="margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0;"><p style="${detailStyle}"><strong>Client note:</strong></p><p style="margin:6px 0 0;color:#475569;white-space:pre-wrap;">${escapeHtml(clientNote)}</p></div>` : ''}
           </div>
 
           ${meetingLink ? `
@@ -492,6 +610,36 @@ export async function sendBookingPostponedEmail(data: BookingPostponeEmailData) 
     console.error('❌ Failed to send booking postponed email:', error);
     return false;
   }
+}
+
+export async function sendAdminRescheduleNotificationEmail(data: {
+  recipients: string | string[];
+  bookingId: string;
+  clientName: string;
+  clientEmail: string;
+  sessionType: string;
+  oldDate: string;
+  oldStartTime: string;
+  oldEndTime: string;
+  newDate: string;
+  newStartTime: string;
+  newEndTime: string;
+}) {
+  return sendTransactional(
+    data.recipients,
+    `Session rescheduled by ${data.clientName}`,
+    transactionalHtml(
+      'A client rescheduled a session',
+      `${data.clientName} changed an existing booking. The same booking record has been updated.`,
+      [
+        ['Client', `${data.clientName} (${data.clientEmail})`],
+        ['Session', data.sessionType],
+        ['Previous time', `${data.oldDate}, ${data.oldStartTime}–${data.oldEndTime}`],
+        ['New time', `${data.newDate}, ${data.newStartTime}–${data.newEndTime}`],
+        ['Booking ID', data.bookingId],
+      ],
+    ),
+  );
 }
 
 interface BookingCancellationEmailData {

@@ -8,6 +8,14 @@ async function prices() {
   const result = await db().from('pricing_config').select('session_type,price,currency').eq('bundle_size', 1).eq('currency', 'INR'); check(result.error);
   return (result.data || []).filter(p => ['personal', 'couple'].includes(p.session_type) && Number(p.price) > 0);
 }
+
+const mainMenuChoices: Choice[] = [
+  { id: 'book', title: 'Book a session', description: 'Choose a session and available time' },
+  { id: 'manage', title: 'Manage my booking', description: 'View, reschedule or cancel' },
+  { id: 'pricing', title: 'Services and pricing', description: 'Compare personal and couple sessions' },
+  { id: 'support', title: 'Other questions', description: 'Get help or visit our website' },
+];
+
 async function advance(job: Job) {
   const input = job.payload as unknown as Inbound & { session: string };
   const previous = await db().from('whatsapp_messages').select('status').eq('wa_message_id', input.id).single(); check(previous.error);
@@ -17,13 +25,13 @@ async function advance(job: Job) {
   const s: Session = { ...session, data: { ...session.data } };
   const command = input.input.trim().toLowerCase();
   let reply: Message = textMessage('Please choose an option above, or type “manage” to view your bookings.');
-  const choose = (body: string, choices: Choice[], page = 0) => {
+  const choose = (body: string, choices: Choice[], page = 0, emptyText = 'No availability right now. Please try another date, or type “book” to start again.') => {
     const rows = choices.slice(page * 8, page * 8 + 8);
     if (page > 0) rows.push({ id: 'previous', title: 'Previous' });
     if ((page + 1) * 8 < choices.length) rows.push({ id: 'next', title: 'More options' });
     s.data.choices = rows; s.data.page = page;
     if (rows.length) reply = listMessage(body, rows);
-    else { s.data.choices = []; reply = textMessage('No availability right now. Please try another date, or type “book” to start again.'); }
+    else { s.data.choices = []; reply = textMessage(emptyText); }
   };
   const dateMenu = async (reschedule = false, page = 0) => {
     s.state = reschedule ? 'RESCHEDULE_DATE' : 'SELECT_DATE';
@@ -44,31 +52,47 @@ async function advance(job: Job) {
     const bookings = await db().from('whatsapp_payments').select('booking:bookings(id,slot_date,slot_start_time,fulfillment_status)').eq('session_id', s.id).eq('status', 'SUCCESS').not('booking_id', 'is', null); check(bookings.error);
     const rows = (bookings.data || []).flatMap(p => Array.isArray(p.booking) ? p.booking : [p.booking]).filter(b => b && b.fulfillment_status !== 'CANCELLED');
     s.state = 'MANAGE_BOOKING';
-    choose('Choose a booking to view or manage.', rows.map(b => ({ id: b.id, title: b.slot_date, description: `${b.slot_start_time.slice(0, 5)} IST · ${b.fulfillment_status}` })), page);
+    choose('Choose a booking to view or manage.', rows.map(b => ({ id: b.id, title: b.slot_date, description: `${b.slot_start_time.slice(0, 5)} IST · ${b.fulfillment_status}` })), page, 'You don’t have any active WhatsApp bookings. Choose “book” to schedule a session or “menu” for more options.');
   };
   const bookingDetails = async () => {
     const payment = await db().from('whatsapp_payments').select('booking_id').eq('session_id', s.id).eq('booking_id', s.data.booking).single(); check(payment.error);
     const booking = await db().from('bookings').select('*').eq('id', payment.data!.booking_id).single(); check(booking.error);
     return booking.data!;
   };
-  const reset = async () => {
+  const mainMenu = () => {
+    s.state = 'MAIN_MENU';
+    choose('Welcome to Mannosaar 🌿\nHow can we help you today?', mainMenuChoices);
+  };
+  const startBooking = async () => {
     const active = await db().from('booking_holds').select('id').eq('session_id', s.id).in('status', ['ACTIVE', 'RESCHEDULE']).gt('expires_at', new Date().toISOString()); check(active.error);
     if (active.data?.length) {
       reply = textMessage(s.data.paymentUrl ? `Your reservation is active. Pay before it expires:\n${s.data.paymentUrl}\nType “manage” for paid bookings.` : 'Your reservation is being processed. Please wait a moment, then type “manage”.'); return;
     }
     s.data = {}; s.state = 'SELECT_SERVICE';
     if (process.env.WHATSAPP_BOOKING_ENABLED !== 'true') { reply = textMessage('WhatsApp booking is currently unavailable. Please book on our website.'); return; }
-    choose('Welcome to Mannosaar 🌿\nChoose a session. We use your WhatsApp number for booking updates and reminders. Please share booking details only. Type “manage” anytime.', (await prices()).map(p => ({ id: p.session_type, title: p.session_type === 'personal' ? 'Personal session' : 'Couple session', description: `₹${p.price} · one session` })));
+    choose('Choose your session type. We use your WhatsApp number only for booking updates and reminders.', (await prices()).map(p => ({ id: p.session_type, title: p.session_type === 'personal' ? 'Personal session' : 'Couple session', description: `₹${p.price} · one session` })));
   };
   const expired = Date.parse(s.expires_at) < Date.now();
   if (Number(input.timestamp) * 1000 < Date.now() - 24 * 3600_000) {
-    reply = textMessage('Please send “book” or “manage” to continue.');
+    reply = textMessage('Please send “hi” to see the main menu and continue.');
   } else if (command === 'manage') {
     await manageMenu();
-  } else if (command === 'book' || s.state === 'START' || expired) {
-    await reset();
+  } else if (command === 'book') {
+    await startBooking();
+  } else if (command === 'menu' || s.state === 'START' || expired) {
+    s.data = {};
+    mainMenu();
+  } else if (command === 'pricing') {
+    const availablePrices = await prices();
+    const lines = availablePrices.map(p => `${p.session_type === 'personal' ? 'Personal session' : 'Couple session'} — ₹${p.price}`);
+    s.state = 'MAIN_MENU';
+    choose(`${lines.length ? lines.join('\n') : 'Pricing is temporarily unavailable.'}\n\nChoose Book a session to continue.`, mainMenuChoices);
+  } else if (command === 'support') {
+    s.state = 'MAIN_MENU';
+    choose(`For other questions, visit ${origin()} or reply here with “book” when you’re ready to schedule a session.`, mainMenuChoices);
   } else if (['hi', 'hello', 'help', 'start'].includes(command)) {
-    reply = s.data.choices?.length ? listMessage('Continue with an option below. Type “book” for a new booking or “manage” for your sessions.', s.data.choices) : textMessage(s.state === 'COLLECT_NAME' ? 'What name should we use for your booking?' : s.state === 'COLLECT_EMAIL' ? 'Please enter your email for PayU checkout.' : `Type “book” or “manage” to continue.${s.data.paymentUrl ? `\nPayment link: ${s.data.paymentUrl}` : ''}`);
+    if (s.state === 'MAIN_MENU') mainMenu();
+    else reply = s.data.choices?.length ? listMessage('Continue with an option below. Type “menu” for the main menu.', s.data.choices) : textMessage(s.state === 'COLLECT_NAME' ? 'What name should we use for your booking?' : s.state === 'COLLECT_EMAIL' ? 'Please enter your email for PayU checkout.' : `Type “book” for a new booking, “manage” for your sessions, or “menu” for more options.${s.data.paymentUrl ? `\nPayment link: ${s.data.paymentUrl}` : ''}`);
   } else if (['next', 'previous'].includes(command) && selectedChoice(s, command)) {
     const page = Math.max(0, (s.data.page || 0) + (command === 'next' ? 1 : -1));
     if (s.state === 'SELECT_THERAPIST') await therapistMenu(page);
@@ -110,11 +134,17 @@ async function advance(job: Job) {
         if (!slot) { await dateMenu(); break; }
         const price = (await prices()).find(p => p.session_type === s.data.service);
         s.data.quotedAmount = Number(price?.price);
-        choose(`${s.data.name}\n${therapist?.display_name}\n${slot.date}, ${slot.start_time.slice(0, 5)} IST\n${slot.duration_minutes} minutes · ₹${price?.price}\n\nBy choosing Pay, you agree to our terms and refund policy:\n${origin()}/refund-policy\nWe’ll hold this time for 10 minutes.`, [{ id: 'pay', title: 'Agree and pay' }, { id: 'book', title: 'Start again' }]);
+        choose(`${s.data.name}\n${therapist?.display_name}\n${slot.date}, ${slot.start_time.slice(0, 5)} IST\n${slot.duration_minutes} minutes · ₹${price?.price}\n\nReview the required eligibility, online therapy, privacy, emergency and policy information before payment.`, [{ id: 'review_consent', title: 'Review consent' }, { id: 'book', title: 'Start again' }]);
         break;
       }
       case 'REVIEW_BOOKING':
+        if (command === 'review_consent' && selectedChoice(s, command)) {
+          s.state = 'ACCEPT_CONSENT';
+          choose(`Before you continue:\n• You confirm you are 18 or older.\n• You voluntarily consent to online counselling and understand its limitations.\n• Mannosaar is not an emergency or crisis service; immediate danger requires appropriate local emergency help.\n• You acknowledge our Privacy Policy, Terms, and cancellation/rescheduling/refund policy.\n\nPrivacy: ${origin()}/privacy\nOnline consent: ${origin()}/online-therapy-consent\nTerms: ${origin()}/terms\nRefunds: ${origin()}/refund-policy\n\nMarketing is not included in this required consent.`, [{ id: 'accept_consent', title: 'I agree & continue' }, { id: 'book', title: 'Start again' }]);
+          break;
+        }
         if (command === 'pay' && selectedChoice(s, command)) {
+          if (!s.data.consentAcceptedAt) { reply = textMessage('Please review and accept the required booking consent before payment.'); break; }
           if (process.env.WHATSAPP_BOOKING_ENABLED !== 'true') { reply = textMessage('New WhatsApp bookings are temporarily unavailable. Please use our website.'); break; }
           const currentPrice = (await prices()).find(p => p.session_type === s.data.service);
           if (!currentPrice) throw new Error('PRICE_UNAVAILABLE');
@@ -131,6 +161,13 @@ async function advance(job: Job) {
           s.data.paymentUrl = await preparePayment(s, hold);
           s.state = 'AWAITING_PAYMENT'; s.data.choices = [];
           reply = textMessage(`Your time is held for 10 minutes. Complete payment here:\n${s.data.paymentUrl}\n\nWe’ll confirm your session after PayU verifies payment. If payment fails, you can retry using this link before it expires.`);
+        }
+        break;
+      case 'ACCEPT_CONSENT':
+        if (command === 'accept_consent' && selectedChoice(s, command)) {
+          s.data.consentAcceptedAt = new Date().toISOString();
+          s.state = 'REVIEW_BOOKING';
+          choose('Your required booking consent is ready to be recorded. We’ll hold your selected time for 10 minutes after you continue.', [{ id: 'pay', title: 'Continue to payment' }, { id: 'book', title: 'Start again' }]);
         }
         break;
       case 'AWAITING_PAYMENT':

@@ -13,6 +13,7 @@ import {
   CircleX,
   Clock3,
   CreditCard,
+  ExternalLink,
   LayoutList,
   NotebookPen,
   UserRound,
@@ -46,6 +47,11 @@ interface Booking {
     endTime?: string;
     slot_id?: string;
     slotId?: string;
+    rescheduled_at?: string;
+    reschedule_count?: number;
+    original_date?: string;
+    original_start_time?: string;
+    original_end_time?: string;
   }>; // for bundle bookings
 }
 
@@ -61,7 +67,7 @@ interface BookingWithDetails extends Booking {
   };
 }
 
-const statusOptions = ['all', 'pending', 'confirmed', 'cancelled', 'completed'] as const;
+const statusOptions = ['all', 'pending', 'confirmed', 'rescheduled', 'cancelled', 'completed'] as const;
 
 const BookingsView = () => {
   const router = useRouter();
@@ -71,9 +77,9 @@ const BookingsView = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const viewParam = searchParams.get('view');
-  const initialViewMode: 'all' | 'today' | 'upcoming' =
-    viewParam === 'today' || viewParam === 'upcoming' ? viewParam : 'all';
-  const [viewMode, setViewMode] = useState<'all' | 'today' | 'upcoming'>(initialViewMode);
+  const initialViewMode: 'all' | 'today' | 'upcoming' | 'past' =
+    viewParam === 'today' || viewParam === 'upcoming' || viewParam === 'past' ? viewParam : 'all';
+  const [viewMode, setViewMode] = useState<'all' | 'today' | 'upcoming' | 'past'>(initialViewMode);
 
   useEffect(() => {
     setViewMode(initialViewMode);
@@ -109,8 +115,18 @@ const BookingsView = () => {
                 start_time: sessionDate.start_time || sessionDate.startTime || '',
                 end_time: sessionDate.end_time || sessionDate.endTime || '',
                 slotId: sessionDate.slotId || sessionDate.slot_id || '',
+                rescheduled_at: sessionDate.rescheduled_at,
+                reschedule_count: sessionDate.reschedule_count,
+                original_date: sessionDate.original_date,
+                original_start_time: sessionDate.original_start_time,
+                original_end_time: sessionDate.original_end_time,
               }))
             : [];
+
+          const currentSession = normalizedSessionDates[0];
+          const firstSessionWasRescheduled = Boolean(
+            currentSession?.rescheduled_at || Number(currentSession?.reschedule_count || 0) > 0
+          );
 
           return {
             ...booking,
@@ -121,9 +137,15 @@ const BookingsView = () => {
               email: booking.user_email || 'N/A',
             },
             slot: {
-              date: booking.slot_date || normalizedSessionDates[0]?.date || 'N/A',
-              start_time: booking.slot_start_time || normalizedSessionDates[0]?.start_time || 'N/A',
-              end_time: booking.slot_end_time || normalizedSessionDates[0]?.end_time || 'N/A',
+              date: firstSessionWasRescheduled
+                ? currentSession?.date || booking.slot_date || 'N/A'
+                : booking.slot_date || currentSession?.date || 'N/A',
+              start_time: firstSessionWasRescheduled
+                ? currentSession?.start_time || booking.slot_start_time || 'N/A'
+                : booking.slot_start_time || currentSession?.start_time || 'N/A',
+              end_time: firstSessionWasRescheduled
+                ? currentSession?.end_time || booking.slot_end_time || 'N/A'
+                : booking.slot_end_time || currentSession?.end_time || 'N/A',
             },
           };
         })
@@ -152,7 +174,7 @@ const BookingsView = () => {
   tomorrow.setDate(tomorrow.getDate() + 1);
 
   const getBookingDate = (booking: BookingWithDetails) => {
-    const dateValue = booking.slot_date || booking.slot?.date || booking.session_dates?.[0]?.date;
+    const dateValue = booking.slot?.date || booking.slot_date || booking.session_dates?.[0]?.date;
     if (!dateValue || dateValue === 'N/A') {
       return null;
     }
@@ -168,6 +190,11 @@ const BookingsView = () => {
 
   const getDisplayStatus = (booking: BookingWithDetails) => {
     const rawStatus = booking.status || 'confirmed';
+    const wasRescheduled = booking.session_dates?.some(
+      (sessionDate) => sessionDate.rescheduled_at || Number(sessionDate.reschedule_count || 0) > 0
+    );
+
+    if (rawStatus === 'confirmed' && wasRescheduled) return 'rescheduled';
 
     if (rawStatus === 'confirmed') {
       const bookingDate = getBookingDate(booking);
@@ -189,11 +216,18 @@ const BookingsView = () => {
     return Boolean(bookingDate && bookingDate.getTime() > today.getTime());
   });
 
+  const pastSessions = bookings.filter((b) => {
+    const bookingDate = getBookingDate(b);
+    return Boolean(bookingDate && bookingDate.getTime() < today.getTime());
+  });
+
   let displayBookings = bookings;
   if (viewMode === 'today') {
     displayBookings = todaySessions;
   } else if (viewMode === 'upcoming') {
     displayBookings = upcomingSessions;
+  } else if (viewMode === 'past') {
+    displayBookings = pastSessions;
   }
 
   const filteredBookings =
@@ -222,6 +256,8 @@ const BookingsView = () => {
         return 'bg-red-100 text-red-800';
       case 'completed':
         return 'bg-blue-100 text-blue-800';
+      case 'rescheduled':
+        return 'bg-amber-100 text-amber-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -244,6 +280,9 @@ const BookingsView = () => {
     if (!value || value === 'N/A') return 'Date unavailable';
     return format(new Date(value), 'MMM dd, yyyy');
   };
+
+  const formatTime = (value?: string) =>
+    value && value !== 'N/A' ? value.slice(0, 5) : 'N/A';
 
   const summaryCards = [
     {
@@ -275,11 +314,11 @@ const BookingsView = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.10),_transparent_38%),linear-gradient(180deg,#faf7ff_0%,#f7f4ff_100%)] pb-12 pt-20 sm:pt-24">
-      <div className="mx-auto max-w-[1720px] px-4 sm:px-6 lg:px-10 2xl:px-12">
-        <AdminSectionNav className="mb-4" />
+    <div className="min-h-screen bg-[#faf9f7] pb-12 pt-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <AdminSectionNav className="mb-8" />
 
-        <div className="mb-4 flex items-center justify-between gap-3 sm:mb-6">
+        <div className="hidden">
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -298,17 +337,14 @@ const BookingsView = () => {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-5 rounded-[28px] border border-violet-100 bg-white/95 p-5 shadow-[0_18px_50px_rgba(76,29,149,0.08)] backdrop-blur sm:mb-8 sm:p-7"
+          className="mb-6"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600">Bookings Overview</p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                {viewMode === 'today' ? 'Today\'s Bookings' : viewMode === 'upcoming' ? 'Upcoming Bookings' : 'All Bookings'}
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5b267a]">Appointments</p>
+              <h1 className="mt-2 font-playfair text-3xl font-semibold text-[#34213f] sm:text-4xl">
+                {viewMode === 'today' ? 'Today\'s Bookings' : viewMode === 'upcoming' ? 'Upcoming Bookings' : viewMode === 'past' ? 'Past Bookings' : 'All Bookings'}
               </h1>
-              <p className="mt-2 max-w-2xl text-sm font-medium text-slate-500 sm:text-base">
-                Review session status, open client details, and jump into the next action without digging through long tables.
-              </p>
             </div>
 
             <div className="hidden h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-600 sm:flex">
@@ -316,7 +352,7 @@ const BookingsView = () => {
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+          <div className="hidden">
             <div className="rounded-2xl bg-slate-50 px-4 py-3">
               <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Total</p>
               <p className="mt-1 text-2xl font-black text-slate-950">{bookings.length}</p>
@@ -337,12 +373,12 @@ const BookingsView = () => {
 
           {viewMode !== 'all' && (
             <p className="mt-4 inline-flex rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700">
-              Viewing {viewMode === 'today' ? 'today\'s sessions' : 'upcoming sessions'}
+              Viewing {viewMode === 'today' ? 'today\'s sessions' : viewMode === 'upcoming' ? 'upcoming sessions' : 'past sessions'}
             </p>
           )}
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-5 grid grid-cols-2 gap-3 sm:mb-8">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="hidden">
           {summaryCards.map(({ key, label, value, helper, icon: Icon, activeClass, idleClass, iconClass, helperClass, onClick }) => (
             <motion.button
               key={key}
@@ -369,9 +405,9 @@ const BookingsView = () => {
         </motion.div>
 
         {viewMode !== 'all' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="hidden">
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 shadow-sm">
-              {viewMode === 'today' ? 'Showing only today\'s sessions' : 'Showing only upcoming sessions'}
+              {viewMode === 'today' ? 'Showing only today\'s sessions' : viewMode === 'upcoming' ? 'Showing only upcoming sessions' : 'Showing only past sessions'}
             </div>
             <motion.button
               onClick={() => setViewMode('all')}
@@ -384,7 +420,7 @@ const BookingsView = () => {
           </motion.div>
         )}
 
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-5 rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_14px_40px_rgba(15,23,42,0.05)] sm:mb-8">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="hidden">
           <div className="mb-3 flex items-center gap-2">
             <NotebookPen size={16} className="text-violet-600" />
             <p className="text-sm font-black uppercase tracking-[0.16em] text-slate-500">Filter by status</p>
@@ -413,11 +449,113 @@ const BookingsView = () => {
           </div>
         </motion.div>
 
+        <div className="mb-5 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+            {([
+              ['all', 'All'],
+              ['today', 'Today'],
+              ['upcoming', 'Upcoming'],
+              ['past', 'Past'],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setViewMode(key)}
+                className={`rounded-md px-4 py-2 text-sm font-medium transition ${viewMode === key ? 'bg-white text-[#5b267a] shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            Status
+            <select
+              value={filterStatus}
+              onChange={(event) => setFilterStatus(event.target.value)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#5b267a] focus:outline-none"
+            >
+              {statusOptions.map(status => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status[0].toUpperCase() + status.slice(1)}</option>)}
+            </select>
+          </label>
+        </div>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">
+                {viewMode === 'today' ? 'Today’s appointments' : viewMode === 'upcoming' ? 'Upcoming appointments' : viewMode === 'past' ? 'Past appointments' : 'All appointments'}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">{filteredBookings.length} {filteredBookings.length === 1 ? 'booking' : 'bookings'}</p>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex min-h-48 items-center justify-center text-sm text-slate-500">Loading bookings…</div>
+          ) : filteredBookings.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-12 text-center">
+              <p className="font-medium text-slate-800">No bookings found</p>
+              <p className="mt-1 text-sm text-slate-500">Try another view or status filter.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredBookings.map(booking => {
+                const displayStatus = getDisplayStatus(booking);
+                const isBundle = Boolean(booking.number_of_sessions && booking.number_of_sessions > 1);
+                const bookingDate = booking.slot?.date && booking.slot.date !== 'N/A' ? booking.slot.date : undefined;
+                return (
+                  <article key={booking.id} className="rounded-xl border border-slate-200 p-4 transition hover:border-slate-300 sm:p-5">
+                    <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                      <div className="flex min-w-0 gap-4">
+                        <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-lg bg-[#f3eef6] text-[#4d2465]">
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">{bookingDate ? format(new Date(bookingDate), 'MMM') : '---'}</span>
+                          <span className="text-xl font-semibold leading-none">{bookingDate ? format(new Date(bookingDate), 'dd') : '--'}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="truncate font-semibold text-slate-950">{booking.user?.name || 'Client'}</h3>
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${getStatusColor(displayStatus)}`}>{displayStatus}</span>
+                          </div>
+                          <p className="mt-1 truncate text-sm text-slate-500">{booking.user?.email || 'No email'}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+                            <span className="inline-flex items-center gap-1.5 font-bold text-slate-800"><Clock3 size={15} />{formatTime(booking.slot?.start_time)} - {formatTime(booking.slot?.end_time)}</span>
+                            <span className="capitalize">{booking.session_type || 'personal'} session</span>
+                            {isBundle && <span>{booking.number_of_sessions} session package</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBookingId(booking.id)}
+                          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-[#5b267a] px-4 py-2 text-sm font-semibold text-[#5b267a] transition hover:bg-[#f7f1fa]"
+                        >
+                          View details
+                        </button>
+                        {(booking.meeting_link || booking.meeting_links?.[0]) && (
+                          <a
+                            href={booking.meeting_link || booking.meeting_links?.[0]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#5b267a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#4a1f64]"
+                          >
+                            <ExternalLink size={15} />
+                            Join meeting
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(88,28,135,0.08)]"
+          className="hidden"
         >
           {loading ? (
             <div className="text-center py-12">

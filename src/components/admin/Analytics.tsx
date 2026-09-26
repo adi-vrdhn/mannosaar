@@ -159,9 +159,9 @@ const Analytics = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pb-12 pt-20 sm:pt-24">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AdminSectionNav className="mb-5" />
+    <div className="min-h-screen bg-[#faf9f7] pb-12 pt-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <AdminSectionNav className="mb-8" />
 
         {/* Back Button */}
         <motion.button
@@ -174,7 +174,7 @@ const Analytics = () => {
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="mb-2 text-3xl font-bold text-gray-900 sm:text-4xl">Analytics</h1>
+          <h1 className="mb-2 font-playfair text-3xl font-semibold text-[#34213f] sm:text-4xl">Analytics</h1>
           <p className="text-gray-600">View all sessions and detailed analytics</p>
         </motion.div>
 
@@ -184,21 +184,21 @@ const Analytics = () => {
           animate={{ opacity: 1 }}
           className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-4"
         >
-          <div className="rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 p-6 text-white shadow-lg">
-            <p className="text-purple-100 text-sm font-semibold uppercase">Total Bookings</p>
-            <p className="mt-2 text-3xl font-bold sm:text-4xl">{stats.totalBookings}</p>
+          <div className="rounded-xl border border-slate-200 bg-white p-6">
+            <p className="text-sm font-medium text-slate-500">Total bookings</p>
+            <p className="mt-2 text-3xl font-semibold text-slate-950 sm:text-4xl">{stats.totalBookings}</p>
           </div>
-          <div className="rounded-xl bg-gradient-to-br from-green-500 to-green-600 p-6 text-white shadow-lg">
-            <p className="text-green-100 text-sm font-semibold uppercase">Confirmed</p>
-            <p className="mt-2 text-3xl font-bold sm:text-4xl">{stats.confirmedBookings}</p>
+          <div className="rounded-xl border border-slate-200 bg-white p-6">
+            <p className="text-sm font-medium text-slate-500">Confirmed</p>
+            <p className="mt-2 text-3xl font-semibold text-slate-950 sm:text-4xl">{stats.confirmedBookings}</p>
           </div>
-          <div className="rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 p-6 text-white shadow-lg">
-            <p className="text-blue-100 text-sm font-semibold uppercase">Personal Sessions</p>
-            <p className="mt-2 text-3xl font-bold sm:text-4xl">{stats.personalSessions}</p>
+          <div className="rounded-xl border border-slate-200 bg-white p-6">
+            <p className="text-sm font-medium text-slate-500">Personal sessions</p>
+            <p className="mt-2 text-3xl font-semibold text-slate-950 sm:text-4xl">{stats.personalSessions}</p>
           </div>
-          <div className="rounded-xl bg-gradient-to-br from-pink-500 to-pink-600 p-6 text-white shadow-lg">
-            <p className="text-pink-100 text-sm font-semibold uppercase">Couple Sessions</p>
-            <p className="mt-2 text-3xl font-bold sm:text-4xl">{stats.coupleSessions}</p>
+          <div className="rounded-xl border border-slate-200 bg-white p-6">
+            <p className="text-sm font-medium text-slate-500">Couple sessions</p>
+            <p className="mt-2 text-3xl font-semibold text-slate-950 sm:text-4xl">{stats.coupleSessions}</p>
           </div>
         </motion.div>
 

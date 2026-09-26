@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { Suspense } from "react";
 import "./globals.css";
 import WhatsAppButton from "@/components/shared/WhatsAppButton";
@@ -8,12 +7,14 @@ import Footer from "@/components/shared/Footer";
 import { Providers } from "@/components/Providers";
 import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
 
-const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "G-QDPW5YK7B5";
-
 export const metadata: Metadata = {
-  title: "Mannosaar - Mental Health Therapy",
-  description: "Professional mental health therapy and counseling services",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://www.mannosaar.com"),
+  title: {
+    default: "Online Counselling in India | Mannosaar",
+    template: "%s | Mannosaar",
+  },
+  description:
+    "Private online counselling and emotional support with Neetu Rathore for personal, relationship and everyday emotional concerns.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://mannosaar.com"),
   alternates: {
     canonical: "/",
   },
@@ -24,14 +25,16 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Mannosaar",
-    title: "Mannosaar - Mental Health Therapy",
-    description: "Professional mental health therapy and counseling services.",
+    title: "Online Counselling in India | Mannosaar",
+    description:
+      "Private online counselling and emotional support with Neetu Rathore for personal, relationship and everyday emotional concerns.",
     url: "/",
   },
   twitter: {
     card: "summary",
-    title: "Mannosaar - Mental Health Therapy",
-    description: "Professional mental health therapy and counseling services.",
+    title: "Online Counselling in India | Mannosaar",
+    description:
+      "Private online counselling and emotional support with Neetu Rathore for personal, relationship and everyday emotional concerns.",
   },
   icons: {
     icon: "/favicon.ico",
@@ -52,21 +55,33 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-white" suppressHydrationWarning>
-        <Script
-          src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
-          strategy="afterInteractive"
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify([
+              {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                name: "Mannosaar",
+                url: "https://mannosaar.com",
+                description:
+                  "Private online counselling and emotional support with Neetu Rathore.",
+              },
+              {
+                "@context": "https://schema.org",
+                "@type": "Person",
+                name: "Neetu Rathore",
+                url: "https://mannosaar.com/about",
+                image:
+                  "https://mannosaar.com/images/ChatGPT%20Image%20Sep%201%2C%202026%2C%2011_36_39%20AM.png",
+                description:
+                  "Psychologist, family therapist and career counsellor providing online counselling through Mannosaar.",
+                knowsLanguage: ["Hindi", "English"],
+                sameAs: ["https://www.linkedin.com/in/neeturathore9/"],
+              },
+            ]),
+          }}
         />
-        <Script id="ga-init" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', '${GA_ID}', {
-              send_page_view: false,
-              page_path: window.location.pathname + window.location.search,
-            });
-          `}
-        </Script>
         <Providers>
           <Suspense fallback={null}>
             <GoogleAnalytics />

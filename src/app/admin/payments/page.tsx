@@ -58,18 +58,18 @@ export default async function AdminPaymentsPage() {
   const completedCount = paymentRows.filter((booking) => booking.payment_status === 'completed').length;
 
   return (
-    <div className="min-h-screen bg-[#f8f7ff] px-4 py-6 text-slate-950 sm:px-6 sm:py-8 lg:px-10">
-      <div className="mx-auto max-w-6xl">
-        <AdminSectionNav className="mb-5" />
+    <div className="min-h-screen bg-[#faf9f7] px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <AdminSectionNav className="mb-8" />
 
         <Link href="/admin" className="mb-6 inline-flex items-center gap-2 text-sm font-black text-violet-700">
           <ChevronLeft size={18} />
           Back to dashboard
         </Link>
 
-        <div className="mb-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-          <p className="text-sm font-black uppercase tracking-[0.2em] text-violet-600">Manual Payments</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">QR payment confirmations</h1>
+        <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-6">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#5b267a]">Payments</p>
+          <h1 className="mt-2 font-playfair text-3xl font-semibold text-[#34213f] sm:text-4xl">Payment records</h1>
           <p className="mt-2 text-slate-500">Track bookings that patients confirm through WhatsApp after scanning the QR code.</p>
         </div>
 
@@ -79,7 +79,7 @@ export default async function AdminPaymentsPage() {
             { label: 'Pending review', value: pendingCount, icon: SearchCheck, className: 'bg-amber-100 text-amber-700' },
             { label: 'Completed', value: completedCount, icon: IndianRupee, className: 'bg-emerald-100 text-emerald-700' },
           ].map(({ label, value, icon: Icon, className }) => (
-            <div key={label} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+            <div key={label} className="rounded-xl border border-slate-200 bg-white p-5">
               <div className="flex items-center gap-4">
                 <span className={`flex h-14 w-14 items-center justify-center rounded-full ${className}`}>
                   <Icon size={24} />
@@ -93,7 +93,7 @@ export default async function AdminPaymentsPage() {
           ))}
         </section>
 
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 p-5">
             <h2 className="text-xl font-black">Recent payment records</h2>
             <p className="mt-1 text-sm font-medium text-slate-500">Use WhatsApp screenshots/messages to verify pending QR payments.</p>

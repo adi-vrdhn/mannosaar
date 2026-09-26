@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { format, addDays } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
 import { generateDefaultSlots } from '@/utils/slotGenerator';
 import AdminSectionNav from './AdminSectionNav';
+import { Ban, CalendarDays, CalendarPlus, Clock3, Trash2 } from 'lucide-react';
 
 interface Slot {
   id: string;
@@ -28,6 +28,8 @@ interface SlotWithBooking extends Slot {
 interface ConfirmedBookingRecord {
   slot_id: string;
   id: string;
+  user_name?: string | null;
+  user_email?: string | null;
   user:
     | { name: string | null; email: string | null }
     | Array<{ name: string | null; email: string | null }>
@@ -42,15 +44,19 @@ interface BlockedRange {
 }
 
 type BlockMode = 'range' | 'specific';
+type SlotPanel = 'open' | 'block' | 'manage';
+
+const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const defaultTimeLabels = ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM'];
+
+const displayDate = (value: string) => format(new Date(`${value}T00:00:00`), 'EEEE, MMMM d, yyyy');
+const displayTime = (value: string) => format(new Date(`2000-01-01T${value}`), 'h:mm a');
 
 const SlotManagement = () => {
-  const router = useRouter();
   const [slots, setSlots] = useState<SlotWithBooking[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showGenerateDefaultForm, setShowGenerateDefaultForm] = useState(false);
-  const [showBlockForm, setShowBlockForm] = useState(false);
+  const [activePanel, setActivePanel] = useState<SlotPanel>('manage');
   const [blockMode, setBlockMode] = useState<BlockMode>('range');
   const [blockedRanges, setBlockedRanges] = useState<BlockedRange[]>([]);
   const [blockFormData, setBlockFormData] = useState({
@@ -62,11 +68,10 @@ const SlotManagement = () => {
     startDate: format(new Date(), 'yyyy-MM-dd'),
     endDate: format(addDays(new Date(), 6), 'yyyy-MM-dd'),
   });
-  const [selectedDays, setSelectedDays] = useState<boolean[]>([false, false, false, false, false, true, true]); // Mon-Sun, default Sat-Sun
+  const [selectedDays, setSelectedDays] = useState<boolean[]>([true, true, true, true, true, true, true]);
   const [selectedHours, setSelectedHours] = useState<boolean[]>([
     true, true, true, true, true, true, true, true, true, true, true, true // 9AM to 8PM
   ]);
-  const [previewSlots, setPreviewSlots] = useState<Array<{ start_time: string; end_time: string }>>([]);
   const [formData, setFormData] = useState({
     date: selectedDate,
     startTime: '09:00',
@@ -101,7 +106,7 @@ const SlotManagement = () => {
           .eq('status', 'confirmed');
 
         if (bookingError) {
-          console.error('Error fetching bookings:', bookingError);
+          console.warn('Booking details are temporarily unavailable in slot management.');
         }
 
         const bookingsBySlotId = ((bookings || []) as ConfirmedBookingRecord[]).reduce<
@@ -111,15 +116,18 @@ const SlotManagement = () => {
             ? booking.user[0]
             : booking.user;
 
-          if (!bookingUser) {
+          const userName = bookingUser?.name || booking.user_name || 'Client';
+          const userEmail = bookingUser?.email || booking.user_email || '';
+
+          if (!booking.slot_id) {
             return acc;
           }
 
           acc[booking.slot_id] = {
             id: booking.id,
             user: {
-              name: bookingUser.name || 'Client',
-              email: bookingUser.email || '',
+              name: userName,
+              email: userEmail,
             },
           };
           return acc;
@@ -163,13 +171,6 @@ const SlotManagement = () => {
   useEffect(() => {
     setSelectedSlotIdsToBlock(new Set());
   }, [selectedDate]);
-
-  const handleGenerateDefaultPreview = () => {
-    // Sample preview of default slots for one day
-    const allDefaultSlots = generateDefaultSlots();
-    const filteredSlots = allDefaultSlots.filter((_, idx) => selectedHours[idx]);
-    setPreviewSlots(filteredSlots);
-  };
 
   const handleGenerateDefault = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -237,8 +238,8 @@ const SlotManagement = () => {
 
       const result = await response.json();
 
-      setShowGenerateDefaultForm(false);
-      setPreviewSlots([]);
+      setActivePanel('manage');
+      setSelectedDate(defaultFormData.startDate);
       setDefaultFormData({
         startDate: format(new Date(), 'yyyy-MM-dd'),
         endDate: format(addDays(new Date(), 6), 'yyyy-MM-dd'),
@@ -284,7 +285,8 @@ const SlotManagement = () => {
         startTime: '09:00',
         endTime: '09:45',
       });
-      setShowCreateForm(false);
+      setActivePanel('manage');
+      setSelectedDate(formData.date);
 
       await fetchSlotManagementData(selectedDate);
 
@@ -363,7 +365,7 @@ const SlotManagement = () => {
         return;
       }
 
-      setShowBlockForm(false);
+      setActivePanel('manage');
       setBlockFormData({
         startDate: format(new Date(), 'yyyy-MM-dd'),
         endDate: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
@@ -505,693 +507,219 @@ const SlotManagement = () => {
     setLoading(false);
   };
 
+  const openSlotCount = slots.filter(slot => !slot.is_blocked && slot.is_available && !slot.booking).length;
+  const bookedSlotCount = slots.filter(slot => Boolean(slot.booking)).length;
+  const blockedSlotCount = slots.filter(slot => slot.is_blocked).length;
+
+  const panelOptions: Array<{ key: SlotPanel; label: string; helper: string; icon: typeof CalendarPlus }> = [
+    { key: 'open', label: 'Open slots', helper: 'Add availability', icon: CalendarPlus },
+    { key: 'block', label: 'Block time', helper: 'Days or hours', icon: Ban },
+    { key: 'manage', label: 'Manage day', helper: 'Review existing slots', icon: CalendarDays },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pb-12 pt-20 sm:pt-24">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AdminSectionNav className="mb-5" />
+    <div className="min-h-screen bg-[#faf9f7] pb-12 pt-8">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <AdminSectionNav className="mb-8" />
 
-        {/* Go Back Button */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          onClick={() => router.back()}
-          className="mb-6 inline-flex w-full items-center justify-center rounded-lg bg-gray-600 px-4 py-2 text-white transition-colors hover:bg-gray-700 sm:w-auto"
-        >
-          Back
-        </motion.button>
+        <div className="mb-7">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5b267a]">Availability</p>
+          <h1 className="mt-2 font-playfair text-3xl font-semibold text-[#34213f] sm:text-4xl">Manage slots</h1>
+          <p className="mt-2 text-sm text-slate-500">Open the hours you work and block the time you do not.</p>
+        </div>
 
-        {/* Header */}
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="mb-4 text-3xl font-bold text-gray-900 sm:text-4xl">Manage Therapy Slots</h1>
-          <p className="text-gray-600">Create and manage available therapy session slots</p>
-        </motion.div>
+        <div className="mb-6 grid gap-3 sm:grid-cols-3">
+          {panelOptions.map(({ key, label, helper, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActivePanel(key)}
+              className={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
+                activePanel === key
+                  ? 'border-[#5b267a] bg-[#5b267a] text-white'
+                  : 'border-slate-200 bg-white text-slate-900 hover:border-[#b99acb]'
+              }`}
+            >
+              <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${activePanel === key ? 'bg-white/15' : 'bg-[#f3eef6] text-[#5b267a]'}`}>
+                <Icon size={19} />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold">{label}</span>
+                <span className={`mt-0.5 block text-xs ${activePanel === key ? 'text-white/70' : 'text-slate-500'}`}>{helper}</span>
+              </span>
+            </button>
+          ))}
+        </div>
 
-        {/* Quick Actions */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          <input
-            type="date"
-            aria-label="Date Selector"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 sm:w-auto"
-          />
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="w-full rounded-lg bg-purple-600 px-6 py-2 text-white transition-colors hover:bg-purple-700 sm:w-auto"
-          >
-            {showCreateForm ? 'Cancel' : 'Create Single Slot'}
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            onClick={() => {
-              setShowGenerateDefaultForm(!showGenerateDefaultForm);
-              if (!showGenerateDefaultForm) {
-                handleGenerateDefaultPreview();
-              } else {
-                setPreviewSlots([]);
-              }
-            }}
-            className="w-full rounded-lg bg-green-600 px-6 py-2 text-white transition-colors hover:bg-green-700 sm:w-auto"
-          >
-            {showGenerateDefaultForm ? 'Cancel' : 'Generate Default Slots'}
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            onClick={() => setShowBlockForm(!showBlockForm)}
-            className="w-full rounded-lg bg-red-600 px-6 py-2 text-white transition-colors hover:bg-red-700 sm:w-auto"
-          >
-            {showBlockForm ? 'Cancel' : 'Blocking Tools'}
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            onClick={handleDeleteAllSlots}
-            disabled={loading}
-            className="w-full rounded-lg bg-red-800 px-6 py-2 text-white transition-colors hover:bg-red-900 disabled:opacity-50 sm:w-auto"
-          >
-            Delete All Slots
-          </motion.button>
-        </motion.div>
-
-        {/* Generate Default Slots Form */}
-        {showGenerateDefaultForm && (
-          <motion.form
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            onSubmit={handleGenerateDefault}
-            className="mb-8 rounded-xl bg-white p-5 shadow-lg sm:p-6"
-          >
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Generate Default Slots</h2>
-            <p className="text-gray-600 mb-4">
-              Create slots with 40-minute duration and 20 minutes break between sessions.
-            </p>
-
-            {/* Date Range Selection */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date</label>
-                <input
-                  aria-label="Generate Start Date"
-                  type="date"
-                  value={defaultFormData.startDate}
-                  onChange={(e) => {
-                    setDefaultFormData({ ...defaultFormData, startDate: e.target.value });
-                    handleGenerateDefaultPreview();
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                />
+        {activePanel === 'open' && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+            <form onSubmit={handleGenerateDefault} className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-slate-950">Open regular hours</h2>
+                <p className="mt-1 text-sm text-slate-500">Each session is 40 minutes with a 20-minute break.</p>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">End Date</label>
-                <input
-                  aria-label="Generate End Date"
-                  type="date"
-                  value={defaultFormData.endDate}
-                  onChange={(e) => {
-                    setDefaultFormData({ ...defaultFormData, endDate: e.target.value });
-                    handleGenerateDefaultPreview();
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-            </div>
 
-            {/* Day Selection */}
-            <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h3 className="font-semibold text-gray-900">Select Days of Week</h3>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedDays([true, true, true, true, true, true, true]);
-                      handleGenerateDefaultPreview();
-                    }}
-                    className="text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedDays([false, false, false, false, false, false, false]);
-                      handleGenerateDefaultPreview();
-                    }}
-                    className="text-sm px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
-                  >
-                    Clear
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-medium text-slate-700">
+                  From
+                  <input type="date" value={defaultFormData.startDate} onChange={event => setDefaultFormData(current => ({ ...current, startDate: event.target.value }))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 focus:border-[#5b267a] focus:outline-none" />
+                </label>
+                <label className="text-sm font-medium text-slate-700">
+                  Until
+                  <input type="date" value={defaultFormData.endDate} onChange={event => setDefaultFormData(current => ({ ...current, endDate: event.target.value }))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 focus:border-[#5b267a] focus:outline-none" />
+                </label>
+              </div>
+
+              <div className="mt-6">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-slate-700">Working days</p>
+                  <button type="button" onClick={() => setSelectedDays(selectedDays.every(Boolean) ? Array(7).fill(false) : Array(7).fill(true))} className="text-xs font-semibold text-[#5b267a]">
+                    {selectedDays.every(Boolean) ? 'Clear' : 'Select all'}
                   </button>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day, idx) => (
-                  <label key={day} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedDays[idx]}
-                      onChange={(e) => {
-                        const newDays = [...selectedDays];
-                        newDays[idx] = e.target.checked;
-                        setSelectedDays(newDays);
-                        handleGenerateDefaultPreview();
-                      }}
-                      className="w-4 h-4 rounded border-gray-300 text-purple-600"
-                    />
-                    <span className="text-sm font-medium text-gray-700">{day}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Hour Selection */}
-            <div className="mb-8 p-4 bg-green-50 rounded-lg border border-green-200">
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h3 className="font-semibold text-gray-900">Select Time Slots (9 AM to 8 PM)</h3>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedHours([true, true, true, true, true, true, true, true, true, true, true, true]);
-                      handleGenerateDefaultPreview();
-                    }}
-                    className="text-sm px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedHours([false, false, false, false, false, false, false, false, false, false, false, false]);
-                      handleGenerateDefaultPreview();
-                    }}
-                    className="text-sm px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                {['09:00-09:40', '10:00-10:40', '11:00-11:40', '12:00-12:40', '13:00-13:40', '14:00-14:40', '15:00-15:40', '16:00-16:40', '17:00-17:40', '18:00-18:40', '19:00-19:40', '20:00-20:40'].map((time, idx) => (
-                  <label key={time} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedHours[idx]}
-                      onChange={(e) => {
-                        const newHours = [...selectedHours];
-                        newHours[idx] = e.target.checked;
-                        setSelectedHours(newHours);
-                        handleGenerateDefaultPreview();
-                      }}
-                      className="w-4 h-4 rounded border-gray-300 text-green-600"
-                    />
-                    <span className="text-sm font-medium text-gray-700">{time}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Preview Slots */}
-            {previewSlots.length > 0 && (
-              <div className="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <h3 className="font-semibold text-gray-900 mb-3">Slot Preview (for each selected day):</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {previewSlots.map((slot, idx) => (
-                    <div key={idx} className="bg-white p-2 rounded border border-purple-200 text-sm">
-                      {slot.start_time} - {slot.end_time}
-                    </div>
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                  {dayLabels.map((day, index) => (
+                    <button key={day} type="button" onClick={() => setSelectedDays(current => current.map((value, dayIndex) => dayIndex === index ? !value : value))} className={`rounded-lg border px-2 py-2.5 text-sm font-medium transition ${selectedDays[index] ? 'border-[#5b267a] bg-[#f3eef6] text-[#5b267a]' : 'border-slate-200 text-slate-500'}`}>
+                      {day}
+                    </button>
                   ))}
                 </div>
               </div>
-            )}
 
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              type="submit"
-              disabled={loading}
-              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-            >
-              Generate Slots
-            </motion.button>
-          </motion.form>
+              <div className="mt-6">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-slate-700">Hours</p>
+                  <button type="button" onClick={() => setSelectedHours(selectedHours.every(Boolean) ? Array(12).fill(false) : Array(12).fill(true))} className="text-xs font-semibold text-[#5b267a]">
+                    {selectedHours.every(Boolean) ? 'Clear' : 'Select all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+                  {defaultTimeLabels.map((time, index) => (
+                    <button key={time} type="button" onClick={() => setSelectedHours(current => current.map((value, hourIndex) => hourIndex === index ? !value : value))} className={`rounded-lg border px-2 py-2.5 text-sm font-medium transition ${selectedHours[index] ? 'border-[#5b267a] bg-[#f3eef6] text-[#5b267a]' : 'border-slate-200 text-slate-500'}`}>
+                      {time}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button type="submit" disabled={loading || !selectedDays.some(Boolean) || !selectedHours.some(Boolean)} className="mt-6 w-full rounded-lg bg-[#5b267a] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#4a1f64] disabled:cursor-not-allowed disabled:opacity-40">
+                {loading ? 'Opening slots…' : `Open ${selectedHours.filter(Boolean).length} selected hours`}
+              </button>
+            </form>
+
+            <form onSubmit={handleCreateSlot} className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <h2 className="text-lg font-semibold text-slate-950">Add one custom slot</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                <label className="text-sm font-medium text-slate-700">Date<input type="date" value={formData.date} onChange={event => setFormData(current => ({ ...current, date: event.target.value }))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
+                <label className="text-sm font-medium text-slate-700">Starts<input type="time" value={formData.startTime} onChange={event => setFormData(current => ({ ...current, startTime: event.target.value }))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
+                <label className="text-sm font-medium text-slate-700">Ends<input type="time" value={formData.endTime} onChange={event => setFormData(current => ({ ...current, endTime: event.target.value }))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
+              </div>
+              <button type="submit" disabled={loading} className="mt-5 rounded-lg border border-[#5b267a] px-5 py-2.5 text-sm font-semibold text-[#5b267a] hover:bg-[#f7f1fa] disabled:opacity-40">Add custom slot</button>
+            </form>
+          </motion.div>
         )}
 
-        {/* Blocking Tools */}
-        {showBlockForm && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8 rounded-xl border-2 border-red-200 bg-white p-5 shadow-lg sm:p-6"
-          >
-            <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Blocking Section</h2>
-                <p className="mt-1 text-gray-600">
-                  Choose whether you want to block a full date range or only certain slots from the selected date.
-                </p>
-              </div>
-              <div className="inline-flex w-full rounded-lg border border-red-200 bg-red-50 p-1 sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setBlockMode('range')}
-                  className={`flex-1 rounded-md px-4 py-2 text-sm font-semibold transition-colors sm:flex-none ${
-                    blockMode === 'range'
-                      ? 'bg-white text-red-700 shadow-sm'
-                      : 'text-gray-600'
-                  }`}
-                >
-                  Block date range
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBlockMode('specific')}
-                  className={`flex-1 rounded-md px-4 py-2 text-sm font-semibold transition-colors sm:flex-none ${
-                    blockMode === 'specific'
-                      ? 'bg-white text-red-700 shadow-sm'
-                      : 'text-gray-600'
-                  }`}
-                >
-                  Block specific slots
-                </button>
-              </div>
-            </div>
-
-            {blockMode === 'range' ? (
-              <motion.form onSubmit={handleBlockDateRange} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date</label>
-                    <input
-                      aria-label="Block Start Date"
-                      type="date"
-                      value={blockFormData.startDate}
-                      onChange={(e) => setBlockFormData({ ...blockFormData, startDate: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">End Date</label>
-                    <input
-                      aria-label="Block End Date"
-                      type="date"
-                      value={blockFormData.endDate}
-                      onChange={(e) => setBlockFormData({ ...blockFormData, endDate: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Reason (Optional)</label>
-                    <input
-                      aria-label="Block Reason"
-                      type="text"
-                      placeholder="e.g., Personal leave, Vacation"
-                      value={blockFormData.reason}
-                      onChange={(e) => setBlockFormData({ ...blockFormData, reason: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                    />
-                  </div>
+        {activePanel === 'block' && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div><h2 className="text-xl font-semibold text-slate-950">Block time</h2><p className="mt-1 text-sm text-slate-500">Choose whole days or exact hours.</p></div>
+                <div className="flex rounded-lg bg-slate-100 p-1">
+                  <button type="button" onClick={() => setBlockMode('range')} className={`rounded-md px-4 py-2 text-sm font-medium ${blockMode === 'range' ? 'bg-white text-[#5b267a] shadow-sm' : 'text-slate-600'}`}>Whole days</button>
+                  <button type="button" onClick={() => setBlockMode('specific')} className={`rounded-md px-4 py-2 text-sm font-medium ${blockMode === 'specific' ? 'bg-white text-[#5b267a] shadow-sm' : 'text-slate-600'}`}>Hours on a day</button>
                 </div>
+              </div>
 
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  type="submit"
-                  disabled={loading}
-                  className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 font-semibold"
-                >
-                  Block Date Range
-                </motion.button>
-              </motion.form>
-            ) : (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px] gap-6">
-                  <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-                    <p className="text-sm font-semibold text-orange-800">Selected date</p>
-                    <p className="mt-1 text-lg font-bold text-gray-900">
-                      {format(new Date(selectedDate), 'MMMM dd, yyyy')}
-                    </p>
-                    <p className="mt-2 text-sm text-gray-600">
-                      Pick only the slots you want to hide from customers on this date.
-                    </p>
+              {blockMode === 'range' ? (
+                <form onSubmit={handleBlockDateRange}>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <label className="text-sm font-medium text-slate-700">From<input type="date" value={blockFormData.startDate} onChange={event => setBlockFormData(current => ({ ...current, startDate: event.target.value }))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
+                    <label className="text-sm font-medium text-slate-700">Until<input type="date" value={blockFormData.endDate} onChange={event => setBlockFormData(current => ({ ...current, endDate: event.target.value }))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
+                    <label className="text-sm font-medium text-slate-700">Reason <span className="font-normal text-slate-400">(optional)</span><input type="text" value={blockFormData.reason} onChange={event => setBlockFormData(current => ({ ...current, reason: event.target.value }))} placeholder="Leave, holiday…" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Reason (Optional)</label>
-                    <input
-                      aria-label="Specific Block Reason"
-                      type="text"
-                      placeholder="e.g., Personal work, Meeting"
-                      value={blockFormData.reason}
-                      onChange={(e) => setBlockFormData({ ...blockFormData, reason: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                    />
+                  <button type="submit" disabled={loading} className="mt-5 rounded-lg bg-[#5b267a] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40">Block these days</button>
+                </form>
+              ) : (
+                <div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="text-sm font-medium text-slate-700">Date<input type="date" value={selectedDate} onChange={event => setSelectedDate(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
+                    <label className="text-sm font-medium text-slate-700">Reason <span className="font-normal text-slate-400">(optional)</span><input type="text" value={blockFormData.reason} onChange={event => setBlockFormData(current => ({ ...current, reason: event.target.value }))} placeholder="Meeting, personal time…" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
                   </div>
-                </div>
-
-                {availableSlotsToBlock.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-gray-500">
-                    No unblocked, unbooked slots are available for {format(new Date(selectedDate), 'MMM dd, yyyy')}.
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-sm text-gray-600">
-                        Selected <span className="font-semibold">{selectedSlotIdsToBlock.size}</span> of{' '}
-                        <span className="font-semibold">{availableSlotsToBlock.length}</span> available slots
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handleToggleAllSelectedSlots}
-                        className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        {selectedSlotIdsToBlock.size === availableSlotsToBlock.length ? 'Clear All' : 'Select All'}
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {availableSlotsToBlock.map((slot) => {
-                        const isSelected = selectedSlotIdsToBlock.has(slot.id);
-
-                        return (
-                          <button
-                            key={slot.id}
-                            type="button"
-                            onClick={() => handleToggleSelectedSlot(slot.id)}
-                            className={`rounded-xl border-2 p-4 text-left transition-colors ${
-                              isSelected
-                                ? 'border-red-500 bg-red-50'
-                                : 'border-gray-200 bg-white hover:border-red-300'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="font-semibold text-gray-900">
-                                  {slot.start_time} - {slot.end_time}
-                                </p>
-                                <p className="text-sm text-gray-600">40 minutes</p>
-                              </div>
-                              <span
-                                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                  isSelected
-                                    ? 'bg-red-100 text-red-700'
-                                    : 'bg-green-100 text-green-700'
-                                }`}
-                              >
-                                {isSelected ? 'Selected' : 'Available'}
-                              </span>
-                            </div>
-                          </button>
-                        );
+                  <div className="mt-5 flex items-center justify-between"><p className="text-sm font-medium text-slate-700">Select hours</p>{availableSlotsToBlock.length > 0 && <button type="button" onClick={handleToggleAllSelectedSlots} className="text-xs font-semibold text-[#5b267a]">{selectedSlotIdsToBlock.size === availableSlotsToBlock.length ? 'Clear' : 'Select all'}</button>}</div>
+                  {availableSlotsToBlock.length === 0 ? (
+                    <div className="mt-3 rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">No open hours to block on this date.</div>
+                  ) : (
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                      {availableSlotsToBlock.map(slot => {
+                        const selected = selectedSlotIdsToBlock.has(slot.id);
+                        return <button key={slot.id} type="button" onClick={() => handleToggleSelectedSlot(slot.id)} className={`rounded-lg border px-3 py-3 text-sm font-medium ${selected ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 text-slate-700'}`}>{displayTime(slot.start_time)} – {displayTime(slot.end_time)}</button>;
                       })}
                     </div>
+                  )}
+                  <button type="button" onClick={handleBlockSelectedSlots} disabled={loading || selectedSlotIdsToBlock.size === 0} className="mt-5 rounded-lg bg-[#5b267a] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40">Block selected hours</button>
+                </div>
+              )}
+            </section>
 
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      type="button"
-                      onClick={handleBlockSelectedSlots}
-                      disabled={loading || selectedSlotIdsToBlock.size === 0}
-                      className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 font-semibold"
-                    >
-                      Block Selected Slots
-                    </motion.button>
-                  </>
-                )}
-              </div>
+            {(blockedRanges.length > 0 || allBlockedSlots.length > 0) && (
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                <h2 className="text-lg font-semibold text-slate-950">Currently blocked</h2>
+                <div className="mt-4 divide-y divide-slate-100">
+                  {blockedRanges.map(block => (
+                    <div key={block.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div><p className="text-sm font-medium text-slate-900">{format(new Date(`${block.start_date}T00:00:00`), 'MMM d')} – {format(new Date(`${block.end_date}T00:00:00`), 'MMM d, yyyy')}</p><p className="mt-0.5 text-xs text-slate-500">{block.reason || 'Full day block'}</p></div>
+                      <button type="button" onClick={() => handleUnblockDateRange(block.id)} className="text-sm font-semibold text-[#5b267a]">Unblock days</button>
+                    </div>
+                  ))}
+                  {allBlockedSlots.map(slot => (
+                    <div key={slot.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div><p className="text-sm font-medium text-slate-900">{format(new Date(`${slot.date}T00:00:00`), 'MMM d, yyyy')} · {displayTime(slot.start_time)} – {displayTime(slot.end_time)}</p><p className="mt-0.5 text-xs text-slate-500">{slot.blocked_reason || 'Blocked hour'}</p></div>
+                      <button type="button" onClick={() => handleToggleBlock(slot.id, true)} className="text-sm font-semibold text-[#5b267a]">Unblock hour</button>
+                    </div>
+                  ))}
+                </div>
+              </section>
             )}
           </motion.div>
         )}
 
-        {/* Blocked Date Ranges Section */}
-        {blockedRanges.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mb-8 rounded-xl border border-red-200 bg-red-50 p-5 shadow-lg sm:p-6"
-          >
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Blocked Date Ranges</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {blockedRanges.map((block) => (
-                <motion.div
-                  key={block.id}
-                  whileHover={{ scale: 1.02 }}
-                  className="p-4 bg-white rounded-lg border border-red-300"
-                >
-                  <p className="font-semibold text-gray-900 mb-2">
-                    {format(new Date(block.start_date), 'MMM dd')} - {format(new Date(block.end_date), 'MMM dd, yyyy')}
-                  </p>
-                  {block.reason && <p className="text-sm text-gray-600 mb-3">{block.reason}</p>}
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    onClick={() => handleUnblockDateRange(block.id)}
-                    className="w-full px-3 py-2 bg-red-500 text-white rounded text-sm font-semibold hover:bg-red-600 transition-colors"
-                  >
-                    Unblock Range
-                  </motion.button>
-                </motion.div>
-              ))}
+        {activePanel === 'manage' && (
+          <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-end sm:justify-between">
+              <div><h2 className="text-xl font-semibold text-slate-950">{displayDate(selectedDate)}</h2><p className="mt-1 text-sm text-slate-500">{openSlotCount} open · {bookedSlotCount} booked · {blockedSlotCount} blocked</p></div>
+              <label className="text-sm font-medium text-slate-700">Choose date<input type="date" value={selectedDate} onChange={event => setSelectedDate(event.target.value)} className="mt-1 block rounded-lg border border-slate-300 px-3 py-2" /></label>
             </div>
-          </motion.div>
-        )}
-
-        {/* Remove Blocked Slots Section */}
-        {allBlockedSlots.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mb-8 rounded-xl border border-orange-300 bg-orange-50 p-5 shadow-lg sm:p-6"
-          >
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Blocked Individual Slots</h2>
-            <p className="text-gray-600 mb-6">These are individual slots you blocked. Click Unblock to make them available.</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {allBlockedSlots.map((slot) => (
-                <motion.div
-                  key={slot.id}
-                  whileHover={{ scale: 1.02 }}
-                  className="p-4 bg-white rounded-lg border-2 border-orange-300"
-                >
-                  <div className="mb-3">
-                    <p className="font-semibold text-gray-900">
-                      {slot.start_time} - {slot.end_time}
-                    </p>
-                    <p className="text-xs text-gray-600 mb-2">
-                      {format(new Date(slot.date), 'MMM dd, yyyy')}
-                    </p>
-                    <span className="inline-block px-2 py-1 bg-orange-200 text-orange-800 text-xs font-semibold rounded">
-                      Blocked
-                    </span>
-                  </div>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    onClick={() => {
-                      handleToggleBlock(slot.id, true);
-                      setAllBlockedSlots(allBlockedSlots.filter(s => s.id !== slot.id));
-                    }}
-                    className="w-full px-3 py-2 bg-yellow-500 text-white rounded text-sm font-semibold hover:bg-yellow-600 transition-colors"
-                  >
-                    Unblock
-                  </motion.button>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Create Single Slot Form */}
-        {showCreateForm && (
-          <motion.form
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            onSubmit={handleCreateSlot}
-            className="mb-8 rounded-xl bg-white p-5 shadow-lg sm:p-6"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Date</label>
-                <input
-                  aria-label="Slot Date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
-                <input
-                  aria-label="Slot Start Time"
-                  type="time"
-                  value={formData.startTime}
-                  onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
-                <input
-                  aria-label="Slot End Time"
-                  type="time"
-                  value={formData.endTime}
-                  onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-            </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              type="submit"
-              disabled={loading}
-              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-            >
-              Create Slot
-            </motion.button>
-          </motion.form>
-        )}
-
-        {/* Slots List */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl bg-white shadow-lg">
-          <div className="p-6">
-            <h2 className="mb-6 text-xl font-bold text-gray-900 sm:text-2xl">
-              Slots for {format(new Date(selectedDate), 'MMMM dd, yyyy')}
-            </h2>
 
             {loading ? (
-              <div className="text-center py-12">Loading slots...</div>
+              <div className="py-12 text-center text-sm text-slate-500">Loading slots…</div>
             ) : slots.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">No slots created for this date</div>
+              <div className="py-12 text-center"><p className="font-medium text-slate-800">No slots on this day</p><button type="button" onClick={() => { setFormData(current => ({ ...current, date: selectedDate })); setDefaultFormData(current => ({ ...current, startDate: selectedDate, endDate: selectedDate })); setActivePanel('open'); }} className="mt-3 text-sm font-semibold text-[#5b267a]">Open slots for this date</button></div>
             ) : (
-              <>
-                {/* Blocked Slots Section */}
-                {slots.some(s => s.is_blocked) && (
-                  <div className="mb-10">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                      <span className="bg-red-500 text-white px-3 py-1 rounded-full text-sm">Blocked</span>
-                      {slots.filter(s => s.is_blocked).length} Slot(s)
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {slots
-                        .filter(s => s.is_blocked)
-                        .map((slot) => (
-                          <motion.div
-                            key={slot.id}
-                            whileHover={{ scale: 1.02 }}
-                            className="p-4 rounded-lg border-2 border-red-300 bg-red-50"
-                          >
-                            <div className="flex justify-between items-start mb-3">
-                              <div>
-                                <p className="font-semibold text-gray-900">
-                                  {slot.start_time} - {slot.end_time}
-                                </p>
-                                <p className="text-sm text-gray-600">40 minutes</p>
-                              </div>
-                              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-200 text-red-800">
-                                Blocked
-                              </span>
-                            </div>
-
-                            <div className="flex gap-2 mt-4">
-                              <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                onClick={() => handleToggleBlock(slot.id, slot.is_blocked)}
-                                className="flex-1 px-3 py-2 bg-yellow-500 text-white rounded text-sm font-semibold hover:bg-yellow-600 transition-colors"
-                              >
-                                Unblock
-                              </motion.button>
-                              <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                onClick={() => handleDeleteSlot(slot.id)}
-                                className="flex-1 px-3 py-2 rounded text-sm font-semibold transition-colors bg-gray-500 text-white hover:bg-gray-600"
-                              >
-                                Delete
-                              </motion.button>
-                            </div>
-                          </motion.div>
-                        ))}
+              <div className="divide-y divide-slate-100">
+                {slots.map(slot => {
+                  const status = slot.booking ? 'Booked' : slot.is_blocked ? 'Blocked' : slot.is_available ? 'Open' : 'Unavailable';
+                  return (
+                    <div key={slot.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#f3eef6] text-[#5b267a]"><Clock3 size={18} /></span>
+                        <div><p className="font-semibold text-slate-900">{displayTime(slot.start_time)} – {displayTime(slot.end_time)}</p><p className="mt-0.5 text-xs text-slate-500">{slot.booking ? `${slot.booking.user.name}${slot.booking.user.email ? ` · ${slot.booking.user.email}` : ''}` : '40-minute session'}</p></div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${slot.booking ? 'bg-blue-50 text-blue-700' : slot.is_blocked ? 'bg-red-50 text-red-700' : slot.is_available ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{status}</span>
+                        {!slot.booking && <button type="button" onClick={() => handleToggleBlock(slot.id, slot.is_blocked)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{slot.is_blocked ? 'Unblock' : 'Block'}</button>}
+                        {!slot.booking && <button type="button" onClick={() => handleDeleteSlot(slot.id)} aria-label={`Delete ${displayTime(slot.start_time)} slot`} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={16} /></button>}
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Available & Booked Slots Section */}
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">Active</span>
-                    {slots.filter(s => !s.is_blocked).length} Slot(s)
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {slots
-                      .filter(s => !s.is_blocked)
-                      .map((slot) => (
-                        <motion.div
-                          key={slot.id}
-                          whileHover={{ scale: 1.02 }}
-                          className={`p-4 rounded-lg border-2 ${
-                            slot.booking
-                              ? 'border-blue-300 bg-blue-50'
-                              : slot.is_available
-                                ? 'border-green-300 bg-green-50'
-                                : 'border-gray-300 bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <p className="font-semibold text-gray-900">
-                                {slot.start_time} - {slot.end_time}
-                              </p>
-                              <p className="text-sm text-gray-600">40 minutes</p>
-                            </div>
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                slot.booking
-                                  ? 'bg-blue-200 text-blue-800'
-                                  : slot.is_available
-                                    ? 'bg-green-200 text-green-800'
-                                    : 'bg-gray-200 text-gray-800'
-                              }`}
-                            >
-                              {slot.booking ? 'Booked' : slot.is_available ? 'Available' : 'Booked'}
-                            </span>
-                          </div>
-
-                          {/* Show booking info if slot is booked */}
-                          {slot.booking && (
-                            <div className="mb-3 p-3 bg-white rounded border border-blue-200">
-                              <p className="text-sm font-semibold text-gray-900">{slot.booking.user.name}</p>
-                              <p className="text-xs text-gray-600">{slot.booking.user.email}</p>
-                            </div>
-                          )}
-
-                          <div className="flex gap-2 mt-4">
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              onClick={() => handleToggleBlock(slot.id, slot.is_blocked)}
-                              disabled={Boolean(slot.booking)}
-                              className={`flex-1 px-3 py-2 rounded text-sm font-semibold transition-colors ${
-                                slot.booking
-                                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                  : slot.is_blocked
-                                    ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-                                    : 'bg-red-500 text-white hover:bg-red-600'
-                              }`}
-                            >
-                              {slot.is_blocked ? 'Unblock' : 'Block'}
-                            </motion.button>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              onClick={() => handleDeleteSlot(slot.id)}
-                              disabled={Boolean(slot.booking)}
-                              className={`flex-1 px-3 py-2 rounded text-sm font-semibold transition-colors ${
-                                slot.booking
-                                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                  : 'bg-gray-500 text-white hover:bg-gray-600'
-                              }`}
-                            >
-                              Delete
-                            </motion.button>
-                          </div>
-                        </motion.div>
-                      ))}
-                  </div>
-                </div>
-              </>
+                  );
+                })}
+              </div>
             )}
-          </div>
-        </motion.div>
+
+            <div className="mt-5 border-t border-slate-100 pt-5">
+              <button type="button" onClick={handleDeleteAllSlots} disabled={loading} className="text-xs font-medium text-slate-400 hover:text-red-600 disabled:opacity-40">Delete all unbooked slots…</button>
+            </div>
+          </motion.section>
+        )}
       </div>
     </div>
   );
