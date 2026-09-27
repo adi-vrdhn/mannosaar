@@ -1,5 +1,12 @@
 import LegalPage from '@/components/legal/LegalPage';
 import { POLICY_VERSIONS } from '@/lib/compliance';
+import { createPageMetadata } from '@/lib/seo';
+
+export const metadata = createPageMetadata({
+  title: 'Emergency and Crisis Support Information',
+  description: 'Mannosaar is not an emergency service. Find guidance for contacting appropriate local emergency or crisis support when danger is immediate.',
+  path: '/emergency',
+});
 
 const sections = [
   { title: 'Not an emergency service', notice: 'Mannosaar does not provide emergency response, crisis dispatch, emergency psychiatric care or continuous monitoring.' },

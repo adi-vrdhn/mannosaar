@@ -1,16 +1,11 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
+import { createPageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: 'Couples Counselling and Relationship Guidance Online',
   description: 'Online couples counselling with Neetu Rathore for communication difficulties, recurring conflict, emotional distance and relationship transitions.',
-  alternates: { canonical: '/counselling/couples' },
-  openGraph: {
-    title: 'Couples Counselling Online | Mannosaar',
-    description: 'A structured conversation for couples who want support with communication, conflict and connection.',
-    url: '/counselling/couples',
-  },
-};
+  path: '/counselling/couples',
+});
 
 const reasons = ['The same argument keeps returning', 'Conversations become difficult or quickly escalate', 'You feel emotionally distant from one another', 'Trust or a relationship transition needs careful discussion', 'You are making a significant decision together'];
 

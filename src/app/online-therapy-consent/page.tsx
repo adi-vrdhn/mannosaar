@@ -1,5 +1,12 @@
 import LegalPage from '@/components/legal/LegalPage';
 import { POLICY_VERSIONS } from '@/lib/compliance';
+import { createPageMetadata } from '@/lib/seo';
+
+export const metadata = createPageMetadata({
+  title: 'Online Therapy Consent',
+  description: 'Understand the nature, benefits, limitations, privacy considerations and emergency limits of Mannosaar online counselling.',
+  path: '/online-therapy-consent',
+});
 
 const sections = [
   { title: 'Voluntary participation', paragraphs: ['Online counselling or therapy is voluntary. Before paying, you are asked to expressly confirm that you wish to receive the selected service through video consultation. You may ask questions before the session and may withdraw from a session, subject to the published cancellation and refund policy.'] },

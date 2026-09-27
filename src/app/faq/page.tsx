@@ -1,11 +1,11 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
+import { createPageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: 'Frequently Asked Questions About Online Counselling',
   description: 'Answers about Mannosaar online counselling, session format, privacy, languages, pricing, booking and emergency support.',
-  alternates: { canonical: '/faq' },
-};
+  path: '/faq',
+});
 
 const faqs = [
   ['What is Mannosaar?', 'Mannosaar is a practitioner-led website for private online counselling and emotional-wellness conversations with Neetu Rathore.'],

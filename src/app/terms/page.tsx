@@ -1,6 +1,13 @@
 import LegalPage from '@/components/legal/LegalPage';
 import { POLICY_VERSIONS } from '@/lib/compliance';
 import { privacyContacts } from '@/lib/compliance-config';
+import { createPageMetadata } from '@/lib/seo';
+
+export const metadata = createPageMetadata({
+  title: 'Terms of Service',
+  description: 'Read the terms governing eligibility, bookings, payments and responsible use of Mannosaar online counselling services.',
+  path: '/terms',
+});
 
 const sections = [
   { title: '1. Eligibility and availability', paragraphs: ['You must be 18 years of age or older to book through Mannosaar. The online platform accepts bookings worldwide, subject to payment availability, professional availability, and any laws that apply where you are located. You must provide accurate booking and contact information.'] },

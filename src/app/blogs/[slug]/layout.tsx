@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { createClient } from '@supabase/supabase-js';
-
-const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://mannosaar.com').replace(/\/$/, '');
+import { SITE_URL } from '@/lib/seo';
 
 type BlogMetadata = {
   title: string;
@@ -45,7 +44,7 @@ export async function generateMetadata({
     title: blog.title,
     description,
     alternates: { canonical },
-    authors: [{ name: 'Neetu Rathore', url: `${siteUrl}/about` }],
+    authors: [{ name: 'Neetu Rathore', url: `${SITE_URL}/about` }],
     openGraph: {
       type: 'article',
       title: blog.title,
@@ -53,7 +52,7 @@ export async function generateMetadata({
       url: canonical,
       publishedTime: blog.created_at || undefined,
       modifiedTime: blog.updated_at || blog.created_at || undefined,
-      authors: [`${siteUrl}/about`],
+      authors: [`${SITE_URL}/about`],
       images: [{ url: image, alt: blog.title }],
     },
     twitter: {

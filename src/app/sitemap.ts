@@ -1,33 +1,41 @@
 import type { MetadataRoute } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { absoluteUrl, SITE_URL } from '@/lib/seo';
 
-const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://mannosaar.com').replace(/\/$/, '');
-const siteUpdated = new Date('2026-09-26');
+export const revalidate = 3600;
+
+const contentUpdated = new Date('2026-09-26T00:00:00.000Z');
+const legalUpdated = new Date('2026-09-25T00:00:00.000Z');
 
 const publicPages: MetadataRoute.Sitemap = [
-  { url: siteUrl, lastModified: siteUpdated, changeFrequency: 'weekly', priority: 1 },
-  { url: `${siteUrl}/services`, lastModified: siteUpdated, changeFrequency: 'weekly', priority: 0.9 },
-  { url: `${siteUrl}/about`, lastModified: siteUpdated, changeFrequency: 'monthly', priority: 0.9 },
-  { url: `${siteUrl}/counselling/individual`, lastModified: siteUpdated, changeFrequency: 'monthly', priority: 0.8 },
-  { url: `${siteUrl}/counselling/couples`, lastModified: siteUpdated, changeFrequency: 'monthly', priority: 0.8 },
-  { url: `${siteUrl}/support/overthinking`, lastModified: siteUpdated, changeFrequency: 'monthly', priority: 0.7 },
-  { url: `${siteUrl}/support/stress`, lastModified: siteUpdated, changeFrequency: 'monthly', priority: 0.7 },
-  { url: `${siteUrl}/how-it-works`, lastModified: siteUpdated, changeFrequency: 'monthly', priority: 0.7 },
-  { url: `${siteUrl}/faq`, lastModified: siteUpdated, changeFrequency: 'monthly', priority: 0.6 },
-  { url: `${siteUrl}/blogs`, lastModified: siteUpdated, changeFrequency: 'weekly', priority: 0.8 },
-  { url: `${siteUrl}/social`, lastModified: siteUpdated, changeFrequency: 'weekly', priority: 0.7 },
-  { url: `${siteUrl}/privacy`, lastModified: siteUpdated, changeFrequency: 'yearly', priority: 0.3 },
-  { url: `${siteUrl}/terms`, lastModified: siteUpdated, changeFrequency: 'yearly', priority: 0.3 },
-  { url: `${siteUrl}/refund-policy`, lastModified: siteUpdated, changeFrequency: 'yearly', priority: 0.3 },
-  { url: `${siteUrl}/online-therapy-consent`, lastModified: siteUpdated, changeFrequency: 'yearly', priority: 0.3 },
-  { url: `${siteUrl}/emergency`, lastModified: siteUpdated, changeFrequency: 'yearly', priority: 0.3 },
-  { url: `${siteUrl}/data-rights`, lastModified: siteUpdated, changeFrequency: 'yearly', priority: 0.3 },
-  { url: `${siteUrl}/compliance`, lastModified: siteUpdated, changeFrequency: 'yearly', priority: 0.3 },
+  { url: SITE_URL, lastModified: contentUpdated },
+  { url: absoluteUrl('/services'), lastModified: contentUpdated },
+  { url: absoluteUrl('/about'), lastModified: contentUpdated },
+  { url: absoluteUrl('/counselling/individual'), lastModified: contentUpdated },
+  { url: absoluteUrl('/counselling/couples'), lastModified: contentUpdated },
+  { url: absoluteUrl('/support/overthinking'), lastModified: contentUpdated },
+  { url: absoluteUrl('/support/stress'), lastModified: contentUpdated },
+  { url: absoluteUrl('/how-it-works'), lastModified: contentUpdated },
+  { url: absoluteUrl('/faq'), lastModified: contentUpdated },
+  // Listing pages change whenever CMS content is published. Omit lastmod
+  // unless the database can provide a verifiably accurate value.
+  { url: absoluteUrl('/blogs') },
+  { url: absoluteUrl('/images') },
+  { url: absoluteUrl('/videos') },
+  { url: absoluteUrl('/social'), lastModified: contentUpdated, images: [absoluteUrl('/images/social/community-hero.png')] },
+  { url: absoluteUrl('/privacy'), lastModified: legalUpdated },
+  { url: absoluteUrl('/terms'), lastModified: legalUpdated },
+  { url: absoluteUrl('/refund-policy'), lastModified: legalUpdated },
+  { url: absoluteUrl('/online-therapy-consent'), lastModified: legalUpdated },
+  { url: absoluteUrl('/emergency'), lastModified: legalUpdated },
+  { url: absoluteUrl('/data-rights'), lastModified: legalUpdated },
+  { url: absoluteUrl('/compliance'), lastModified: legalUpdated },
 ];
 
 interface PublishedBlog {
   slug: string;
   title: string | null;
+  featured_image: string | null;
   updated_at: string | null;
   created_at: string | null;
 }
@@ -44,7 +52,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { data: blogs, error } = await supabase
       .from('blogs')
-      .select('slug, title, updated_at, created_at')
+      .select('slug, title, featured_image, updated_at, created_at')
       .eq('is_published', true);
 
     if (error || !blogs) {
@@ -54,10 +62,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const blogPages = (blogs as PublishedBlog[])
       .filter((blog) => blog.slug && !/\btest\b/i.test(`${blog.slug} ${blog.title || ''}`))
       .map((blog) => ({
-        url: `${siteUrl}/blogs/${encodeURIComponent(blog.slug)}`,
-        lastModified: new Date(blog.updated_at || blog.created_at || siteUpdated),
-        changeFrequency: 'monthly' as const,
-        priority: 0.7,
+        url: absoluteUrl(`/blogs/${encodeURIComponent(blog.slug)}`),
+        lastModified: new Date(blog.updated_at || blog.created_at || contentUpdated),
+        images: blog.featured_image ? [absoluteUrl(blog.featured_image)] : undefined,
       }));
 
     return [...publicPages, ...blogPages];

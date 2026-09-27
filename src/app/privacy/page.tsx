@@ -1,6 +1,13 @@
 import LegalPage from '@/components/legal/LegalPage';
 import { POLICY_VERSIONS } from '@/lib/compliance';
 import { privacyContacts } from '@/lib/compliance-config';
+import { createPageMetadata } from '@/lib/seo';
+
+export const metadata = createPageMetadata({
+  title: 'Privacy Policy',
+  description: 'Learn how Mannosaar collects, uses, protects and retains personal information for accounts, bookings, payments and online counselling.',
+  path: '/privacy',
+});
 
 const sections = [
   { title: '1. Scope and our role', paragraphs: ['This policy explains how Mannosaar LLP handles digital personal data when you use our website, account, booking, payment and online counselling services from anywhere in the world. Mannosaar determines the purposes described below and uses selected service providers to operate the platform.'] },

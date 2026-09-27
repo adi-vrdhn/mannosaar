@@ -1,6 +1,13 @@
 import LegalPage from '@/components/legal/LegalPage';
 import { POLICY_VERSIONS } from '@/lib/compliance';
 import { privacyContacts } from '@/lib/compliance-config';
+import { createPageMetadata } from '@/lib/seo';
+
+export const metadata = createPageMetadata({
+  title: 'Privacy and Compliance Contacts',
+  description: 'Find Mannosaar contact details for privacy requests, grievances, support and information about platform safeguards.',
+  path: '/compliance',
+});
 
 const sections = [
   { title: 'Privacy contact', paragraphs: [privacyContacts.privacy] },

@@ -1,18 +1,14 @@
-import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Check, ChevronDown, Languages } from 'lucide-react';
+import { createPageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'About Neetu Rathore, Counsellor | Mannosaar',
+export const metadata = createPageMetadata({
+  title: 'About Neetu Rathore, Counsellor',
   description: 'Meet Neetu Rathore, the practitioner behind Mannosaar, and learn about her experience, approach, education and online counselling sessions.',
-  alternates: { canonical: '/about' },
-  openGraph: {
-    title: 'About Neetu Rathore | Mannosaar',
-    description: 'Learn about the practitioner behind Mannosaar and her approach to online counselling.',
-    url: '/about',
-  },
-};
+  path: '/about',
+  image: '/images/neetu-profile.jpg',
+});
 
 const experiences = [
   { role: 'Online Psychotherapist', organization: 'TalktoAngel', period: '2020 - Present', details: ['Delivered 500+ online psychotherapy sessions across relationships, anxiety, OCD, workplace stress, and career challenges.', 'Supported employees through EAP programmes and helped professionals build healthier work-life balance.', 'Guided students toward stronger academic outcomes and career focus.'] },

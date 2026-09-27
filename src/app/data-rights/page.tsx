@@ -1,6 +1,13 @@
 import LegalPage from '@/components/legal/LegalPage';
 import { POLICY_VERSIONS } from '@/lib/compliance';
 import { privacyContacts } from '@/lib/compliance-config';
+import { createPageMetadata } from '@/lib/seo';
+
+export const metadata = createPageMetadata({
+  title: 'Data Rights and Privacy Requests',
+  description: 'Learn how to request access, correction, export, consent withdrawal or deletion of personal information held by Mannosaar.',
+  path: '/data-rights',
+});
 
 const sections = [
   { title: 'Requests you can submit', bullets: ['Access to personal information', 'Correction of inaccurate information', 'Account deletion', 'Withdrawal of consent for future processing', 'Data export', 'Privacy complaint'], paragraphs: ['Sign in and use the Privacy Requests section in your profile so Mannosaar can authenticate and track the request.'] },

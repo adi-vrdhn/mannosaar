@@ -1,6 +1,5 @@
 import type { MetadataRoute } from 'next';
-
-const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://mannosaar.com').replace(/\/$/, '');
+import { absoluteUrl } from '@/lib/seo';
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -8,16 +7,15 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: '*',
       allow: '/',
       disallow: [
-        '/admin/',
-        '/api/',
-        '/appointment/',
-        '/auth/',
-        '/profile/',
-        '/dashboard/',
-        '/book-session/',
+        '/admin',
+        '/api',
+        '/appointment',
+        '/auth',
+        '/profile',
+        '/dashboard',
+        '/book-session',
       ],
     },
-    sitemap: `${siteUrl}/sitemap.xml`,
-    host: siteUrl,
+    sitemap: absoluteUrl('/sitemap.xml'),
   };
 }

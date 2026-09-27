@@ -6,6 +6,7 @@ import Navbar from "@/components/shared/Navbar";
 import Footer from "@/components/shared/Footer";
 import { Providers } from "@/components/Providers";
 import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
+import { DEFAULT_SOCIAL_IMAGE, SITE_URL } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: {
@@ -14,29 +15,28 @@ export const metadata: Metadata = {
   },
   description:
     "Private online counselling and emotional support with Neetu Rathore for personal, relationship and everyday emotional concerns.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://mannosaar.com"),
-  alternates: {
-    canonical: "/",
-  },
+  metadataBase: new URL(SITE_URL),
   robots: {
     index: true,
     follow: true,
   },
+  verification: process.env.GOOGLE_SITE_VERIFICATION
+    ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+    : undefined,
   openGraph: {
     type: "website",
     siteName: "Mannosaar",
     title: "Online Counselling in India | Mannosaar",
     description:
       "Private online counselling and emotional support with Neetu Rathore for personal, relationship and everyday emotional concerns.",
-    url: "/",
-    images: [{ url: "/images/social/community-hero.png", width: 1200, height: 630, alt: "Mannosaar online counselling" }],
+    images: [{ url: DEFAULT_SOCIAL_IMAGE, width: 1200, height: 630, alt: "Mannosaar online counselling" }],
   },
   twitter: {
     card: "summary",
     title: "Online Counselling in India | Mannosaar",
     description:
       "Private online counselling and emotional support with Neetu Rathore for personal, relationship and everyday emotional concerns.",
-    images: ["/images/social/community-hero.png"],
+    images: [DEFAULT_SOCIAL_IMAGE],
   },
   icons: {
     icon: "/favicon.ico",
@@ -65,17 +65,26 @@ export default function RootLayout({
                 "@context": "https://schema.org",
                 "@type": "WebSite",
                 name: "Mannosaar",
-                url: "https://mannosaar.com",
+                url: SITE_URL,
                 description:
                   "Private online counselling and emotional support with Neetu Rathore.",
               },
               {
                 "@context": "https://schema.org",
+                "@type": "Organization",
+                name: "Mannosaar LLP",
+                url: SITE_URL,
+                logo: `${SITE_URL}/images/mannosaar-logo.png`,
+                email: "care@mannosaar.com",
+                telephone: "+91-70806-33396",
+              },
+              {
+                "@context": "https://schema.org",
                 "@type": "Person",
                 name: "Neetu Rathore",
-                url: "https://mannosaar.com/about",
+                url: `${SITE_URL}/about`,
                 image:
-                  "https://mannosaar.com/images/ChatGPT%20Image%20Sep%201%2C%202026%2C%2011_36_39%20AM.png",
+                  `${SITE_URL}/images/ChatGPT%20Image%20Sep%201%2C%202026%2C%2011_36_39%20AM.png`,
                 description:
                   "Psychologist, family therapist and career counsellor providing online counselling through Mannosaar.",
                 knowsLanguage: ["Hindi", "English"],

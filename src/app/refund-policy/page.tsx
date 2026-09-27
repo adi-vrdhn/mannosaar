@@ -1,3 +1,11 @@
+import { createPageMetadata } from '@/lib/seo';
+
+export const metadata = createPageMetadata({
+  title: 'Cancellation, Rescheduling and Refund Policy',
+  description: 'Review Mannosaar session cancellation, rescheduling, no-show, technical issue and refund conditions before booking.',
+  path: '/refund-policy',
+});
+
 const sections = [
   {
     title: '1. Introduction',

@@ -1,11 +1,11 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
+import { createPageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: 'How Online Counselling Works',
   description: 'See how to choose, book and attend a private online counselling session with Mannosaar from anywhere in India.',
-  alternates: { canonical: '/how-it-works' },
-};
+  path: '/how-it-works',
+});
 
 const steps = [
   ['Choose a session', 'Read about personal or couples counselling and decide which conversation fits what you want support with.'],

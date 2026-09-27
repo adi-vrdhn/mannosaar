@@ -1,4 +1,3 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -13,29 +12,15 @@ import {
 } from 'lucide-react';
 import { getBundlePricing } from '@/lib/pricing';
 import { BOOKABLE_SERVICES, formatInr } from '@/lib/services';
+import { createPageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Mannosaar Services & Pricing | Online Counselling',
-  description:
-    'Explore Mannosaar’s online counselling and wellness services, session durations and pricing, and book an appointment online.',
-  alternates: {
-    canonical: '/services',
-  },
-  openGraph: {
-    title: 'Mannosaar Services & Pricing | Online Counselling',
-    description:
-      'Explore Mannosaar’s online counselling and wellness services, session durations and pricing, and book an appointment online.',
-    url: '/services',
-  },
-  twitter: {
-    card: 'summary',
-    title: 'Mannosaar Services & Pricing | Online Counselling',
-    description:
-      'Explore Mannosaar’s online counselling and wellness services, session durations and pricing, and book an appointment online.',
-  },
-};
+export const metadata = createPageMetadata({
+  title: 'Services and Pricing for Online Counselling',
+  description: 'Explore Mannosaar online counselling services, session durations and current pricing for individual and couples appointments.',
+  path: '/services',
+});
 
 const serviceIcons = {
   personal: UserRound,

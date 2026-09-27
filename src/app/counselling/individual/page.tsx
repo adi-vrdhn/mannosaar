@@ -1,16 +1,11 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
+import { createPageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: 'Individual Counselling Online in India',
   description: 'Private one-to-one online counselling with Neetu Rathore for stress, relationships, overthinking, confidence and personal concerns.',
-  alternates: { canonical: '/counselling/individual' },
-  openGraph: {
-    title: 'Individual Counselling Online in India | Mannosaar',
-    description: 'A private, structured space to talk through personal and emotional concerns online.',
-    url: '/counselling/individual',
-  },
-};
+  path: '/counselling/individual',
+});
 
 const concerns = ['Stress and emotional overwhelm', 'Overthinking and difficult thoughts', 'Relationships and life transitions', 'Confidence, self-esteem and boundaries', 'Work, study and career-related concerns', 'Breakups, grief and loneliness'];
 
