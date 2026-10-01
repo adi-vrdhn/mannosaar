@@ -177,6 +177,61 @@ export async function sendWelcomeEmail(email: string, name: string, profileUrl: 
   );
 }
 
+export async function sendDailyHealthReportEmail(
+  recipient: string | string[],
+  report: import('@/lib/daily-health-report').DailyHealthReport
+) {
+  const statusColor = report.level === 'GOOD' ? '#166534' : report.level === 'NORMAL' ? '#a16207' : '#b91c1c';
+  const statusBackground = report.level === 'GOOD' ? '#dcfce7' : report.level === 'NORMAL' ? '#fef3c7' : '#fee2e2';
+  const metric = (label: string, value: string | number) => `<div style="padding:14px;background:#faf7fc;border:1px solid #eadff0;border-radius:12px"><div style="font-size:12px;color:#716579;text-transform:uppercase;letter-spacing:.05em;font-weight:700">${escapeHtml(label)}</div><div style="margin-top:6px;font-size:24px;color:#34213f;font-weight:700">${escapeHtml(value)}</div></div>`;
+  const list = (items: string[], empty: string) => items.length
+    ? `<ul style="margin:8px 0 0;padding-left:20px;color:#4c4052;line-height:1.65">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+    : `<p style="margin:8px 0 0;color:#6b7280">${escapeHtml(empty)}</p>`;
+  const bookingRows = report.bookings.length
+    ? report.bookings.map((booking) => `<tr><td style="padding:10px;border-bottom:1px solid #eee6f0">${escapeHtml(booking.client)}</td><td style="padding:10px;border-bottom:1px solid #eee6f0">${escapeHtml(booking.sessionType)}</td><td style="padding:10px;border-bottom:1px solid #eee6f0">${escapeHtml(booking.scheduledFor)}</td><td style="padding:10px;border-bottom:1px solid #eee6f0">${escapeHtml(booking.status)}</td></tr>`).join('')
+    : '<tr><td colspan="4" style="padding:14px;color:#6b7280">No bookings were created in the last 24 hours.</td></tr>';
+  const analyticsText = report.analytics.activeUsers === null
+    ? 'Not available — verify the GA4 property ID and Google access.'
+    : `${report.analytics.activeUsers} active users · ${report.analytics.newUsers} new users · ${report.analytics.sessions} sessions · ${report.analytics.views} page views`;
+  const searchText = report.search.clicks === null
+    ? 'Not available — verify the Search Console property and Google access.'
+    : `${report.search.clicks} clicks · ${report.search.impressions} impressions · ${(Number(report.search.ctr || 0) * 100).toFixed(1)}% CTR · average position ${Number(report.search.position || 0).toFixed(1)}${report.search.indexedUrls === null ? '' : ` · ${report.search.indexedUrls}/${report.search.submittedUrls} sitemap URLs indexed`}`;
+
+  const html = `<div style="font-family:Arial,sans-serif;max-width:760px;margin:0 auto;padding:24px;background:#f4eef8">
+    <div style="background:#fff;padding:28px;border:1px solid #e3d7e8;border-radius:18px">
+      <p style="margin:0 0 8px;color:#5b267a;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Mannosaar · Daily report</p>
+      <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+        <h1 style="margin:0;color:#25152e;font-size:28px">Website health</h1>
+        <span style="padding:7px 12px;border-radius:999px;background:${statusBackground};color:${statusColor};font-size:12px;font-weight:800;letter-spacing:.06em">${report.level}</span>
+      </div>
+      <p style="color:#65586c;line-height:1.6">Generated ${escapeHtml(formatReportDate(report.generatedAt))}. Activity covers the previous 24 hours.</p>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:22px 0">
+        ${metric('New users', report.counts.newUsers)}${metric('Bookings made', report.counts.bookingsCreated)}${metric('Sessions today', report.counts.sessionsToday)}
+        ${metric('Failed payments', report.counts.failedPayments)}${metric('Dead jobs', report.counts.deadJobs)}${metric('Calendar gaps', report.counts.upcomingCalendarGaps)}
+      </div>
+      <h2 style="margin:26px 0 8px;color:#34213f;font-size:19px">System checks</h2>
+      <p style="margin:6px 0;color:#4c4052"><strong>Website:</strong> ${report.site.ok ? `Online · HTTP ${report.site.status} · ${report.site.latencyMs} ms` : 'Unreachable or unhealthy'}</p>
+      <p style="margin:6px 0;color:#4c4052"><strong>Google:</strong> ${escapeHtml(report.google.message)}${report.google.email ? ` (${escapeHtml(report.google.email)})` : ''}</p>
+      <h3 style="margin:20px 0 6px;color:#34213f;font-size:16px">Needs attention</h3>${list([...report.errors, ...report.warnings], 'No problems detected.')}
+      <h2 style="margin:26px 0 8px;color:#34213f;font-size:19px">Google performance</h2>
+      <p style="margin:7px 0;color:#4c4052"><strong>Analytics:</strong> ${escapeHtml(analyticsText)}</p>
+      <p style="margin:7px 0;color:#4c4052"><strong>Search:</strong> ${escapeHtml(searchText)}</p>
+      <h2 style="margin:26px 0 8px;color:#34213f;font-size:19px">New users</h2>${list(report.newUserNames, 'No new users in the last 24 hours.')}
+      <h2 style="margin:26px 0 10px;color:#34213f;font-size:19px">Bookings created</h2>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;color:#4c4052"><thead><tr><th style="padding:10px;text-align:left;background:#f5eff8">Client</th><th style="padding:10px;text-align:left;background:#f5eff8">Type</th><th style="padding:10px;text-align:left;background:#f5eff8">Scheduled for</th><th style="padding:10px;text-align:left;background:#f5eff8">Status</th></tr></thead><tbody>${bookingRows}</tbody></table></div>
+      <p style="margin:24px 0 0;padding-top:16px;border-top:1px solid #eee6f0;color:#776b7d;font-size:12px">This automated report contains operational summaries only. Detailed client notes are never included.</p>
+    </div>
+  </div>`;
+
+  return sendTransactional(recipient, `[${report.level}] Mannosaar daily health · ${report.todayIst}`, html);
+}
+
+function formatReportDate(value: string) {
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata', dateStyle: 'full', timeStyle: 'short',
+  }).format(new Date(value));
+}
+
 
 interface BookingEmailData {
   clientEmail: string;

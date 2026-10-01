@@ -24,7 +24,7 @@ export default async function AppointmentSlotsPage({
   }
 
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading slots...</div>}>
+    <Suspense fallback={<div className="appointment-pinterest flex min-h-[70vh] items-center justify-center text-sm font-medium text-[#4c4052]">Preparing available times…</div>}>
       <SlotSelection sessionType={sessionType} bundleSize={bundleSize} />
     </Suspense>
   );

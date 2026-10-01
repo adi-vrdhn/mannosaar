@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchWithNetworkRetry } from '@/lib/supabase/retry-fetch';
 import {
   eachDayOfInterval,
   endOfMonth,
@@ -74,7 +75,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: { fetch: fetchWithNetworkRetry },
+      }
     );
 
     const [{ data: slots, error: slotsError }, { data: bookings, error: bookingsError }, { data: blockedRanges, error: blockedError }] =

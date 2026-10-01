@@ -83,6 +83,10 @@ export async function GET(request: NextRequest) {
     // Calculate token expiry time
     const expiryTime = new Date();
     expiryTime.setSeconds(expiryTime.getSeconds() + tokens.expires_in);
+    const connectedAt = new Date();
+    const refreshTokenExpiresAt = process.env.GOOGLE_OAUTH_TEST_MODE === 'true'
+      ? new Date(connectedAt.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      : null;
 
     // Store credentials in Supabase
     const supabase = createClient(
@@ -99,6 +103,8 @@ export async function GET(request: NextRequest) {
           refresh_token: protectToken(tokens.refresh_token),
           token_expiry: expiryTime.toISOString(),
           email: userInfo.email,
+          connected_at: connectedAt.toISOString(),
+          refresh_token_expires_at: refreshTokenExpiresAt,
         },
         {
           onConflict: 'user_id',

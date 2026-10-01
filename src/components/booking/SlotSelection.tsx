@@ -6,6 +6,16 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { format, addDays, addMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { getServiceById } from '@/lib/services';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Sparkles,
+} from 'lucide-react';
 
 interface Slot {
   id: string;
@@ -387,20 +397,39 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   }
 
   return (
-    <div className={`booking-theme min-h-screen pt-24 ${selectedSlot ? 'pb-36' : 'pb-12'}`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <main className={`appointment-pinterest relative z-10 min-h-screen overflow-x-clip px-4 py-8 sm:px-6 sm:py-12 lg:px-8 ${selectedSlot ? '!pb-48 sm:!pb-44' : ''}`}>
+      <div className="relative mx-auto max-w-6xl">
+        <div className="appointment-orb appointment-orb-left" aria-hidden="true" />
+        <div className="appointment-orb appointment-orb-right" aria-hidden="true" />
+
         {/* Progress Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6 sm:mb-8"
+          className="relative z-10 mb-9"
         >
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="mb-8 flex items-center justify-between gap-4">
+            <button type="button" onClick={handleBack} className="group inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#4c4052] transition hover:text-[#5b267a]">
+              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+              {currentSessionIndex > 0 ? 'Previous session' : 'Booking details'}
+            </button>
+            {!isReschedule && !isBundleFollowUp && (
+              <div className="flex items-center gap-2" aria-label="Booking progress: step 3 of 3">
+                <span className="h-1.5 w-4 rounded-full bg-white/65" />
+                <span className="h-1.5 w-4 rounded-full bg-white/65" />
+                <span className="h-1.5 w-9 rounded-full bg-[#5b267a]" />
+                <span className="ml-1 text-xs font-bold uppercase tracking-[0.18em] text-[#4c4052]">3 of 3</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-purple-600 mb-2">
+              <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/55 bg-white/25 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-[#5b267a]">
+                <Sparkles className="h-3.5 w-3.5" />
                 {isReschedule ? 'Reschedule' : isBundleFollowUp ? 'Bundle session' : 'Step 3'}
               </p>
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-gray-900">
+              <h1 className="font-playfair text-[clamp(2.5rem,6vw,4.85rem)] font-medium leading-[0.98] tracking-[-0.04em] text-[#34213f]">
                 {isReschedule
                   ? 'Choose a new time'
                   : isBundleFollowUp
@@ -411,16 +440,16 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                   ? 'Pick your first session'
                   : `Pick session ${currentSessionIndex + 1} of ${bundleParam}`}
               </h1>
-              <p className="mt-2 text-sm sm:text-base text-gray-600 max-w-2xl">
-                Session type: <span className="font-semibold capitalize text-purple-600">{typeParam} Therapy</span>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-[#4c4052]">
+                Session type: <span className="font-bold capitalize text-[#5b267a]">{typeParam} Therapy</span>
                 {bundleParam > 1 && ` • Bundle: ${bundleParam} Sessions${bundleSchedule === 'progressive' ? ' • One at a time' : ''}`}
               </p>
             </div>
 
             {bundleParam > 1 && !isReschedule && (
-              <div className="inline-flex w-full items-center justify-between gap-3 border border-purple-100 bg-white/80 px-4 py-3 shadow-sm lg:w-auto lg:self-start">
-                <span className="text-sm text-gray-600">Progress</span>
-                <span className="text-lg font-semibold text-purple-600">
+              <div className="inline-flex w-full items-center justify-between gap-4 rounded-2xl border border-white/60 bg-white/35 px-5 py-4 shadow-[0_12px_30px_rgba(60,31,79,0.07)] backdrop-blur lg:w-auto lg:self-start">
+                <span className="text-sm font-semibold text-[#4c4052]">Bundle progress</span>
+                <span className="text-lg font-bold text-[#5b267a]">
                   {bundleSchedule === 'progressive' ? `1 now · ${bundleParam} paid` : `${currentSessionIndex + 1} / ${bundleParam}`}
                 </span>
               </div>
@@ -433,14 +462,14 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-6 border border-purple-200 bg-purple-50 p-4"
+            className="relative z-10 mb-6 rounded-3xl border border-white/65 bg-white/40 p-5 shadow-[0_14px_36px_rgba(60,31,79,0.08)] backdrop-blur"
           >
-            <p className="font-semibold text-gray-900 mb-3">Previously Selected Sessions:</p>
+            <p className="mb-3 font-semibold text-[#34213f]">Previously selected sessions</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {selectedSessions.map((session, idx) => (
-                <div key={idx} className="border border-purple-100 bg-white p-3">
-                  <p className="text-sm text-gray-600">Session {idx + 1}</p>
-                  <p className="font-semibold text-gray-900">
+                <div key={idx} className="rounded-2xl border border-white/60 bg-white/35 p-4">
+                  <p className="text-sm text-[#65586c]">Session {idx + 1}</p>
+                  <p className="font-semibold text-[#34213f]">
                     {format(new Date(session.date), 'MMM dd, yyyy')} • {session.startTime}
                   </p>
                 </div>
@@ -449,31 +478,35 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
           </motion.div>
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
+        <div className="relative z-10 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(320px,0.88fr)_minmax(0,1.5fr)] lg:gap-8">
           {/* Calendar */}
-          <div className="lg:col-span-1">
-            <div className="border border-gray-200 bg-white p-4 sm:p-5 lg:p-6 shadow-sm">
+          <div>
+            <div className="appointment-slot-card p-4 sm:p-5 lg:p-6">
               {/* Month Navigation */}
               <div className="mb-5 flex items-center justify-between gap-3">
                 <button
+                  type="button"
                   onClick={() => setDisplayMonth(addMonths(displayMonth, -1))}
-                  className="flex h-10 w-10 items-center justify-center border border-gray-200 text-gray-700 transition-colors hover:border-purple-300 hover:bg-purple-50"
+                  aria-label="Previous month"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-[#80698f]/25 bg-white/35 text-[#4c4052] transition hover:border-[#5b267a]/50 hover:bg-white/60 hover:text-[#5b267a]"
                 >
-                  ←
+                  <ChevronLeft className="h-4 w-4" />
                 </button>
-                <h3 className="text-base sm:text-lg font-bold text-gray-900">{format(displayMonth, 'MMMM yyyy')}</h3>
+                <h2 className="font-playfair text-xl font-medium text-[#34213f]">{format(displayMonth, 'MMMM yyyy')}</h2>
                 <button
+                  type="button"
                   onClick={() => setDisplayMonth(addMonths(displayMonth, 1))}
-                  className="flex h-10 w-10 items-center justify-center border border-gray-200 text-gray-700 transition-colors hover:border-purple-300 hover:bg-purple-50"
+                  aria-label="Next month"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-[#80698f]/25 bg-white/35 text-[#4c4052] transition hover:border-[#5b267a]/50 hover:bg-white/60 hover:text-[#5b267a]"
                 >
-                  →
+                  <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
 
               {/* Weekday Headers */}
               <div className="mb-3 grid grid-cols-7 gap-1 sm:gap-2">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                  <div key={day} className="text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500 sm:text-xs">
+                  <div key={day} className="text-center text-[10px] font-bold uppercase tracking-[0.14em] text-[#6f6275] sm:text-xs">
                     {day}
                   </div>
                 ))}
@@ -494,16 +527,16 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                       key={idx}
                       onClick={() => !isPast && isCurrentMonth && !isAlreadyBooked && setSelectedDate(dateStr)}
                       disabled={isPast || !isCurrentMonth || isAlreadyBooked}
-                      className={`flex aspect-square items-center justify-center border text-xs font-semibold transition-all sm:text-sm ${
+                      className={`relative flex aspect-square items-center justify-center rounded-full border text-xs font-semibold transition-all sm:text-sm ${
                         isSelected
-                          ? 'bg-purple-600 text-white'
+                          ? 'border-[#5b267a] bg-[#5b267a] text-white shadow-[0_6px_16px_rgba(91,38,122,0.24)]'
                           : isAlreadyBooked
-                            ? 'bg-green-900 text-white cursor-not-allowed'
+                            ? 'cursor-not-allowed border-[#5b267a]/45 bg-[#80698f] text-white'
                             : isAvailable && isCurrentMonth
-                              ? 'border-green-800 bg-green-700 text-white hover:bg-green-800'
+                              ? 'border-[#5b267a]/30 bg-white/55 text-[#34213f] hover:border-[#5b267a] hover:bg-[#eadff1]'
                               : isCurrentMonth
-                                ? 'bg-gray-100 text-gray-900 hover:bg-purple-100'
-                                : 'text-gray-300 cursor-not-allowed'
+                                ? 'border-transparent bg-white/15 text-[#75677b] hover:bg-white/30'
+                                : 'cursor-not-allowed border-transparent text-[#6f6275]/35'
                       }`}
                       title={isAlreadyBooked ? 'Already selected for this bundle' : ''}
                     >
@@ -514,18 +547,18 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
               </div>
 
               {/* Legend */}
-              <div className="grid gap-2 border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600 sm:grid-cols-3">
+              <div className="grid gap-2.5 border-t border-dashed border-[#80698f]/25 pt-4 text-xs font-medium text-[#5d5064] sm:grid-cols-2">
                 <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 border border-green-800 bg-green-700"></div>
+                  <div className="h-3 w-3 rounded-full border border-[#5b267a]/40 bg-white/60"></div>
                   <span>Available</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 border border-purple-600 bg-purple-600"></div>
+                  <div className="h-3 w-3 rounded-full bg-[#5b267a]"></div>
                   <span>Selected</span>
                 </div>
                 {bundleParam > 1 && (
                   <div className="flex items-center gap-2">
-                    <div className="h-4 w-4 border border-green-950 bg-green-900"></div>
+                    <div className="h-3 w-3 rounded-full bg-[#80698f]"></div>
                     <span>Already booked</span>
                   </div>
                 )}
@@ -534,74 +567,56 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
           </div>
 
           {/* Slots */}
-          <div className="lg:col-span-2">
-            <div className="border border-gray-200 bg-white p-4 sm:p-5 lg:p-6 shadow-sm">
-              <div className="mb-4 sm:mb-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-purple-600 mb-2">
+          <div>
+            <div className="appointment-slot-card min-h-[31rem] p-5 sm:p-6 lg:p-8">
+              <div className="mb-6 flex items-start gap-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#eadff1] text-[#5b267a]"><CalendarDays className="h-5 w-5" /></span>
+                <div>
+                <p className="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-[#5b267a]">
                   Available slots
                 </p>
-                <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">
-                  {format(new Date(selectedDate), 'MMM dd, yyyy')}
-                </h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  Choose one time slot for this session.
-                </p>
+                <h2 className="font-playfair text-2xl font-medium text-[#34213f] sm:text-3xl">{format(new Date(selectedDate), 'EEEE, MMMM d')}</h2>
+                <p className="mt-1 text-sm text-[#65586c]">Choose one time that works for you.</p>
+                </div>
               </div>
 
               {loading ? (
-                <div className="text-center py-8 text-gray-500">Loading available slots...</div>
+                <div className="flex min-h-64 items-center justify-center gap-3 text-sm font-medium text-[#65586c]">
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#5b267a]/25 border-t-[#5b267a]" /> Looking for open times…
+                </div>
               ) : slots.length === 0 ? (
-                <div className="border border-dashed border-gray-200 py-10 text-center">
-                  <p className="text-gray-500 mb-4">No available slots for this date</p>
-                  <p className="text-sm text-gray-400">Please select another date</p>
+                <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-[#80698f]/30 bg-white/20 px-6 py-10 text-center">
+                  <Clock3 className="h-8 w-8 text-[#5b267a]/55" />
+                  <p className="mt-4 font-semibold text-[#34213f]">No open times on this date</p>
+                  <p className="mt-1 text-sm text-[#65586c]">Try another highlighted day on the calendar.</p>
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 mb-4 sm:mb-5">
+                  <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     {slots.map((slot) => (
                       <motion.button
                         key={slot.id}
                         whileHover={{ y: -2 }}
                         onClick={() => handleSelectSlot(slot.id)}
                         aria-pressed={selectedSlot === slot.id}
-                        className={`w-full border-2 px-4 py-4 text-left transition-all min-h-[104px] ${
+                        className={`group w-full min-h-[108px] rounded-2xl border px-4 py-4 text-left transition-all ${
                           selectedSlot === slot.id
-                            ? 'border-purple-600 bg-purple-50 text-gray-900 shadow-sm'
-                            : 'border-gray-200 bg-white text-gray-900 hover:border-purple-300 hover:shadow-sm'
+                            ? 'border-[#5b267a] bg-[#5b267a] text-white shadow-[0_10px_24px_rgba(91,38,122,0.2)]'
+                            : 'border-[#80698f]/25 bg-white/30 text-[#34213f] hover:border-[#5b267a]/55 hover:bg-white/50'
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-gray-500">Time</p>
-                            <p className="mt-1 text-lg sm:text-xl font-bold tracking-tight leading-none">
-                              {formatTime(slot.start_time)}
-                            </p>
-                          </div>
-                          <div className={`border px-2 py-1 text-[11px] font-semibold ${
-                            selectedSlot === slot.id
-                              ? 'border-purple-600 bg-purple-600 text-white'
-                              : 'border-gray-200 bg-gray-100 text-gray-600'
-                          }`}>
-                            {selectedService.durationMinutes} mins
-                          </div>
+                          <span className="flex items-center gap-2 text-lg font-bold"><Clock3 className={`h-4 w-4 ${selectedSlot === slot.id ? 'text-white/75' : 'text-[#5b267a]'}`} />{formatTime(slot.start_time)}</span>
+                          <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${selectedSlot === slot.id ? 'border-white bg-white text-[#5b267a]' : 'border-[#80698f]/35 text-transparent'}`}><Check className="h-3 w-3" strokeWidth={3} /></span>
                         </div>
-                        <div className="mt-3 text-sm text-gray-600">
-                          {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                        <div className={`mt-4 flex items-center justify-between text-xs font-medium ${selectedSlot === slot.id ? 'text-white/75' : 'text-[#65586c]'}`}>
+                          <span>Until {formatTime(slot.end_time)}</span>
+                          <span>{selectedService.durationMinutes} mins</span>
                         </div>
                       </motion.button>
                     ))}
                   </div>
 
-                  {/* Navigation Buttons */}
-                  <div>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      onClick={handleBack}
-                      className="w-full border-2 border-gray-300 bg-white px-5 py-3 font-semibold text-gray-900 transition-colors hover:border-gray-400"
-                    >
-                      {currentSessionIndex > 0 ? 'Back' : 'Go Back'}
-                    </motion.button>
-                  </div>
                 </>
               )}
             </div>
@@ -614,22 +629,25 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 24 }}
-              className="fixed inset-x-3 bottom-3 z-40 sm:inset-x-6 sm:bottom-5"
+              className="fixed inset-x-3 bottom-4 z-[100] sm:inset-x-6 sm:bottom-6"
             >
-              <div className="mx-auto flex max-w-3xl flex-col gap-3 rounded-2xl border border-purple-200 bg-white/95 p-3 shadow-[0_18px_60px_rgba(63,25,83,0.24)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:p-4">
-                <div className="min-w-0 px-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-purple-700">Selected time</p>
-                  <p className="mt-1 truncate text-sm font-semibold text-slate-900 sm:text-base">
+              <div className="mx-auto flex max-w-3xl flex-col gap-3 rounded-[1.4rem] border border-white/75 bg-[#f4eef8]/95 p-3 shadow-[0_18px_60px_rgba(63,25,83,0.24)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                <div className="flex min-w-0 items-center gap-3 px-1">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eadff1] text-[#5b267a]"><Clock3 className="h-4 w-4" /></span>
+                  <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#5b267a]">Selected time</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-[#34213f] sm:text-base">
                     {format(new Date(selectedDate), 'MMM dd, yyyy')} · {formatTime(selectedSlotDetails.start_time)}–{formatTime(selectedSlotDetails.end_time)}
                   </p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleConfirmSession}
                   disabled={schedulingNext}
-                  className="min-h-12 shrink-0 rounded-xl bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-60 sm:text-base"
+                  className="group flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-[#5b267a] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#472061] focus:outline-none focus:ring-2 focus:ring-[#5b267a] focus:ring-offset-2 disabled:opacity-60 sm:text-base"
                 >
-                  {confirmationLabel}
+                  {confirmationLabel}<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </button>
               </div>
             </motion.div>
@@ -797,7 +815,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
           )}
         </AnimatePresence>
       </div>
-    </div>
+    </main>
   );
 };
 

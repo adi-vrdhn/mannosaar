@@ -3,6 +3,7 @@ import Google from 'next-auth/providers/google';
 import { createClient } from '@supabase/supabase-js';
 import type {} from 'next-auth/jwt';
 import { sendWelcomeEmail } from '@/lib/email';
+import { fetchWithNetworkRetry } from '@/lib/supabase/retry-fetch';
 
 // Extend the default NextAuth types
 declare module 'next-auth' {
@@ -30,7 +31,11 @@ declare module 'next-auth/jwt' {
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: fetchWithNetworkRetry },
+  }
 );
 
 const authConfig: NextAuthConfig = {
@@ -112,7 +117,10 @@ const authConfig: NextAuthConfig = {
               session.user.role = existingUser.role;
             } else if (selectError) {
               console.error('❌ [Session] Query error:', selectError);
-              // Don't return early - try to create user instead
+              // A failed lookup is not evidence that the user is missing. Avoid
+              // attempting an insert during a transient database/network outage.
+              session.user.role = (token.role as string) || 'user';
+              return session;
             }
 
             // If user not found, create them

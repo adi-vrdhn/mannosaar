@@ -1,28 +1,44 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import Link from 'next/link';
-import TherapistHeader from '@/components/booking/TherapistHeader';
+import { motion } from 'framer-motion';
 import {
-  BOOKABLE_SERVICES,
-  DEFAULT_BUNDLE_PRICING,
-  formatInr,
-  type BundlePricing,
-  type ServiceId,
+  ArrowLeft, ArrowRight, Check, Clock3, HeartHandshake, Languages,
+  UserRound, UsersRound,
+} from 'lucide-react';
+import {
+  BOOKABLE_SERVICES, DEFAULT_BUNDLE_PRICING, formatInr,
+  type BundlePricing, type ServiceId,
 } from '@/lib/services';
 
 const serviceDetails = {
   personal: {
-    icon: '👤',
-    features: ['Individual focus', 'Private online setting'],
+    eyebrow: 'A space for you',
+    note: 'For thoughts, patterns, transitions, stress, or anything that feels heavy right now.',
+    features: ['One-to-one support', 'Private online setting'],
+    icon: UserRound,
+    tone: 'soft',
   },
   couple: {
-    icon: '👥',
-    features: ['Relationship focus', 'Shared online setting'],
+    eyebrow: 'A space for two',
+    note: 'For communication, conflict, reconnection, or navigating change together.',
+    features: ['Shared support', 'Relationship-focused'],
+    icon: UsersRound,
+    tone: 'deep',
   },
+} as const;
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.09 } },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.42 } },
 };
 
 export default function AppointmentTypePage() {
@@ -36,149 +52,113 @@ export default function AppointmentTypePage() {
     const fetchPricing = async () => {
       try {
         const response = await fetch('/api/admin/pricing');
-        if (response.ok) {
-          const data = await response.json();
-          setPricing(data.pricing);
-        }
-      } catch (err) {
-        console.error('Error fetching pricing:', err);
+        if (response.ok) setPricing((await response.json()).pricing);
+      } catch (error) {
+        console.error('Error fetching pricing:', error);
       } finally {
         setLoadingPrices(false);
       }
     };
-
     fetchPricing();
   }, []);
 
   useEffect(() => {
     if (status === 'loading') return;
-
-    if (!session) {
-      router.push('/auth/login');
-    } else {
-      setIsReady(true);
-    }
+    if (!session) router.push('/auth/login');
+    else setIsReady(true);
   }, [session, status, router]);
 
-  const handleSelectType = (type: ServiceId) => {
-    router.push(`/appointment/note?type=${type}`);
-  };
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.2,
-        delayChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5 },
-    },
-  };
+  const handleSelectType = (type: ServiceId) => router.push(`/appointment/note?type=${type}`);
 
   if (status === 'loading' || !isReady) {
     return (
-      <div className="booking-theme min-h-screen pt-24 pb-12 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+      <div className="appointment-pinterest flex min-h-[70vh] items-center justify-center">
+        <div className="flex items-center gap-3 text-sm font-medium text-[#4c4052]">
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#5b267a]/25 border-t-[#5b267a]" />
+          Preparing your booking…
         </div>
       </div>
     );
   }
 
   return (
-    <div className="booking-theme min-h-screen pt-24 pb-12">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <TherapistHeader languages={['Hindi', 'English']} />
+    <main className="appointment-pinterest min-h-screen overflow-hidden px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <div className="relative mx-auto max-w-6xl">
+        <div className="appointment-orb appointment-orb-left" aria-hidden="true" />
+        <div className="appointment-orb appointment-orb-right" aria-hidden="true" />
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key="type-selection"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <motion.div
-              variants={itemVariants}
-              initial="hidden"
-              animate="visible"
-              className="text-center mb-12"
-            >
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">Select Session Type</h1>
-              <p className="text-xl text-gray-600">
-                Choose the therapy session that fits your needs
-              </p>
-            </motion.div>
+        <div className="relative z-10">
+          <div className="mb-9 flex items-center justify-between gap-4">
+            <Link href="/" className="group inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#4c4052] transition hover:text-[#5b267a]">
+              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Back home
+            </Link>
+            <div className="flex items-center gap-2" aria-label="Booking progress: step 1 of 3">
+              <span className="h-1.5 w-9 rounded-full bg-[#5b267a]" />
+              <span className="h-1.5 w-4 rounded-full bg-white/45" />
+              <span className="h-1.5 w-4 rounded-full bg-white/45" />
+              <span className="ml-1 text-xs font-bold uppercase tracking-[0.18em] text-[#4c4052]">1 of 3</span>
+            </div>
+          </div>
 
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="grid md:grid-cols-2 gap-8 mb-12"
-            >
-              {BOOKABLE_SERVICES.map((service) => {
-                const details = serviceDetails[service.id];
-                const price = pricing[`${service.id}_1`];
+          <motion.header initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="mx-auto mb-10 max-w-3xl text-center sm:mb-14">
+            <h1 className="font-playfair text-[clamp(2.55rem,7vw,5.6rem)] font-medium leading-[0.96] tracking-[-0.045em] text-[#34213f]">
+              What kind of support <span className="block italic text-[#5b267a]">feels right?</span>
+            </h1>
+            <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-[#4c4052] sm:text-lg">
+              Choose the session that fits this moment. You can review every detail before confirming.
+            </p>
+          </motion.header>
 
-                return (
-                  <motion.div
-                    key={service.id}
-                    variants={itemVariants}
-                    whileHover={{ scale: 1.02, y: -5 }}
-                    className="bg-white rounded-2xl shadow-lg p-8 border-2 border-transparent hover:border-purple-300 transition-all"
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="text-5xl" aria-hidden="true">{details.icon}</div>
+          <motion.section variants={containerVariants} initial="hidden" animate="visible" className="mx-auto grid max-w-5xl gap-6 md:grid-cols-2 md:gap-8" aria-label="Session types">
+            {BOOKABLE_SERVICES.map((service) => {
+              const details = serviceDetails[service.id];
+              const Icon = details.icon;
+              const price = pricing[`${service.id}_1`];
+              return (
+                <motion.article key={service.id} variants={itemVariants} className="appointment-pin-card group relative">
+                  <span className={`appointment-pin appointment-pin-${details.tone}`} aria-hidden="true" />
+                  <button type="button" onClick={() => handleSelectType(service.id)} className="flex h-full w-full flex-col p-6 text-left sm:p-8" aria-label={`Choose ${service.name}`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className={`flex h-14 w-14 items-center justify-center rounded-[1.1rem] ${details.tone === 'soft' ? 'bg-[#eadff1] text-[#5b267a]' : 'bg-[#5b267a] text-white'}`}>
+                        <Icon className="h-6 w-6" strokeWidth={1.7} />
+                      </div>
                       <div className="text-right">
-                        <p className="text-xs text-gray-500 mb-1">Per session</p>
-                        <p className="text-2xl font-bold text-purple-600">
-                          {loadingPrices ? '...' : formatInr(price)}
-                        </p>
+                        <p className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[#6f6275]">from</p>
+                        <p className="mt-1 text-xl font-bold text-[#34213f]">{loadingPrices ? '—' : formatInr(price)}</p>
                       </div>
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">{service.name}</h2>
-                    <p className="text-gray-600 mb-6">{service.description}</p>
-                    <ul className="space-y-3 text-gray-700 mb-8">
-                      {[...details.features, `${service.durationMinutes} minutes`].map((feature) => (
-                        <li key={feature} className="flex items-center">
-                          <span className="mr-3" aria-hidden="true">✓</span>
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleSelectType(service.id)}
-                      aria-label={`Continue with ${service.name}`}
-                      className="w-full px-6 py-3 bg-gradient-to-r from-purple-400 to-purple-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
-                    >
-                      Continue
-                    </motion.button>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
+                    <div className="mt-8">
+                      <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#5b267a]">{details.eyebrow}</p>
+                      <h2 className="font-playfair mt-2 text-3xl font-medium tracking-[-0.02em] text-[#34213f] sm:text-[2.15rem]">{service.name}</h2>
+                      <p className="mt-4 min-h-[5.25rem] text-base leading-7 text-[#4c4052]">{details.note}</p>
+                    </div>
+                    <div className="mt-7 border-y border-dashed border-[#80698f]/25 py-5">
+                      <ul className="grid gap-3 text-sm font-medium text-[#4c4052] sm:grid-cols-2">
+                        {[...details.features, `${service.durationMinutes} minutes`].map((feature) => (
+                          <li key={feature} className="flex items-center gap-2">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#eadff1] text-[#5b267a]"><Check className="h-3 w-3" strokeWidth={2.5} /></span>
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="mt-auto flex items-center justify-between pt-6">
+                      <span className="font-semibold text-[#34213f]">Choose this session</span>
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#5b267a] text-white shadow-[0_8px_18px_rgba(91,38,122,0.22)] transition-transform duration-300 group-hover:translate-x-1"><ArrowRight className="h-5 w-5" /></span>
+                    </div>
+                  </button>
+                </motion.article>
+              );
+            })}
+          </motion.section>
 
-            <div className="text-center">
-              <Link href="/" className="text-purple-600 hover:text-purple-700 font-semibold">
-                ← Back to Home
-              </Link>
-            </div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }} className="mx-auto mt-10 flex max-w-3xl flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm text-[#4c4052] sm:mt-14">
+            <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-[#5b267a]" /> 40-minute online sessions</span>
+            <span className="inline-flex items-center gap-2"><Languages className="h-4 w-4 text-[#5b267a]" /> Hindi & English</span>
+            <span className="inline-flex items-center gap-2"><HeartHandshake className="h-4 w-4 text-[#5b267a]" /> Private and supportive</span>
           </motion.div>
-        </AnimatePresence>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

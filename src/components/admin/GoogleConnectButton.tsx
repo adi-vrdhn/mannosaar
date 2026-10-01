@@ -11,6 +11,8 @@ export default function GoogleConnectButton({ onSuccess }: GoogleConnectButtonPr
   const [error, setError] = useState('');
   const [connected, setConnected] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [testMode, setTestMode] = useState(false);
+  const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
 
   // Check if Google is already connected
   useEffect(() => {
@@ -21,6 +23,8 @@ export default function GoogleConnectButton({ onSuccess }: GoogleConnectButtonPr
         });
         const data = await response.json();
         setConnected(data.connected);
+        setTestMode(Boolean(data.testMode));
+        setDaysRemaining(typeof data.daysRemaining === 'number' ? data.daysRemaining : null);
       } catch (err) {
         console.error('Error checking connection:', err);
       } finally {
@@ -104,6 +108,13 @@ export default function GoogleConnectButton({ onSuccess }: GoogleConnectButtonPr
               : 'Connect your Google account to automatically create Google Meet meetings for therapy sessions.'}
             Confirmation emails will be sent to both you and your clients with the meeting link.
           </p>
+          {connected && testMode && (
+            <div className={`mb-4 rounded-lg border p-3 text-sm ${daysRemaining !== null && daysRemaining <= 2 ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-violet-200 bg-violet-50 text-violet-900'}`}>
+              {daysRemaining === null
+                ? 'Reconnect once to begin the 7-day test-mode countdown.'
+                : `Google test-mode access has about ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} remaining.`}
+            </div>
+          )}
         </div>
       </div>
 
@@ -149,6 +160,13 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-3 font-semibold text-white sm:w-auto"
             >
               ✅ Connected
+            </button>
+            <button
+              onClick={handleConnect}
+              disabled={loading}
+              className="w-full rounded-lg border border-violet-300 bg-violet-50 px-6 py-3 font-semibold text-violet-800 transition-colors hover:bg-violet-100 disabled:opacity-50 sm:w-auto"
+            >
+              {loading ? 'Reconnecting...' : 'Reconnect Google'}
             </button>
             <button
               onClick={handleDisconnect}
