@@ -4,6 +4,7 @@ import AdminSectionNav from '@/components/admin/AdminSectionNav';
 import GoogleConnectButton from '@/components/admin/GoogleConnectButton';
 import PricingSettingsForm from '@/components/admin/PricingSettingsForm';
 import ReviewsManagement from '@/components/admin/ReviewsManagement';
+import HealthReportPanel from '@/components/admin/HealthReportPanel';
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -26,6 +27,8 @@ export default async function SettingsPage() {
 
         {/* Settings Sections */}
         <div className="space-y-8">
+          {session.user.role === 'admin' && <HealthReportPanel />}
+
           {/* Google Calendar Integration Section */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-8">
             <h2 className="mb-6 text-xl font-semibold text-gray-900">Integrations</h2>
