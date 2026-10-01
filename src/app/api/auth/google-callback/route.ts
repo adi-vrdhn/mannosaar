@@ -94,15 +94,18 @@ export async function GET(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const { error: upsertError } = await supabase
+    const baseCredentials = {
+      user_id: session.user.id,
+      access_token: protectToken(tokens.access_token),
+      refresh_token: protectToken(tokens.refresh_token),
+      token_expiry: expiryTime.toISOString(),
+      email: userInfo.email,
+    };
+    let { error: upsertError } = await supabase
       .from('google_oauth_credentials')
       .upsert(
         {
-          user_id: session.user.id,
-          access_token: protectToken(tokens.access_token),
-          refresh_token: protectToken(tokens.refresh_token),
-          token_expiry: expiryTime.toISOString(),
-          email: userInfo.email,
+          ...baseCredentials,
           connected_at: connectedAt.toISOString(),
           refresh_token_expires_at: refreshTokenExpiresAt,
         },
@@ -110,6 +113,14 @@ export async function GET(request: NextRequest) {
           onConflict: 'user_id',
         }
       );
+
+    // Keep reconnection functional before the optional countdown migration is applied.
+    if (upsertError) {
+      const fallback = await supabase
+        .from('google_oauth_credentials')
+        .upsert(baseCredentials, { onConflict: 'user_id' });
+      upsertError = fallback.error;
+    }
 
     if (upsertError) {
       console.error('Database error:', upsertError);
