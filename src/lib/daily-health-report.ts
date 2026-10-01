@@ -237,28 +237,40 @@ export async function createDailyHealthReport(now = new Date()): Promise<DailyHe
   const site = await checkSite();
   if (!site.ok) errors.push('Website health check failed.');
 
-  const results = await Promise.all([
+  const [usersResult, bookingsResult, todaySessionsResult, failedPaymentsResult, calendarGapsResult] = await Promise.all([
     client.from('users').select('name,email,created_at').gte('created_at', since.toISOString()).order('created_at', { ascending: false }),
     client.from('bookings').select('user_name,user_email,session_type,status,created_at,slot_date,slot_start_time,session_dates').gte('created_at', since.toISOString()).order('created_at', { ascending: false }),
     client.from('bookings').select('id').eq('slot_date', todayIst).in('status', ['pending', 'confirmed']),
-    client.from('whatsapp_payments').select('txnid').eq('status', 'FAILED').gte('created_at', since.toISOString()),
-    client.from('background_jobs').select('id,last_error').eq('status', 'DEAD').gte('updated_at', since.toISOString()),
-    client.from('whatsapp_messages').select('id,error_code').not('error_code', 'is', null).gte('created_at', since.toISOString()),
+    client.from('bookings').select('id').eq('payment_status', 'failed').gte('created_at', since.toISOString()),
     client.from('bookings').select('id,google_calendar_event_id,meeting_link').gte('slot_date', todayIst).eq('status', 'confirmed'),
   ]);
 
-  const labels = ['new users', 'new bookings', 'today sessions', 'failed payments', 'dead jobs', 'failed messages', 'calendar gaps'];
-  results.forEach((result, index) => {
-    if (result.error) errors.push(`Database check failed for ${labels[index]}.`);
+  const coreResults = [usersResult, bookingsResult, todaySessionsResult, failedPaymentsResult, calendarGapsResult];
+  const coreLabels = ['new users', 'new bookings', 'today sessions', 'failed payments', 'calendar gaps'];
+  coreResults.forEach((result, index) => {
+    if (result.error) errors.push(`Database check failed for ${coreLabels[index]}.`);
   });
 
-  const users = results[0].data || [];
-  const bookingRows = results[1].data || [];
-  const upcomingRows = results[6].data || [];
+  let deadJobs = 0;
+  let failedMessages = 0;
+  if (process.env.WHATSAPP_BOOKING_ENABLED === 'true') {
+    const [jobsResult, messagesResult] = await Promise.all([
+      client.from('background_jobs').select('id,last_error').eq('status', 'DEAD').gte('updated_at', since.toISOString()),
+      client.from('whatsapp_messages').select('id,error_code').not('error_code', 'is', null).gte('created_at', since.toISOString()),
+    ]);
+    if (jobsResult.error) warnings.push('WhatsApp background-job monitoring is unavailable.');
+    else deadJobs = jobsResult.data?.length || 0;
+    if (messagesResult.error) warnings.push('WhatsApp delivery monitoring is unavailable.');
+    else failedMessages = messagesResult.data?.length || 0;
+  }
+
+  const users = usersResult.data || [];
+  const bookingRows = bookingsResult.data || [];
+  const upcomingRows = calendarGapsResult.data || [];
   const upcomingCalendarGaps = upcomingRows.filter((row) => !row.google_calendar_event_id || !row.meeting_link).length;
-  if ((results[3].data?.length || 0) > 0) warnings.push('One or more payments failed in the last 24 hours.');
-  if ((results[4].data?.length || 0) > 0) errors.push('One or more background jobs need attention.');
-  if ((results[5].data?.length || 0) > 0) warnings.push('One or more WhatsApp messages reported an error.');
+  if ((failedPaymentsResult.data?.length || 0) > 0) warnings.push('One or more payments failed in the last 24 hours.');
+  if (deadJobs > 0) errors.push('One or more background jobs need attention.');
+  if (failedMessages > 0) warnings.push('One or more WhatsApp messages reported an error.');
   if (upcomingCalendarGaps > 0) warnings.push(`${upcomingCalendarGaps} upcoming booking(s) are missing a calendar event or meeting link.`);
 
   let google: DailyHealthReport['google'] = {
@@ -315,10 +327,10 @@ export async function createDailyHealthReport(now = new Date()): Promise<DailyHe
     counts: {
       newUsers: users.length,
       bookingsCreated: bookingRows.length,
-      sessionsToday: results[2].data?.length || 0,
-      failedPayments: results[3].data?.length || 0,
-      deadJobs: results[4].data?.length || 0,
-      failedMessages: results[5].data?.length || 0,
+      sessionsToday: todaySessionsResult.data?.length || 0,
+      failedPayments: failedPaymentsResult.data?.length || 0,
+      deadJobs,
+      failedMessages,
       upcomingCalendarGaps,
     },
     newUserNames: users.map((user) => user.name || user.email || 'Unnamed user'),
