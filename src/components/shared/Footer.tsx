@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowUpRight, Mail, Phone } from 'lucide-react';
+import AnalyticsSettingsButton from '@/components/analytics/AnalyticsSettingsButton';
 
 const exploreLinks = [
   { label: 'Home', href: '/' },
@@ -91,6 +92,7 @@ export default function Footer() {
             <h3 className="mb-5 text-xs font-bold uppercase tracking-[0.18em] text-white">Legal &amp; privacy</h3>
             <nav aria-label="Legal and privacy" className="flex flex-col gap-3.5">
               {legalLinks.map(link => <FooterLink key={link.href} {...link} />)}
+              <AnalyticsSettingsButton />
             </nav>
           </div>
         </div>

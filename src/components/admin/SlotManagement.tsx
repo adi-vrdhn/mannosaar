@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { format, addDays } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
 import { generateDefaultSlots } from '@/utils/slotGenerator';
+import { slotDurationMinutes } from '@/lib/services';
 import AdminSectionNav from './AdminSectionNav';
 import { Ban, CalendarDays, CalendarPlus, Clock3, Trash2 } from 'lucide-react';
 
@@ -68,6 +69,7 @@ const SlotManagement = () => {
     startDate: format(new Date(), 'yyyy-MM-dd'),
     endDate: format(addDays(new Date(), 6), 'yyyy-MM-dd'),
   });
+  const [defaultDuration, setDefaultDuration] = useState<40 | 60>(40);
   const [selectedDays, setSelectedDays] = useState<boolean[]>([true, true, true, true, true, true, true]);
   const [selectedHours, setSelectedHours] = useState<boolean[]>([
     true, true, true, true, true, true, true, true, true, true, true, true // 9AM to 8PM
@@ -75,7 +77,7 @@ const SlotManagement = () => {
   const [formData, setFormData] = useState({
     date: selectedDate,
     startTime: '09:00',
-    endTime: '09:45',
+    endTime: '09:40',
   });
 
   const supabase = createClient();
@@ -188,7 +190,7 @@ const SlotManagement = () => {
     setLoading(true);
 
     try {
-      const allDefaultSlots = generateDefaultSlots();
+      const allDefaultSlots = generateDefaultSlots(defaultDuration);
       const filteredSlots = allDefaultSlots.filter((_, idx) => selectedHours[idx]);
       
       const start = new Date(defaultFormData.startDate);
@@ -211,6 +213,7 @@ const SlotManagement = () => {
             date: dateStr,
             start_time: slot.start_time,
             end_time: slot.end_time,
+            duration_minutes: defaultDuration,
             is_available: true,
             is_blocked: false,
           });
@@ -283,7 +286,7 @@ const SlotManagement = () => {
       setFormData({
         date: selectedDate,
         startTime: '09:00',
-        endTime: '09:45',
+        endTime: '09:40',
       });
       setActivePanel('manage');
       setSelectedDate(formData.date);
@@ -556,7 +559,11 @@ const SlotManagement = () => {
             <form onSubmit={handleGenerateDefault} className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
               <div className="mb-6">
                 <h2 className="text-xl font-semibold text-slate-950">Open regular hours</h2>
-                <p className="mt-1 text-sm text-slate-500">Each session is 40 minutes with a 20-minute break.</p>
+                <p className="mt-1 text-sm text-slate-500">Choose 40-minute personal slots or 60-minute couple slots.</p>
+              </div>
+
+              <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Session duration to open">
+                {([40, 60] as const).map(duration => <button key={duration} type="button" onClick={() => setDefaultDuration(duration)} aria-pressed={defaultDuration === duration} className={`rounded-lg border px-4 py-2 text-sm font-semibold ${defaultDuration === duration ? 'border-[#5b267a] bg-[#f3eef6] text-[#5b267a]' : 'border-slate-300 text-slate-700'}`}>{duration === 40 ? 'Personal · 40 min' : 'Couple · 60 min'}</button>)}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -596,7 +603,7 @@ const SlotManagement = () => {
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
                   {defaultTimeLabels.map((time, index) => (
                     <button key={time} type="button" onClick={() => setSelectedHours(current => current.map((value, hourIndex) => hourIndex === index ? !value : value))} className={`rounded-lg border px-2 py-2.5 text-sm font-medium transition ${selectedHours[index] ? 'border-[#5b267a] bg-[#f3eef6] text-[#5b267a]' : 'border-slate-200 text-slate-500'}`}>
-                      {time}
+                      {defaultDuration === 60 ? time.replace(':00', ':45') : time}
                     </button>
                   ))}
                 </div>
@@ -702,7 +709,7 @@ const SlotManagement = () => {
                     <div key={slot.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-3">
                         <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#f3eef6] text-[#5b267a]"><Clock3 size={18} /></span>
-                        <div><p className="font-semibold text-slate-900">{displayTime(slot.start_time)} – {displayTime(slot.end_time)}</p><p className="mt-0.5 text-xs text-slate-500">{slot.booking ? `${slot.booking.user.name}${slot.booking.user.email ? ` · ${slot.booking.user.email}` : ''}` : '40-minute session'}</p></div>
+                        <div><p className="font-semibold text-slate-900">{displayTime(slot.start_time)} – {displayTime(slot.end_time)}</p><p className="mt-0.5 text-xs text-slate-500">{slot.booking ? `${slot.booking.user.name}${slot.booking.user.email ? ` · ${slot.booking.user.email}` : ''}` : `${slotDurationMinutes(slot.start_time, slot.end_time)}-minute session`}</p></div>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${slot.booking ? 'bg-blue-50 text-blue-700' : slot.is_blocked ? 'bg-red-50 text-red-700' : slot.is_available ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{status}</span>

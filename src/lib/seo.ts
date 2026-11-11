@@ -3,6 +3,11 @@ import type { Metadata } from 'next';
 export const SITE_URL = 'https://www.mannosaar.com';
 export const DEFAULT_SOCIAL_IMAGE = '/images/social/community-hero.png';
 
+export function isSearchableBlog(slug: string, title: string | null) {
+  return !/^this-is-a-test-article(?:-|$)/i.test(slug) &&
+    title?.trim().toLowerCase() !== 'this is a test article';
+}
+
 export function absoluteUrl(path = '/') {
   return new URL(path, SITE_URL).toString();
 }

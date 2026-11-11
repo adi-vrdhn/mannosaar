@@ -3,9 +3,15 @@ import { sendBookingConfirmationEmail } from '@/lib/email';
 import { getTherapistNotificationRecipients } from '@/lib/therapist-email';
 import { db } from '@/lib/whatsapp/server';
 import { auth } from '@/lib/auth';
+import { isSameOrigin } from '@/lib/compliance';
+import { allowRequest } from '@/lib/compliance-server';
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) return new Response('Unauthorized', { status: 401 });
+    if (!isSameOrigin(request)) return new Response('Forbidden', { status: 403 });
+    if (!(await allowRequest('booking-confirmation-email', session.user.id, 3, 3600))) return new Response('Too many requests', { status: 429 });
     const { bookingId } = await request.json();
 
     if (!bookingId) {
@@ -15,8 +21,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const session = await auth();
-    if (!session?.user?.id) return new Response('Unauthorized', { status: 401 });
     const supabase = db();
 
     // Fetch booking details with slot and user info
@@ -33,7 +37,12 @@ export async function POST(request: NextRequest) {
       .eq('id', bookingId)
       .single();
 
-    const booking = bookingData as any;
+    const booking = bookingData as unknown as {
+      id: string;
+      session_type: string;
+      user: { id: string; email: string; name: string | null };
+      slot: { id: string; date: string; start_time: string; end_time: string; therapist_id: string; meeting_link: string | null };
+    } | null;
 
     if (bookingError || !booking) {
       return NextResponse.json(

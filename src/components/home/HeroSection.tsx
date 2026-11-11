@@ -20,9 +20,6 @@ const HeroSection = () => {
 
           <div className="relative z-10 grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:gap-4">
             <motion.div initial="hidden" animate="visible" transition={{ staggerChildren: 0.11, delayChildren: 0.08 }} className="order-2 max-w-xl lg:order-1 lg:pb-8">
-              <motion.p variants={riseIn} className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-purple-700">
-                <span className="h-px w-8 bg-purple-500" /> Private online counselling
-              </motion.p>
               <motion.h1 variants={riseIn} className="font-playfair text-4xl font-bold leading-[0.98] tracking-[-0.045em] text-[#3f2a4d] sm:text-5xl lg:text-7xl">
                 Online counselling for <span className="text-purple-700">life&apos;s difficult moments.</span>
               </motion.h1>

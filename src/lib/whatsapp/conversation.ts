@@ -35,12 +35,12 @@ async function advance(job: Job) {
   };
   const dateMenu = async (reschedule = false, page = 0) => {
     s.state = reschedule ? 'RESCHEDULE_DATE' : 'SELECT_DATE';
-    const slots = await availableSlots(s.data.therapist!);
+    const slots = await availableSlots(s.data.therapist!, undefined, s.data.service);
     choose('Choose a date. All times are India Standard Time (IST).', [...new Set(slots.map(slot => slot.date))].map(date => ({ id: date, title: date })), page);
   };
   const slotMenu = async (reschedule = false, page = 0) => {
     s.state = reschedule ? 'RESCHEDULE_TIME' : 'SELECT_TIME';
-    const slots = await availableSlots(s.data.therapist!, s.data.date);
+    const slots = await availableSlots(s.data.therapist!, s.data.date, s.data.service);
     choose('Choose an available time (IST).', slots.map(slot => ({ id: slot.id, title: `${slot.start_time.slice(0, 5)} – ${slot.end_time.slice(0, 5)}`, description: `${slot.duration_minutes} minutes` })), page);
   };
   const therapistMenu = async (page = 0) => {
@@ -112,7 +112,7 @@ async function advance(job: Job) {
         break;
       case 'SELECT_TIME': case 'RESCHEDULE_TIME': {
         if (!selectedChoice(s, input.input)) break;
-        const slots = await availableSlots(s.data.therapist!, s.data.date);
+        const slots = await availableSlots(s.data.therapist!, s.data.date, s.data.service);
         if (!slots.some(slot => slot.id === input.input)) { await slotMenu(s.state === 'RESCHEDULE_TIME'); break; }
         s.data.slot = input.input;
         if (s.state === 'RESCHEDULE_TIME') {
@@ -130,7 +130,7 @@ async function advance(job: Job) {
         if (input.interactive || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.input) || input.input.length > 254) { reply = textMessage('Please enter a valid email address. PayU checkout requires it.'); break; }
         s.data.email = input.input.toLowerCase(); s.state = 'REVIEW_BOOKING';
         const therapist = (await therapists()).find(t => t.therapist_id === s.data.therapist);
-        const slot = (await availableSlots(s.data.therapist!, s.data.date)).find(slot => slot.id === s.data.slot);
+        const slot = (await availableSlots(s.data.therapist!, s.data.date, s.data.service)).find(slot => slot.id === s.data.slot);
         if (!slot) { await dateMenu(); break; }
         const price = (await prices()).find(p => p.session_type === s.data.service);
         s.data.quotedAmount = Number(price?.price);
@@ -154,7 +154,7 @@ async function advance(job: Job) {
             break;
           }
           const existing = await db().from('booking_holds').select('*').eq('idempotency_key', input.id).maybeSingle(); check(existing.error);
-          if (!existing.data && !(await availableSlots(s.data.therapist!, s.data.date)).some(slot => slot.id === s.data.slot)) { await slotMenu(); break; }
+          if (!existing.data && !(await availableSlots(s.data.therapist!, s.data.date, s.data.service)).some(slot => slot.id === s.data.slot)) { await slotMenu(); break; }
           const hold = existing.data as Hold | null || await rpc<Hold>('wa_hold', { p_session: s.id, p_slot: s.data.slot, p_key: input.id });
           if (hold.status !== 'ACTIVE' || Date.parse(hold.expires_at) <= Date.now()) { await dateMenu(); break; }
           s.data.hold = hold.id;

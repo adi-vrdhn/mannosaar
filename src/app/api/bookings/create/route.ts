@@ -6,8 +6,10 @@ import { sendBookingConfirmationEmail } from '@/lib/email';
 import { getTherapistNotificationRecipients } from '@/lib/therapist-email';
 import { sendBookingConfirmationWhatsApp } from '@/lib/whatsapp';
 import { isSameOrigin, requestIp } from '@/lib/compliance';
-import { linkConsentReceipt, validateConsentReceipt, writeAudit } from '@/lib/compliance-server';
-import { normalizePayUAmount, verifyPayUPayment } from '@/lib/payu';
+import { allowRequest, linkConsentReceipt, validateConsentReceipt, writeAudit } from '@/lib/compliance-server';
+import { decodePayUContext, normalizePayUAmount, verifyPayUPayment } from '@/lib/payu';
+import { authenticatedAdmin } from '@/lib/admin-authorization';
+import { getServiceById, slotDurationMinutes } from '@/lib/services';
 
 interface BookingSessionDate { date: string; slotId: string; startTime: string; endTime: string }
 interface BookingSlot { id: string; date: string; start_time: string; end_time: string; therapist_id?: string }
@@ -20,21 +22,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   if (!isSameOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+  if (!(await allowRequest('booking-create', session.user.id, 5, 60))) return NextResponse.json({ error: 'Too many booking attempts. Please try again shortly.' }, { status: 429 });
   try {
     const { userId, slotId, sessionType, sessionDates, bundle, notes, consentReceiptId, recoveryTxnId } = await request.json() as { userId?: string; slotId?: string; sessionType?: string; sessionDates?: BookingSessionDate[]; bundle?: number; bundleSchedule?: 'all' | 'progressive'; notes?: string; consentReceiptId?: string; recoveryTxnId?: string };
     
     const isBundleBooking = sessionDates && sessionDates.length > 0;
     
-    console.log('📝 Booking request received:', { 
-      userId, 
-      slotId, 
-      sessionType,
-      isBundleBooking,
-      bundleSize: sessionDates?.length,
-      sessionUserId: session.user?.id,
-      sessionEmail: session.user?.email 
-    });
-
     if (!userId || !sessionType) {
       console.error('❌ Missing required fields:', { userId, sessionType, slotId, isBundleBooking });
       return NextResponse.json(
@@ -44,12 +37,19 @@ export async function POST(request: Request) {
     }
 
     if (userId !== session.user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!['personal', 'couple'].includes(sessionType) || typeof notes !== 'undefined' && (typeof notes !== 'string' || notes.length > 2000) || sessionDates && (!Array.isArray(sessionDates) || sessionDates.length > 12)) {
+      return NextResponse.json({ error: 'Invalid booking details' }, { status: 400 });
+    }
+    if (!recoveryTxnId && (process.env.NODE_ENV === 'production' || !(await authenticatedAdmin()))) {
+      return NextResponse.json({ error: 'Payment is required before a booking can be confirmed.' }, { status: 403 });
+    }
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
     let recoveredPayment: Awaited<ReturnType<typeof verifyPayUPayment>>['transaction'] = null;
+    let effectiveConsentReceiptId = consentReceiptId;
     if (recoveryTxnId) {
       const verification = await verifyPayUPayment(recoveryTxnId);
       recoveredPayment = verification.transaction;
@@ -57,6 +57,12 @@ export async function POST(request: Request) {
       if (!verification.isSuccess || !recoveredPayment || recoveredPayment.txnid !== recoveryTxnId) {
         return NextResponse.json({ error: 'The PayU payment could not be verified.' }, { status: 400 });
       }
+      const storedContext = await supabase.from('payu_payment_contexts').select('context').eq('txnid', recoveryTxnId).maybeSingle();
+      const paymentContext = storedContext.data?.context || decodePayUContext(['udf1','udf2','udf3','udf4','udf5'].map(key => String(recoveredPayment!.raw[key] || '')).join(''));
+      if (!paymentContext || paymentContext.userId !== userId || paymentContext.userEmail.toLowerCase() !== session.user.email.toLowerCase() || paymentContext.sessionType !== sessionType || !paymentContext.consentReceiptId || !(await validateConsentReceipt(paymentContext.consentReceiptId, userId))) {
+        return NextResponse.json({ error: 'Payment does not belong to this account and consent record.' }, { status: 403 });
+      }
+      effectiveConsentReceiptId = paymentContext.consentReceiptId;
 
       const expectedBundle = Math.max(1, Number(bundle || sessionDates?.length || 1));
       const { data: officialPrice } = await supabase
@@ -140,7 +146,7 @@ export async function POST(request: Request) {
         );
       }
       slotData = slotDataResult;
-      console.log('✅ Slot found:', slotData);
+      if (slotDurationMinutes(slotData.start_time, slotData.end_time) !== getServiceById(sessionType)?.durationMinutes) return NextResponse.json({ error: 'The selected slot has the wrong session duration.' }, { status: 409 });
 
       // Check if slot is already booked (prevent race condition)
       console.log('🔵 Checking if slot is still available...');
@@ -157,6 +163,16 @@ export async function POST(request: Request) {
           { status: 409 }
         );
       }
+    }
+
+    if (isBundleBooking && sessionDates) {
+      const requestedIds = sessionDates.map(entry => entry.slotId);
+      if (new Set(requestedIds).size !== requestedIds.length || sessionDates.some(entry => !entry || typeof entry.slotId !== 'string' || !/^[0-9a-f-]{36}$/i.test(entry.slotId) || typeof entry.date !== 'string' || typeof entry.startTime !== 'string' || typeof entry.endTime !== 'string')) return NextResponse.json({ error: 'Invalid bundle slots.' }, { status: 400 });
+      const selected = await supabase.from('therapy_slots').select('id,date,start_time,end_time,is_available,is_blocked').in('id', requestedIds);
+      if (selected.error || selected.data?.length !== requestedIds.length || sessionDates.some(entry => {
+        const slot = selected.data.find(candidate => candidate.id === entry.slotId);
+        return !slot || !slot.is_available || slot.is_blocked || slot.date !== entry.date || slot.start_time.slice(0, 5) !== entry.startTime.slice(0, 5) || slot.end_time.slice(0, 5) !== entry.endTime.slice(0, 5) || slotDurationMinutes(slot.start_time, slot.end_time) !== getServiceById(sessionType)?.durationMinutes;
+      })) return NextResponse.json({ error: 'A selected bundle time is no longer available for this duration.' }, { status: 409 });
     }
 
     // First create the booking in database
@@ -260,8 +276,8 @@ export async function POST(request: Request) {
     if (!booking) {
       return NextResponse.json({ error: 'Booking could not be created' }, { status: 400 });
     }
-    if (consentReceiptId) {
-      await linkConsentReceipt(consentReceiptId, userId, booking.id);
+    if (effectiveConsentReceiptId) {
+      await linkConsentReceipt(effectiveConsentReceiptId, userId, booking.id);
     }
     await writeAudit({ userId, actorRole: session.user.role || 'user', action: 'BOOKING_CREATED', resourceType: 'booking', resourceId: booking.id, ipAddress: requestIp(request.headers), metadata: { channel: recoveredPayment ? 'PAYU_RECOVERY' : 'WEB_TEST', sessionType } });
 
@@ -332,7 +348,6 @@ export async function POST(request: Request) {
             if (calendarResult?.meetLink) {
               meetingLinks.push(calendarResult.meetLink);
               googleCalendarEventId = calendarResult.eventId || googleCalendarEventId;
-              console.log(`✅ Meeting link ${index + 1} generated:`, calendarResult.meetLink);
             }
           } catch (sessionError) {
             console.warn(`❌ Failed to create calendar event for session ${index + 1}:`, sessionError);
@@ -354,7 +369,6 @@ export async function POST(request: Request) {
         if (calendarResult?.meetLink) {
           meetingLinks.push(calendarResult.meetLink);
           googleCalendarEventId = calendarResult.eventId || googleCalendarEventId;
-          console.log('✅ Meeting link generated:', calendarResult.meetLink);
         } else {
           console.warn('⚠️ No meeting link returned from calendar event creation');
         }
@@ -388,7 +402,6 @@ export async function POST(request: Request) {
         if (updateError) {
           console.error('❌ Error updating meeting links:', updateError);
         } else {
-          console.log('✅ Booking updated with meeting links:', updatedBooking);
           // Update the booking with the returned updated data
           Object.assign(booking, updatedBooking);
         }

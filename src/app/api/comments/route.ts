@@ -1,5 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticatedAdmin } from '@/lib/admin-authorization';
+import { allowRequest } from '@/lib/compliance-server';
+import { isSameOrigin, requestIp } from '@/lib/compliance';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,10 +15,12 @@ const supabase = createClient(
 // POST: Create a comment
 export async function POST(request: NextRequest) {
   try {
+    if (!isSameOrigin(request)) return new Response('Forbidden', { status: 403 });
+    if (!(await allowRequest('comment-submit', requestIp(request.headers) || 'unknown', 5, 3600))) return new Response('Too many comments', { status: 429 });
     const body = await request.json();
     const { contentId, contentType, name, email, comment } = body;
 
-    if (!contentId || !contentType || !comment) {
+    if (typeof contentId !== 'string' || !/^[0-9a-f-]{36}$/i.test(contentId) || !['article', 'video', 'image'].includes(contentType) || typeof comment !== 'string' || comment.trim().length < 2 || comment.length > 2000 || typeof name !== 'undefined' && (typeof name !== 'string' || name.length > 100) || typeof email !== 'undefined' && email !== null && email !== '' && (typeof email !== 'string' || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -31,7 +36,7 @@ export async function POST(request: NextRequest) {
           content_type: contentType,
           author_name: name || 'Anonymous',
           author_email: email,
-          comment_text: comment,
+          comment_text: comment.trim(),
           is_approved: false, // Admin must approve
           created_at: new Date().toISOString(),
         },
@@ -76,7 +81,7 @@ export async function GET(request: NextRequest) {
     // Fetch only approved comments
     const { data, error } = await supabase
       .from('comments')
-      .select('*')
+      .select('id,content_id,content_type,author_name,comment_text,created_at')
       .eq('content_id', contentId)
       .eq('content_type', contentType)
       .eq('is_approved', true)
@@ -103,17 +108,17 @@ export async function GET(request: NextRequest) {
 // DELETE: Admin only - delete a comment
 export async function DELETE(request: NextRequest) {
   try {
+    if (!(await authenticatedAdmin())) return new Response('Forbidden', { status: 403 });
+    if (!isSameOrigin(request)) return new Response('Forbidden', { status: 403 });
     const body = await request.json();
     const { commentId } = body;
 
-    if (!commentId) {
+    if (typeof commentId !== 'string' || !/^[0-9a-f-]{36}$/i.test(commentId)) {
       return NextResponse.json(
         { error: 'Missing commentId' },
         { status: 400 }
       );
     }
-
-    // TODO: Add admin authentication check
 
     const { error } = await supabase
       .from('comments')
@@ -141,17 +146,17 @@ export async function DELETE(request: NextRequest) {
 // PATCH: Admin only - approve a comment
 export async function PATCH(request: NextRequest) {
   try {
+    if (!(await authenticatedAdmin())) return new Response('Forbidden', { status: 403 });
+    if (!isSameOrigin(request)) return new Response('Forbidden', { status: 403 });
     const body = await request.json();
     const { commentId, isApproved } = body;
 
-    if (!commentId || isApproved === undefined) {
+    if (typeof commentId !== 'string' || !/^[0-9a-f-]{36}$/i.test(commentId) || typeof isApproved !== 'boolean') {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
-
-    // TODO: Add admin authentication check
 
     const { data, error } = await supabase
       .from('comments')

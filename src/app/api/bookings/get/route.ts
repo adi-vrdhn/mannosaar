@@ -9,7 +9,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const bookingId = searchParams.get('bookingId');
 
-    console.log('API /bookings/get - BookingId:', bookingId, 'Auth email:', session?.user?.email);
 
     if (!bookingId) {
       return NextResponse.json({ error: 'Booking ID required' }, { status: 400 });
@@ -22,7 +21,6 @@ export async function GET(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    console.log('Fetching booking with ID:', bookingId);
 
     const { data: booking, error } = await supabase
       .from('bookings')

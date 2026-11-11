@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { slotDurationMinutes } from '@/lib/services';
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -30,6 +31,8 @@ export async function POST(request: Request) {
   if (!date || !startTime || !endTime) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
+  const durationMinutes = slotDurationMinutes(startTime, endTime);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || ![40, 60].includes(durationMinutes)) return NextResponse.json({ error: 'Slots must be 40 or 60 minutes.' }, { status: 400 });
 
   const therapistId = '00000000-0000-0000-0000-000000000000';
   const { data: existingSlot } = await supabase
@@ -40,6 +43,8 @@ export async function POST(request: Request) {
     .eq('therapist_id', therapistId)
     .maybeSingle();
 
+  if (existingSlot) return NextResponse.json({ data: [existingSlot], message: 'This slot already exists and was left unchanged.', overwritten: false }, { status: 200 });
+
   const { data, error } = await supabase
     .from('therapy_slots')
     .upsert(
@@ -48,6 +53,7 @@ export async function POST(request: Request) {
           date,
           start_time: startTime,
           end_time: endTime,
+          duration_minutes: durationMinutes,
           is_available: true,
           is_blocked: false,
           therapist_id: therapistId,
@@ -55,6 +61,7 @@ export async function POST(request: Request) {
       ],
       {
         onConflict: 'date,start_time,therapist_id',
+        ignoreDuplicates: true,
       }
     )
     .select();
@@ -67,11 +74,9 @@ export async function POST(request: Request) {
   return NextResponse.json(
     {
       data,
-      message: existingSlot
-        ? 'This slot already existed and was updated.'
-        : 'Slot created successfully.',
-      overwritten: !!existingSlot,
+      message: 'Slot created successfully.',
+      overwritten: false,
     },
-    { status: existingSlot ? 200 : 201 }
+    { status: 201 }
   );
 }

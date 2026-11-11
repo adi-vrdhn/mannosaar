@@ -12,7 +12,7 @@ export const createClient = () => {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { global: { fetch: async (input, init) => {
         const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
-        const table = url.pathname.match(/^\/rest\/v1\/(users|bookings)$/)?.[1];
+        const table = url.pathname.match(/^\/rest\/v1\/(users|bookings|therapy_slots|block_schedules)$/)?.[1];
         if (table) {
           const headers = new Headers(init?.headers);
           headers.delete('authorization'); headers.delete('apikey');

@@ -6,6 +6,7 @@ import {
   Clock3,
   CreditCard,
   Home,
+  FileText,
   Settings,
   Users,
 } from 'lucide-react';
@@ -19,6 +20,7 @@ export interface AdminNavItem {
 
 export const adminNavItems: AdminNavItem[] = [
   { label: 'Dashboard', href: '/admin', icon: Home, roles: ['admin', 'therapist'] },
+  { label: 'Blogs', href: '/admin/blogs', icon: FileText, roles: ['admin'] },
   { label: 'Appointments', href: '/admin/bookings', icon: CalendarDays, roles: ['admin', 'therapist'] },
   { label: 'Calendar', href: '/admin/calendar', icon: Calendar, roles: ['admin', 'therapist'] },
   { label: 'Clients', href: '/admin/users', icon: Users, roles: ['admin'] },

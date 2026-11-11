@@ -32,7 +32,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ bookings: [], error: 'User not found' }, { status: 200 });
     }
 
-    console.log('🔍 Fetching bookings for user:', userData.id, 'role:', userData.role);
 
     let query = supabase
       .from('bookings')
@@ -47,12 +46,10 @@ export async function GET(request: Request) {
     if (userData.role !== 'admin' && userData.role !== 'therapist') {
       query = query.eq('user_id', userData.id);
       query = query.eq('status', 'confirmed');
-      console.log('👤 User role - showing only own bookings');
     } else {
       if (!includeAllStatuses) {
         query = query.eq('status', 'confirmed');
       }
-      console.log('👨‍💼 Admin/Therapist role - showing all client bookings');
     }
 
     if (userData.role === 'therapist') query = query.in('slot_id', await therapistSlotIds(userData.id));
@@ -74,11 +71,6 @@ export async function GET(request: Request) {
       );
     });
 
-    console.log('✅ Bookings fetched:', {
-      count: visibleBookings.length,
-      role: userData.role,
-      bookings: visibleBookings.map(b => ({ id: b.id, user_id: b.user_id, slot_date: b.slot_date, status: b.status }))
-    });
 
     const bookingIds = visibleBookings.map(booking => booking.id);
     const paymentByBooking = new Map<string, {

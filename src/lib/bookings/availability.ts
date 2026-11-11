@@ -1,4 +1,5 @@
 import { check, db } from '../whatsapp/server';
+import { getServiceById, slotDurationMinutes, type ServiceId } from '../services';
 import { overlaps, slotEndInstant, slotInstant } from '../whatsapp/core';
 import { freeBusy, type Therapist } from '../google-calendar/whatsapp';
 import { getCurrentDateString } from '../time';
@@ -8,7 +9,7 @@ export async function therapists(service?: string): Promise<Therapist[]> {
   if (service) query = query.contains('services', [service]);
   const { data, error } = await query; check(error); return data || [];
 }
-export async function availableSlots(therapistId: string, date?: string): Promise<AvailableSlot[]> {
+export async function availableSlots(therapistId: string, date?: string, serviceId?: ServiceId): Promise<AvailableSlot[]> {
   const therapist = (await therapists()).find(t => t.therapist_id === therapistId);
   if (!therapist) throw new Error('THERAPIST_UNAVAILABLE');
   const startDate = date || getCurrentDateString();
@@ -25,14 +26,15 @@ export async function availableSlots(therapistId: string, date?: string): Promis
   const reservations = results[1].data || [];
   const ranges = reservations.flatMap(r => {
     const hold = Array.isArray(r.hold) ? r.hold[0] : r.hold;
-    if (hold?.status === 'ACTIVE' && Date.parse(hold.expires_at) <= Date.now()) return [];
+    if (hold && (hold.status !== 'ACTIVE' || Date.parse(hold.expires_at) <= Date.now())) return [];
     const bounds = String(r.span).slice(1, -1).split(',').map(s => s.replaceAll('"', ''));
     return [{ start: bounds[0], end: bounds[1] }];
   });
+  const expectedDuration = serviceId ? getServiceById(serviceId)?.durationMinutes : null;
   return (results[0].data || []).filter(slot => {
     const span = { start: slotInstant(slot.date, slot.start_time), end: slotEndInstant(slot.date, slot.start_time, slot.end_time) };
-    return Date.parse(span.start) >= Date.now() + 4 * 3600_000 && Date.parse(span.end) > Date.parse(span.start) &&
+    return (expectedDuration === null || slotDurationMinutes(slot.start_time, slot.end_time) === expectedDuration) && Date.parse(span.start) >= Date.now() + 4 * 3600_000 && Date.parse(span.end) > Date.parse(span.start) &&
       ![...busy, ...ranges].some(range => overlaps(span, range)) &&
       !(results[2].data || []).some(block => slot.date >= block.start_date && slot.date <= block.end_date && (block.block_type === 'full_day' || (slot.start_time < block.end_time && block.start_time < slot.end_time)));
-  });
+  }).map(slot => ({ ...slot, duration_minutes: slotDurationMinutes(slot.start_time, slot.end_time) }));
 }

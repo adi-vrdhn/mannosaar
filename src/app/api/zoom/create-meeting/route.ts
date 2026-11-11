@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { authenticatedAdmin } from '@/lib/admin-authorization';
+import { isSameOrigin } from '@/lib/compliance';
+import { getServiceById } from '@/lib/services';
 
 interface ZoomMeetingResponse {
   id: number;
@@ -76,7 +78,6 @@ async function createZoomMeeting(
     duration,
     startTime: localStartTime,
     timezone: 'Asia/Kolkata',
-    password: generatedPassword,
   });
 
   const response = await fetch('https://api.zoom.us/v2/users/me/meetings', {
@@ -129,19 +130,20 @@ async function createZoomMeeting(
 export async function POST(request: NextRequest) {
   try {
     // Verify user is authenticated
-    const session = await auth();
+    const session = await authenticatedAdmin();
     if (!session?.user?.id) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
       );
     }
+    if (!isSameOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
 
     const body = await request.json();
     const { sessionType = 'personal', slotDate, slotTime } = body;
 
     // Validate required parameters
-    if (!slotDate || !slotTime) {
+    if (typeof slotDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(slotDate) || typeof slotTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(slotTime) || !['personal','couple'].includes(sessionType)) {
       return NextResponse.json(
         { success: false, error: 'Missing slot date and time' },
         { status: 400 }
@@ -164,7 +166,7 @@ export async function POST(request: NextRequest) {
     // Create Zoom meeting with actual slot time
     const { meeting, password } = await createZoomMeeting(
       `Therapy Session - ${sessionType.charAt(0).toUpperCase() + sessionType.slice(1)}`,
-      40,
+      getServiceById(sessionType)?.durationMinutes || 40,
       startTime
     );
 

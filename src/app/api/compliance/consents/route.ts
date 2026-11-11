@@ -10,12 +10,10 @@ import {
   requestCountry,
   requestIp,
 } from '@/lib/compliance';
-import { allowRequest, createSignedConsentReceipt, writeAudit } from '@/lib/compliance-server';
+import { allowRequest, writeAudit } from '@/lib/compliance-server';
 import { check, db } from '@/lib/whatsapp/server';
 
 export async function POST(request: Request) {
-  const fallbackRequest = request.clone();
-
   try {
     const session = await auth();
     if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -78,27 +76,9 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Consent recording failed:', error);
     const message = error instanceof Error ? error.message : '';
-    const setupMissing = message.includes('DB_PGRST202') || message.includes('DB_PGRST205');
-
-    if (setupMissing) {
-      const session = await auth();
-      if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      const body = await fallbackRequest.json().catch(() => null);
-      if (!hasRequiredConsents(body?.selections)) {
-        return NextResponse.json({ error: 'Please accept the required booking consent to continue.' }, { status: 400 });
-      }
-
-      const acceptedAt = new Date();
-      return NextResponse.json({
-        receiptId: createSignedConsentReceipt(session.user.id, acceptedAt),
-        acceptedAt: acceptedAt.toISOString(),
-        storage: 'signed',
-      }, { headers: { 'Cache-Control': 'no-store' } });
-    }
-
     return NextResponse.json(
-      { error: 'Unable to record booking consent right now. Please try again.' },
-      { status: 500 },
+      { error: 'Consent records are temporarily unavailable. Please try again later.' },
+      { status: message.includes('DB_PGRST202') || message.includes('DB_PGRST205') ? 503 : 500 },
     );
   }
 }

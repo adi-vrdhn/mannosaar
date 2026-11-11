@@ -10,6 +10,8 @@ import {
 import { auth } from '@/lib/auth';
 import { isSameOrigin } from '@/lib/compliance';
 import { allowRequest, validateConsentReceipt } from '@/lib/compliance-server';
+import { getServiceById, slotDurationMinutes } from '@/lib/services';
+import { slotEndInstant, slotInstant } from '@/lib/whatsapp/core';
 
 interface CreatePayUOrderBody {
   amount?: number;
@@ -267,6 +269,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'The booking price changed. Refresh and review the current price.' }, { status: 409 });
     }
 
+    const requestedIds = Array.isArray(sessionDates) && sessionDates.length
+      ? sessionDates.map(entry => entry.slotId)
+      : slotId ? [slotId] : [];
+    if (!requestedIds.length || requestedIds.length > 12 || new Set(requestedIds).size !== requestedIds.length || requestedIds.some(id => typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id))) {
+      return NextResponse.json({ error: 'Select a valid appointment time.' }, { status: 400 });
+    }
+    const selectedSlots = await supabase.from('therapy_slots').select('id,date,start_time,end_time,is_available,is_blocked,therapist_id').in('id', requestedIds);
+    if (selectedSlots.error || selectedSlots.data?.length !== requestedIds.length || selectedSlots.data.some(slot => !slot.is_available || slot.is_blocked || slotDurationMinutes(slot.start_time, slot.end_time) !== getServiceById(sessionType)?.durationMinutes)) {
+      return NextResponse.json({ error: 'The selected time is no longer available for this session duration.' }, { status: 409 });
+    }
+    const occupiedChecks = await Promise.all(selectedSlots.data.map(slot => supabase.from('booking_reservations').select('id,hold:booking_holds(status,expires_at)').eq('therapist_id', slot.therapist_id).overlaps('span', `[${slotInstant(slot.date, slot.start_time)},${slotEndInstant(slot.date, slot.start_time, slot.end_time)})`).limit(10)));
+    if (occupiedChecks.some(check => check.error || (check.data || []).some(reservation => {
+      const hold = Array.isArray(reservation.hold) ? reservation.hold[0] : reservation.hold;
+      return !hold || (hold.status === 'ACTIVE' && Date.parse(hold.expires_at) > Date.now());
+    }))) return NextResponse.json({ error: 'The selected time is no longer available.' }, { status: 409 });
+    const byId = new Map(selectedSlots.data.map(slot => [slot.id, slot]));
+    const canonicalDates = Array.isArray(sessionDates) && sessionDates.length
+      ? sessionDates.map(entry => ({ date: byId.get(entry.slotId)!.date, slotId: entry.slotId, startTime: byId.get(entry.slotId)!.start_time, endTime: byId.get(entry.slotId)!.end_time }))
+      : undefined;
+    const canonicalSingle = slotId ? byId.get(slotId) : null;
+
     const callbackUrl = new URL('/api/payments/payu/response', request.url).toString();
 
     const sharedPayload = {
@@ -277,12 +300,12 @@ export async function POST(request: NextRequest) {
       userName,
       userPhone,
       slotId,
-      date,
-      startTime,
-      endTime,
+      date: canonicalSingle?.date || date,
+      startTime: canonicalSingle?.start_time || startTime,
+      endTime: canonicalSingle?.end_time || endTime,
       bundle,
       bundleSchedule,
-      sessionDates,
+      sessionDates: canonicalDates,
       notes,
       returnUrl,
       paymentMode,

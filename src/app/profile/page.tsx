@@ -1043,19 +1043,20 @@ const ProfilePage = () => {
             className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
           >
             <span id="notes" className="sr-only">Notes</span>
-            <div className="flex gap-6 overflow-x-auto border-b border-slate-200 px-5 sm:px-6">
+            <div className="grid grid-cols-1 border-b border-slate-200 sm:grid-cols-3">
               {tabItems.map(({ key, label, icon: Icon, count }) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setActiveTab(key)}
-                  className={`relative inline-flex shrink-0 items-center gap-2 py-4 text-sm font-medium transition ${
+                  aria-pressed={activeTab === key}
+                  className={`relative flex min-w-0 items-center justify-center gap-2 px-3 py-4 text-center text-sm font-medium transition sm:px-2 lg:px-4 ${
                     activeTab === key ? 'text-[#5b267a]' : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
-                  <Icon size={17} />
-                  {label}
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{count}</span>
+                  <Icon size={17} className="shrink-0" aria-hidden="true" />
+                  <span className="min-w-0">{label}</span>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{count}</span>
                   {activeTab === key && (
                     <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#5b267a]" />
                   )}

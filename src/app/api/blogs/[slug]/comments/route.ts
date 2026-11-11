@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { allowRequest } from '@/lib/compliance-server';
+import { isSameOrigin } from '@/lib/compliance';
+import { publicBlogTimeFilter } from '@/lib/blog-publishing';
 
 export async function POST(
   request: NextRequest,
@@ -9,19 +12,15 @@ export async function POST(
   const params = await props.params;
   try {
     const session = await auth();
+    if (!session?.user?.id || !session.user.email) return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
+    if (!isSameOrigin(request)) return new Response('Forbidden', { status: 403 });
+    if (!(await allowRequest('blog-comment', session.user.id, 5, 3600))) return new Response('Too many comments', { status: 429 });
     const { content } = await request.json();
 
-    if (!content || content.trim().length === 0) {
+    if (typeof content !== 'string' || content.trim().length < 2 || content.length > 2000) {
       return NextResponse.json(
         { error: 'Comment cannot be empty' },
         { status: 400 }
-      );
-    }
-
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: 'User not authenticated' },
-        { status: 401 }
       );
     }
 
@@ -42,6 +41,8 @@ export async function POST(
       .from('blogs')
       .select('id')
       .eq('slug', params.slug)
+      .eq('is_published', true)
+      .or(publicBlogTimeFilter())
       .single();
 
     if (blogError || !blog) {
@@ -62,7 +63,7 @@ export async function POST(
         content: content.trim(),
         is_approved: true,
       })
-      .select()
+      .select('id,user_name,content,created_at')
       .single();
 
     if (insertError) {
@@ -99,6 +100,8 @@ export async function GET(
       .from('blogs')
       .select('id')
       .eq('slug', params.slug)
+      .eq('is_published', true)
+      .or(publicBlogTimeFilter())
       .single();
 
     if (blogError || !blog) {
@@ -111,7 +114,7 @@ export async function GET(
     // Get all approved comments for this blog
     const { data: comments, error: commentsError } = await supabase
       .from('blog_comments')
-      .select('*')
+      .select('id,user_name,content,created_at')
       .eq('blog_id', blog.id)
       .eq('is_approved', true)
       .order('created_at', { ascending: false });

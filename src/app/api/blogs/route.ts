@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
+import { blogInput, publicBlogTimeFilter } from '@/lib/blog-publishing';
+import { isSameOrigin } from '@/lib/compliance';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,21 +12,11 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, content, excerpt, featured_image, featuredImage } = await request.json();
-    
-    if (!title) {
-      return NextResponse.json(
-        { error: 'Title is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!content) {
-      return NextResponse.json(
-        { error: 'Content is required' },
-        { status: 400 }
-      );
-    }
+    if (!isSameOrigin(request)) return new Response('Forbidden', { status: 403 });
+    const body = await request.json();
+    let input;
+    try { input = blogInput(body); }
+    catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid article' }, { status: 400 }); }
 
     // Get session from NextAuth
     const session = await auth();
@@ -43,7 +35,7 @@ export async function POST(request: NextRequest) {
       .eq('id', session.user.id)
       .single();
 
-    if (userData?.role !== 'admin' && userData?.role !== 'therapist') {
+    if (userData?.role !== 'admin') {
       return NextResponse.json(
         { error: 'Only admins can create blogs' },
         { status: 403 }
@@ -51,23 +43,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate slug from title
-    const slug = `${title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')}-${nanoid(6)}`;
+    const slug = body.slug ? input.slug : `${input.slug}-${nanoid(6)}`;
 
     // Insert blog
     const { data: blog, error: insertError } = await supabase
       .from('blogs')
       .insert({
-        title,
+        ...input,
         slug,
-        content,
-        excerpt: excerpt || content.substring(0, 160),
-        featured_image: featured_image || featuredImage || null,
         author_id: session.user.id,
         author_name: userData?.name || session.user.name || session.user.email,
-        is_published: true,
       })
       .select()
       .single();
@@ -75,8 +60,8 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       console.error('Insert error:', insertError);
       return NextResponse.json(
-        { error: 'Failed to create blog' },
-        { status: 500 }
+        { error: insertError.code === '23505' ? 'Slug is already in use' : /column|schema cache/i.test(insertError.message) ? 'Blog database update required: run scripts/migrations/20261105_blog_publishing.sql in Supabase SQL Editor' : 'Failed to create blog' },
+        { status: insertError.code === '23505' ? 409 : 500 }
       );
     }
 
@@ -103,8 +88,9 @@ export async function GET(request: NextRequest) {
 
     const { data: blogs, error } = await supabaseClient
       .from('blogs')
-      .select('*')
+      .select('id,title,slug,excerpt,author_name,created_at,featured_image')
       .eq('is_published', true)
+      .or(publicBlogTimeFilter())
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 

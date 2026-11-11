@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { therapistSlotIds } from '@/lib/bookings/access';
 import { isSameOrigin, requestIp } from '@/lib/compliance';
+import { getServiceById, slotDurationMinutes } from '@/lib/services';
 import { writeAudit } from '@/lib/compliance-server';
 import { combineBookingNotes, splitBookingNotes } from '@/lib/booking-notes';
 import { sendTherapistNoteNotificationEmail } from '@/lib/email';
@@ -97,7 +98,7 @@ export async function GET(
         end_time: firstSessionWasRescheduled
           ? firstSession?.end_time || firstSession?.endTime || booking.slot_end_time || booking.slot?.end_time || ''
           : booking.slot?.end_time || booking.slot_end_time || firstSession?.end_time || firstSession?.endTime || '',
-        duration_minutes: booking.slot?.duration_minutes || 40,
+        duration_minutes: booking.slot?.start_time && booking.slot?.end_time ? slotDurationMinutes(booking.slot.start_time, booking.slot.end_time) : getServiceById(booking.session_type)?.durationMinutes || 40,
       },
       session_type: booking.session_type,
       status: booking.status,

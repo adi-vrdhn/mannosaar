@@ -5,6 +5,7 @@ import { sendBookingPostponedEmail } from '@/lib/email';
 import { createGoogleCalendarEvent, deleteGoogleCalendarEvent } from '@/lib/google-calendar';
 import { isSameOrigin, requestIp } from '@/lib/compliance';
 import { writeAudit } from '@/lib/compliance-server';
+import { getServiceById, slotDurationMinutes } from '@/lib/services';
 
 export async function POST(request: NextRequest) {
   try {
@@ -72,14 +73,13 @@ export async function POST(request: NextRequest) {
       .eq('id', booking.slot_id)
       .single();
 
-    // Search for existing slot with the new date/time (40 mins duration like user slots)
+    // The replacement must match the booked service duration.
     const { data: newSlot, error: slotError } = await supabase
       .from('therapy_slots')
       .select('*')
       .eq('date', newDate)
       .eq('start_time', newStartTime)
       .eq('end_time', newEndTime)
-      .eq('duration_minutes', 40)
       .single();
 
     // If slot doesn't exist, return error
@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (slotDurationMinutes(newSlot.start_time, newSlot.end_time) !== getServiceById(booking.session_type)?.durationMinutes) return NextResponse.json({ error: 'The selected slot has the wrong session duration.' }, { status: 409 });
 
     // Slot exists, check if available
     if (!newSlot.is_available || newSlot.is_blocked) {

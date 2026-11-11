@@ -18,6 +18,18 @@ export default function nextConfig(phase: string): NextConfig {
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()' },
           { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
         ],
+      }, {
+        source: '/api/:path*',
+        headers: [{ key: 'Cache-Control', value: 'private, no-store' }],
+      }, {
+        source: '/profile/:path*',
+        headers: [{ key: 'Cache-Control', value: 'private, no-store' }],
+      }, {
+        source: '/admin/:path*',
+        headers: [{ key: 'Cache-Control', value: 'private, no-store' }],
+      }, {
+        source: '/appointment/:path*',
+        headers: [{ key: 'Cache-Control', value: 'private, no-store' }],
       }];
     },
   };

@@ -1,13 +1,18 @@
 import type { Metadata } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { SITE_URL } from '@/lib/seo';
+import { isSearchableBlog } from '@/lib/seo';
+import { publicBlogTimeFilter } from '@/lib/blog-publishing';
 
 type BlogMetadata = {
   title: string;
   excerpt: string | null;
   featured_image: string | null;
+  author_name: string | null;
   updated_at: string | null;
   created_at: string | null;
+  published_at: string | null;
+  primary_keyword: string | null;
+  secondary_keywords: string[] | null;
 };
 
 export async function generateMetadata({
@@ -26,9 +31,10 @@ export async function generateMetadata({
   const supabase = createClient(supabaseUrl, supabaseKey);
   const { data } = await supabase
     .from('blogs')
-    .select('title, excerpt, featured_image, updated_at, created_at')
+    .select('title, excerpt, featured_image, author_name, updated_at, created_at, published_at, primary_keyword, secondary_keywords')
     .eq('slug', slug)
     .eq('is_published', true)
+    .or(publicBlogTimeFilter())
     .maybeSingle();
 
   const blog = data as BlogMetadata | null;
@@ -43,16 +49,17 @@ export async function generateMetadata({
   return {
     title: blog.title,
     description,
+    keywords: [blog.primary_keyword, ...(blog.secondary_keywords || [])].filter((word): word is string => Boolean(word)),
+    robots: isSearchableBlog(slug, blog.title) ? undefined : { index: false, follow: false },
     alternates: { canonical },
-    authors: [{ name: 'Neetu Rathore', url: `${SITE_URL}/about` }],
+    authors: [{ name: 'Mannosaar' }],
     openGraph: {
       type: 'article',
       title: blog.title,
       description,
       url: canonical,
-      publishedTime: blog.created_at || undefined,
+      publishedTime: blog.published_at || blog.created_at || undefined,
       modifiedTime: blog.updated_at || blog.created_at || undefined,
-      authors: [`${SITE_URL}/about`],
       images: [{ url: image, alt: blog.title }],
     },
     twitter: {

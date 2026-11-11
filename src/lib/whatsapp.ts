@@ -75,7 +75,7 @@ export async function sendBookingConfirmationWhatsApp(data: WhatsAppMessageData)
       to: `whatsapp:${toPhoneNumber}`,
     });
 
-    console.log(`✅ Booking confirmation WhatsApp sent to ${toPhoneNumber}:`, message.sid);
+    console.log('Booking confirmation WhatsApp sent:', message.sid);
     return { success: true, messageSid: message.sid };
   } catch (error) {
     console.error('❌ Error sending booking confirmation WhatsApp:', error);
@@ -140,7 +140,7 @@ export async function sendRescheduleNotificationWhatsApp(data: RescheduleMessage
       to: `whatsapp:${toPhoneNumber}`,
     });
 
-    console.log(`✅ Reschedule notification WhatsApp sent to ${toPhoneNumber}:`, message.sid);
+    console.log('Reschedule notification WhatsApp sent:', message.sid);
     return { success: true, messageSid: message.sid };
   } catch (error) {
     console.error('❌ Error sending reschedule notification WhatsApp:', error);
@@ -195,7 +195,7 @@ export async function sendSessionReminderWhatsApp(data: ReminderMessageData) {
       to: `whatsapp:${toPhoneNumber}`,
     });
 
-    console.log(`✅ Session reminder WhatsApp sent to ${toPhoneNumber}:`, message.sid);
+    console.log('Session reminder WhatsApp sent:', message.sid);
     return { success: true, messageSid: message.sid };
   } catch (error) {
     console.error('❌ Error sending session reminder WhatsApp:', error);
@@ -232,7 +232,7 @@ export async function sendCancellationNotificationWhatsApp(
       to: `whatsapp:${toPhoneNumber}`,
     });
 
-    console.log(`✅ Cancellation notification WhatsApp sent to ${toPhoneNumber}:`, message.sid);
+    console.log('Cancellation notification WhatsApp sent:', message.sid);
     return { success: true, messageSid: message.sid };
   } catch (error) {
     console.error('❌ Error sending cancellation notification WhatsApp:', error);

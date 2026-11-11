@@ -164,7 +164,6 @@ export async function GET(request: NextRequest) {
 
     // If user doesn't exist, create them
     if (!data && !error) {
-      console.log('Creating user:', session.user.email);
       const { data: newUser, error: createError } = await supabase
         .from('users')
         .insert([

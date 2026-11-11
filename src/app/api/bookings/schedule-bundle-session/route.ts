@@ -6,6 +6,7 @@ import { writeAudit } from '@/lib/compliance-server';
 import { createGoogleCalendarEvent, deleteGoogleCalendarEvent } from '@/lib/google-calendar';
 import { sendBookingConfirmationEmail } from '@/lib/email';
 import { getTherapistNotificationRecipients } from '@/lib/therapist-email';
+import { getServiceById, slotDurationMinutes } from '@/lib/services';
 
 type BundleSession = {
   date: string;
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'That time is no longer available.' }, { status: 409 });
   }
   const slot = slotResult.data;
+  if (slotDurationMinutes(slot.start_time, slot.end_time) !== getServiceById(booking.session_type)?.durationMinutes) return NextResponse.json({ error: 'This slot has the wrong session duration.' }, { status: 409 });
   const reserved = await db().from('therapy_slots').update({ is_available: false }).eq('id', slotId).eq('is_available', true).eq('is_blocked', false).select('id').maybeSingle();
   if (reserved.error || !reserved.data) return NextResponse.json({ error: 'That time was just booked. Please choose another.' }, { status: 409 });
 

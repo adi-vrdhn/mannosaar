@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { auth } from '@/lib/auth';
+import { publicBlogTimeFilter } from '@/lib/blog-publishing';
 
 export async function GET(
   request: NextRequest,
@@ -16,6 +17,7 @@ export async function GET(
       .select('*')
       .eq('slug', params.slug)
       .eq('is_published', true)
+      .or(publicBlogTimeFilter())
       .single();
 
     if (error || !blog) {
@@ -25,13 +27,29 @@ export async function GET(
       );
     }
 
-    // Increment views count
-    await supabase
-      .from('blogs')
-      .update({ views_count: (blog.views_count || 0) + 1 })
-      .eq('id', blog.id);
+    // Count a public article request without granting public write access to blogs.
+    const counter = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    let views = blog.views_count || 0;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data: updated, error: updateError } = await counter.from('blogs')
+        .update({ views_count: views + 1 })
+        .eq('id', blog.id)
+        .eq('views_count', views)
+        .select('views_count')
+        .maybeSingle();
+      if (updateError) { console.error('Unable to count blog view:', updateError); break; }
+      if (updated) { views = updated.views_count; break; }
+      const { data: latest, error: readError } = await counter.from('blogs').select('views_count').eq('id', blog.id).single();
+      if (readError || !latest) break;
+      views = latest.views_count || 0;
+    }
 
-    return NextResponse.json({ blog });
+    const publicBlog = { ...blog };
+    delete publicBlog.views_count;
+    return NextResponse.json({ blog: publicBlog }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('Error fetching blog:', error);
     return NextResponse.json(

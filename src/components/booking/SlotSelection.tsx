@@ -135,7 +135,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
         const monthParam = format(startOfMonth(displayMonth), 'yyyy-MM-dd');
 
         const response = await fetch(
-          `/api/appointment/available-slots?month=${monthParam}`
+          `/api/appointment/available-slots?month=${monthParam}&type=${encodeURIComponent(typeParam)}`
         );
 
         if (!response.ok) {
@@ -151,7 +151,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
     };
 
     fetchMonthAvailability();
-  }, [displayMonth]);
+  }, [displayMonth, typeParam]);
 
   // Fetch slots for selected date
   useEffect(() => {
@@ -160,7 +160,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
       setSelectedSlot(null);
       try {
         const response = await fetch(
-          `/api/appointment/available-slots?date=${selectedDate}`
+          `/api/appointment/available-slots?date=${selectedDate}&type=${encodeURIComponent(typeParam)}`
         );
 
         if (!response.ok) {
@@ -177,7 +177,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
     };
 
     fetchSlots();
-  }, [selectedDate]);
+  }, [selectedDate, typeParam]);
 
   const handleSelectSlot = (slotId: string) => {
     setSelectedSlot(slotId);

@@ -1,826 +1,142 @@
-/* eslint-disable-next-line @next/next/no-css-tags */
-'use client';
-
-import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { motion } from 'framer-motion';
-import { Play, FileText, Video, Image as ImageIcon, X, Loader2, Trash2, Share2 } from 'lucide-react';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { auth } from '@/lib/auth';
+import { createClient } from '@supabase/supabase-js';
 import BlogCard from '@/components/blog/BlogCard';
-import RichTextEditor from '@/components/admin/RichTextEditor';
-import VideoUpload from '@/components/admin/VideoUpload';
-import ImageUpload from '@/components/admin/ImageUpload';
-import ImageGrid from '@/components/blog/ImageGrid';
+import { publicBlogTimeFilter } from '@/lib/blog-publishing';
+import { createPageMetadata } from '@/lib/seo';
 
-interface Blog {
+export const dynamic = 'force-dynamic';
+
+const PAGE_SIZE = 12;
+const categories = [
+  { value: 'all', label: 'All' },
+  { value: 'article', label: 'Mental Health' },
+  { value: 'guide', label: 'Guides' },
+  { value: 'story', label: 'Stories' },
+  { value: 'news', label: 'Updates' },
+] as const;
+type Category = (typeof categories)[number]['value'];
+
+type Blog = {
   id: string;
   title: string;
-  excerpt: string;
   slug: string;
-  author_name: string;
+  excerpt: string | null;
+  featured_image: string | null;
   created_at: string;
-  featured_image?: string | null;
-  views_count: number;
+  published_at?: string | null;
+  content_type?: string | null;
+  content?: string;
+};
+
+type PageProps = { searchParams: Promise<{ page?: string; type?: string }> };
+
+function pageNumber(value?: string) {
+  return value && /^\d+$/.test(value) ? Math.max(1, Math.min(1000, Number(value))) : 1;
+}
+function category(value?: string): Category {
+  return categories.find(item => item.value === value)?.value || 'all';
+}
+function pageHref(page: number, type: Category) {
+  const params = new URLSearchParams();
+  if (type !== 'all') params.set('type', type);
+  if (page > 1) params.set('page', String(page));
+  const query = params.toString();
+  return query ? `/blogs?${query}` : '/blogs';
+}
+function readingMinutes(content?: string) {
+  const words = (content || '').replace(/<[^>]*>/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(words / 200));
 }
 
-interface Video {
-  id: string;
-  title: string;
-  media_url: string;
-  thumbnail_url?: string;
-  media_duration?: number;
-  views_count?: number;
+export async function generateMetadata({ searchParams }: PageProps) {
+  const { page: rawPage, type: rawType } = await searchParams;
+  const page = pageNumber(rawPage);
+  const type = category(rawType);
+  if (type !== 'all') return { ...createPageMetadata({ title: `${categories.find(item => item.value === type)?.label} Articles`, description: 'Browse Mannosaar mental health articles and guides.', path: '/blogs' }), robots: { index: false, follow: true } };
+  if (page === 1) return {};
+  return createPageMetadata({ title: `Mental Health Articles – Page ${page}`, description: `Browse page ${page} of Mannosaar's mental health articles.`, path: pageHref(page, type) });
 }
 
-interface ContentItem {
-  id: string;
-  title?: string;
-  description?: string;
-  media_url: string;
-  image_alt_text?: string;
+async function getBlogs(page: number, type: Category): Promise<{ blogs: Blog[]; total: number; error: boolean }> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return { blogs: [], total: 0, error: true };
+  const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+  let query = supabase.from('blogs')
+    .select('id,title,slug,excerpt,featured_image,created_at,published_at,content_type,content', { count: 'exact' })
+    .eq('is_published', true)
+    .or(publicBlogTimeFilter())
+    .not('slug', 'ilike', 'this-is-a-test-article%');
+  if (type !== 'all') query = query.eq('content_type', type);
+  const current = await query.order('created_at', { ascending: false }).range(from, to);
+  if (!current.error) return { blogs: current.data || [], total: current.count || 0, error: false };
+  if (current.status === 416) return { blogs: [], total: current.count || 0, error: false };
+
+  // Keep the main index available if the optional blog fields have not been migrated yet.
+  if (/published_at|content_type|schema cache/i.test(current.error.message)) {
+    if (type !== 'all' && type !== 'article') return { blogs: [], total: 0, error: false };
+    const legacy = await supabase.from('blogs')
+      .select('id,title,slug,excerpt,featured_image,created_at,content', { count: 'exact' })
+      .eq('is_published', true)
+      .not('slug', 'ilike', 'this-is-a-test-article%')
+      .order('created_at', { ascending: false })
+      .range(from, to);
+    if (!legacy.error) return { blogs: legacy.data || [], total: legacy.count || 0, error: false };
+    if (legacy.status === 416) return { blogs: [], total: legacy.count || 0, error: false };
+    console.error('Unable to load blogs:', legacy.error);
+  } else console.error('Unable to load blogs:', current.error);
+  return { blogs: [], total: 0, error: true };
 }
 
-export default function BlogsPage() {
-  const { data: session, status } = useSession();
-  const [activeTab, setActiveTab] = useState<'articles' | 'shorts' | 'images'>('articles');
-  const [blogs, setBlogs] = useState<Blog[]>([]);
-  const [videos, setVideos] = useState<Video[]>([]);
-  const [images, setImages] = useState<ContentItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Upload state
-  const [showUploadUI, setShowUploadUI] = useState(false);
-  const [articleTitle, setArticleTitle] = useState('');
-  const [articleContent, setArticleContent] = useState('');
-  const [articleCoverImage, setArticleCoverImage] = useState('');
-  const [articleCoverPreview, setArticleCoverPreview] = useState('');
-  const [articleCoverUploading, setArticleCoverUploading] = useState(false);
-  const [articleCoverError, setArticleCoverError] = useState('');
-  const [videoData, setVideoData] = useState<{
-    videoUrl: string;
-    publicId: string;
-    title: string;
-    description: string;
-  } | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [editingImageId, setEditingImageId] = useState<string | null>(null);
-  const [editingDescription, setEditingDescription] = useState('');
-
-  useEffect(() => {
-    fetchAllContent();
-  }, []);
-
-  const fetchAllContent = async () => {
-    setLoading(true);
-    try {
-      // Fetch blogs
-      const blogRes = await fetch('/api/blogs?limit=20');
-      if (blogRes.ok) {
-        const blogData = await blogRes.json();
-        setBlogs(blogData.blogs || []);
-      }
-
-      // Fetch videos
-      const videoRes = await fetch('/api/content?type=video&limit=12');
-      if (videoRes.ok) {
-        const videoData = await videoRes.json();
-        setVideos(videoData.content || []);
-      }
-
-      // Fetch images
-      const imageRes = await fetch('/api/content?type=image&limit=12');
-      if (imageRes.ok) {
-        const imageData = await imageRes.json();
-        setImages(imageData.content || []);
-      }
-    } catch (err) {
-      console.error('Error fetching content:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatDuration = (seconds?: number) => {
-    if (!seconds) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const tabVariants = {
-    hidden: { opacity: 0, y: 10 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
-  };
-
-  // Only show admin button if session is loaded AND user role is admin in database
-  // This is the ONLY source of truth - don't rely on email matching
-  const isAdmin = status === 'authenticated' && session?.user?.role === 'admin';
-  
-  // Debug logging
-  useEffect(() => {
-    console.log('🔍 [BlogsPage] Admin Check:', {
-      status,
-      userEmail: session?.user?.email,
-      userRole: session?.user?.role,
-      isAdmin,
-      timestamp: new Date().toISOString(),
-    });
-  }, [status, session, isAdmin]);
-
-  const handlePublishArticle = async () => {
-    if (!articleTitle.trim() || !articleContent.trim()) {
-      alert('Please fill in title and content');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const response = await fetch('/api/blogs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: articleTitle,
-          content: articleContent,
-          excerpt: articleContent
-            .replace(/<[^>]*>/g, '')
-            .substring(0, 200),
-          author: 'Neetu Rathore',
-          tags: ['mental-health', 'therapy'],
-          featured_image: articleCoverImage || undefined,
-        }),
-      });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        setSuccessMessage('Article published successfully!');
-        setArticleTitle('');
-        setArticleContent('');
-        setArticleCoverImage('');
-        setArticleCoverPreview('');
-        setArticleCoverError('');
-        await fetchAllContent();
-        setTimeout(() => setSuccessMessage(''), 3000);
-      } else {
-        console.error('Publish error:', data);
-        alert(`Failed to publish article: ${data.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      console.error('Error publishing article:', error);
-      alert(`Error publishing article: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handlePublishVideo = async () => {
-    if (!videoData) {
-      alert('Please upload a video first');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      console.log('🎬 Publishing video:', { videoData });
-      const response = await fetch('/api/content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'video',
-          title: videoData.title,
-          description: videoData.description,
-          mediaUrl: videoData.videoUrl,
-          cloudinary_public_id: videoData.publicId,
-          featured: false,
-        }),
-      });
-
-      console.log('🎬 Video publish response:', { status: response.status });
-      const responseData = await response.json();
-      console.log('🎬 Video publish data:', responseData);
-
-      if (response.ok) {
-        setSuccessMessage('Video published successfully!');
-        setVideoData(null);
-        fetchAllContent();
-        setTimeout(() => setSuccessMessage(''), 3000);
-      } else {
-        alert(`Failed to publish video: ${responseData.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      console.error('Error publishing video:', error);
-      alert(`Error publishing video: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleArticleCoverSelect = async (file: File | null) => {
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setArticleCoverError('Please select an image file');
-      return;
-    }
-
-    setArticleCoverUploading(true);
-    setArticleCoverError('');
-
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => resolve(event.target?.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      setArticleCoverPreview(dataUrl);
-
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: dataUrl,
-          folder: 'mental-health/blog-covers',
-          resourceType: 'image',
-        }),
-      });
-
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        throw new Error(responseData.error || 'Failed to upload cover image');
-      }
-
-      setArticleCoverImage(responseData.imageUrl);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to upload cover image';
-      setArticleCoverError(message);
-      setArticleCoverImage('');
-      setArticleCoverPreview('');
-    } finally {
-      setArticleCoverUploading(false);
-    }
-  };
-
-  const handleDeleteVideo = async (videoId: string, videoTitle: string) => {
-    if (!confirm(`Are you sure you want to delete "${videoTitle}"? This cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      console.log('🗑️ Deleting video:', videoId);
-      const response = await fetch(`/api/content/${videoId}`, {
-        method: 'DELETE',
-      });
-
-      const data = await response.json();
-      console.log('🗑️ Delete response:', { status: response.status, data });
-
-      if (!response.ok) {
-        alert(data.error || 'Failed to delete video');
-        return;
-      }
-
-      setSuccessMessage('Video deleted successfully!');
-      fetchAllContent();
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (error) {
-      console.error('Error deleting video:', error);
-      alert('An error occurred while deleting');
-    }
-  };
-
-  const handleDeleteImage = async (imageId: string, imageTitle: string) => {
-    if (!confirm(`Are you sure you want to delete "${imageTitle}"? This cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      console.log('🗑️ Deleting image:', imageId);
-      const response = await fetch(`/api/content/${imageId}`, {
-        method: 'DELETE',
-      });
-
-      const data = await response.json();
-      console.log('🗑️ Delete response:', { status: response.status, data });
-
-      if (!response.ok) {
-        alert(data.error || 'Failed to delete image');
-        return;
-      }
-
-      setSuccessMessage('Image deleted successfully!');
-      fetchAllContent();
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (error) {
-      console.error('Error deleting image:', error);
-      alert('An error occurred while deleting');
-    }
-  };
-
-  const handleEditImage = (imageId: string, currentDescription: string) => {
-    setEditingImageId(imageId);
-    setEditingDescription(currentDescription);
-  };
-
-  const handleSaveDescription = async () => {
-    if (!editingImageId) return;
-
-    try {
-      console.log('✏️ Updating image description:', editingImageId);
-      const response = await fetch(`/api/content/${editingImageId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: editingDescription.trim(),
-          title: editingDescription.split('\n')[0] || 'Untitled',
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        alert(data.error || 'Failed to update description');
-        return;
-      }
-
-      setSuccessMessage('Description updated successfully!');
-      setEditingImageId(null);
-      setEditingDescription('');
-      fetchAllContent();
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (error) {
-      console.error('Error updating description:', error);
-      alert('An error occurred while updating');
-    }
-  };
-
-  const handleShareContent = (title: string, contentType: string, contentId: string) => {
-    const shareUrl = `${window.location.origin}/blogs?type=${contentType}&id=${contentId}`;
-    
-    // Copy to clipboard
-    navigator.clipboard.writeText(shareUrl);
-    setSuccessMessage(`Share link copied to clipboard!`);
-    setTimeout(() => setSuccessMessage(''), 3000);
-
-    // Optional: Use native share if available
-    if (navigator.share) {
-      navigator.share({
-        title: title,
-        text: title,
-        url: shareUrl,
-      });
-    }
-  };
+export default async function BlogsPage({ searchParams }: PageProps) {
+  const { page: rawPage, type: rawType } = await searchParams;
+  const page = pageNumber(rawPage);
+  const type = category(rawType);
+  const [{ blogs, total, error }, session] = await Promise.all([getBlogs(page, type), auth()]);
+  if (!error && page > 1 && blogs.length === 0) notFound();
+  const hasPrevious = page > 1;
+  const hasNext = page * PAGE_SIZE < total;
 
   return (
-    <div className="min-h-screen bg-[#cbb7df]">
-      {/* Success Message */}
-      {successMessage && (
-        <div className="fixed top-4 right-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 font-medium z-50">
-          ✓ {successMessage}
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="mx-auto max-w-[1320px] px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-8 lg:grid-cols-[1.25fr_0.75fr] lg:items-end">
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="space-y-6"
-          >
-            <div className="inline-flex items-center gap-2 border-b border-[#5b267a]/40 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#5b267a]">
-              Mental wellness resources
+    <main className="min-h-screen bg-[#faf8f6] text-[#34213f]">
+      <header className="bg-[#d7c4e1] px-4 pb-14 pt-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex items-start justify-between gap-5">
+            <div>
+              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#59316d]">Mannosaar knowledge centre</p>
+              <h1 className="max-w-3xl font-playfair text-4xl font-bold leading-tight text-[#34213f] sm:text-5xl">Mental health articles and guides</h1>
+              <p className="mt-5 max-w-2xl text-base leading-7 text-[#493b52] sm:text-lg">Practical reading on emotional wellbeing, relationships, stress and starting counselling in India.</p>
             </div>
-            <div className="space-y-4">
-              <h1 className="max-w-3xl font-playfair text-4xl font-bold leading-[1.02] tracking-[-0.04em] text-[#34213f] md:text-6xl">
-                Thoughtful resources for your mental wellbeing.
-              </h1>
-              <p className="max-w-2xl text-base leading-8 text-[#4c4052] md:text-lg">
-                Read practical reflections, watch short videos, and find gentle perspectives for everyday life.
-              </p>
-            </div>
-
-            <div className="grid max-w-2xl grid-cols-3 divide-x divide-[#6f4b88]/20 border-y border-[#6f4b88]/20 py-4">
-              <div className="px-3 first:pl-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Articles</p>
-                <p className="mt-1 font-playfair text-2xl font-bold text-[#34213f]">{blogs.length}</p>
-              </div>
-              <div className="px-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Images</p>
-                <p className="mt-1 font-playfair text-2xl font-bold text-[#34213f]">{images.length}</p>
-              </div>
-              <div className="px-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Short videos</p>
-                <p className="mt-1 font-playfair text-2xl font-bold text-[#34213f]">{videos.length}</p>
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="border-l border-[#6f4b88]/30 pl-6 lg:pb-2"
-          >
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5b267a]">Create & share</p>
-                <p className="mt-2 text-lg font-bold text-[#34213f]">Share a thoughtful resource with the community.</p>
-              </div>
-
-              {isAdmin && (
-                <motion.button
-                  onClick={() => setShowUploadUI(!showUploadUI)}
-                  className="rounded-full bg-[#5b267a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#481d61]"
-                  whileHover={{ scale: 1.04 }}
-                >
-                  {showUploadUI ? 'Hide upload' : '+ Upload'}
-                </motion.button>
-              )}
-            </div>
-
-          </motion.div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="mt-10 flex flex-wrap gap-1 border-y border-[#6f4b88]/25 py-2">
-          {[
-            { id: 'articles', label: 'Feed', icon: FileText },
-            { id: 'shorts', label: 'Reels', icon: Video },
-            { id: 'images', label: 'Gallery', icon: ImageIcon },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <motion.button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'articles' | 'shorts' | 'images')}
-                className={`flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-[#5b267a] text-white'
-                    : 'text-[#4c4052] hover:bg-white/30 hover:text-[#34213f]'
-                }`}
-                whileHover={{ scale: 1.05 }}
-              >
-                <Icon size={20} />
-                {tab.label}
-              </motion.button>
-            );
-          })}
-        </div>
-
-        {/* Admin Upload Panel */}
-        {isAdmin && showUploadUI && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="mt-8 bg-white rounded-xl border-2 border-purple-200 p-6 shadow-lg"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-purple-900">Upload New Content</h2>
-              <button
-                onClick={() => setShowUploadUI(false)}
-                className="p-1 hover:bg-gray-100 rounded-lg transition"
-                title="Close upload panel"
-              >
-                <X size={24} className="text-gray-600" />
-              </button>
-            </div>
-
-            {/* Upload Tabs */}
-            <div className="space-y-6">
-              {/* Articles Upload */}
-              {activeTab === 'articles' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Article Title
-                    </label>
-                    <input
-                      type="text"
-                      value={articleTitle}
-                      onChange={(e) => setArticleTitle(e.target.value)}
-                      placeholder="Enter article title..."
-                      className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Article Content
-                    </label>
-                    <RichTextEditor
-                      value={articleContent}
-                      onChange={setArticleContent}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Cover Image from Device
-                    </label>
-                    <div className="rounded-2xl border border-dashed border-purple-300 bg-purple-50 p-4">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleArticleCoverSelect(e.target.files?.[0] || null)}
-                        className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-full file:border-0 file:bg-purple-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-purple-700"
-                      />
-                      <p className="mt-2 text-xs text-gray-500">
-                        JPG, PNG, or WebP. This image will appear as the article cover.
-                      </p>
-
-                      {articleCoverUploading && (
-                        <p className="mt-3 text-sm font-medium text-purple-700">Uploading cover image...</p>
-                      )}
-
-                      {articleCoverError && (
-                        <p className="mt-3 text-sm font-medium text-red-600">{articleCoverError}</p>
-                      )}
-
-                      {articleCoverPreview && (
-                        <div className="mt-4 overflow-hidden rounded-2xl border border-purple-200 bg-white">
-                          <img
-                            src={articleCoverPreview}
-                            alt="Cover preview"
-                            className="h-56 w-full object-cover"
-                          />
-                          <div className="flex items-center justify-between gap-3 p-3">
-                            <p className="text-sm font-semibold text-gray-700">Cover selected</p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setArticleCoverImage('');
-                                setArticleCoverPreview('');
-                                setArticleCoverError('');
-                              }}
-                              className="rounded-full bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-200"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handlePublishArticle}
-                    disabled={isSubmitting || !articleTitle.trim() || !articleContent.trim() || articleCoverUploading}
-                    className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition"
-                  >
-                    {isSubmitting && <Loader2 size={20} className="animate-spin" />}
-                    {isSubmitting ? 'Publishing...' : 'Publish Article'}
-                  </button>
-                </div>
-              )}
-
-              {/* Videos Upload */}
-              {activeTab === 'shorts' && (
-                <div className="space-y-4">
-                  <VideoUpload
-                    onUpload={(data) => {
-                      setVideoData(data);
-                    }}
-                  />
-
-                  {videoData && (
-                    <button
-                      onClick={handlePublishVideo}
-                      disabled={isSubmitting}
-                      className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition"
-                    >
-                      {isSubmitting && <Loader2 size={20} className="animate-spin" />}
-                      {isSubmitting ? 'Publishing...' : 'Publish Video'}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Images Upload */}
-              {activeTab === 'images' && (
-                <div className="space-y-4">
-                  <ImageUpload
-                    onUpload={async (data) => {
-                      // Auto-publish each image immediately after upload
-                      try {
-                        console.log('📸 Auto-publishing image:', data);
-                        const response = await fetch('/api/content', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            type: 'image',
-                            title: data.caption.split('\n')[0] || 'Untitled',
-                            description: data.caption,
-                            mediaUrl: data.imageUrl,
-                            featured: false,
-                          }),
-                        });
-
-                        const responseData = await response.json();
-                        
-                        if (response.ok) {
-                          setSuccessMessage('Image posted successfully!');
-                          fetchAllContent();
-                          setTimeout(() => setSuccessMessage(''), 3000);
-                        } else {
-                          console.error('Failed to publish image:', responseData.error);
-                        }
-                      } catch (error) {
-                        console.error('Error publishing image:', error);
-                      }
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </div>
-
-      {/* Content Area */}
-      <div className="mx-auto max-w-[1320px] px-4 py-12 sm:px-6 lg:px-8">
-        {loading ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500">Loading...</p>
+            {session?.user?.role === 'admin' && <Link href="/admin/blogs" className="shrink-0 rounded-full border border-[#6e4b82]/40 px-4 py-2 text-xs font-semibold text-[#4d2860] hover:bg-white/40">Manage blogs</Link>}
           </div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <nav aria-label="Filter articles by category" className="mb-10 flex flex-wrap gap-2">
+          {categories.map(item => {
+            const active = item.value === type;
+            return <Link key={item.value} href={pageHref(1, item.value)} aria-current={active ? 'page' : undefined} className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${active ? 'border-[#765187] bg-[#eadfec] text-[#34213f]' : 'border-[#ded2e3] bg-white text-[#6a5c70] hover:border-[#765187] hover:text-[#5b267a]'}`}>{item.label}</Link>;
+          })}
+        </nav>
+
+        {error ? (
+          <section aria-label="Articles" className="py-16 text-center"><h2 className="font-playfair text-2xl font-bold">Articles are temporarily unavailable</h2><p className="mt-3 text-[#675b6b]">Please try again in a little while.</p></section>
+        ) : blogs.length === 0 ? (
+          <section aria-label="Articles" className="py-16 text-center"><h2 className="font-playfair text-2xl font-bold">No articles here yet</h2><p className="mt-3 text-[#675b6b]">Explore another category or check back later.</p></section>
         ) : (
-            <motion.div key={activeTab} variants={tabVariants} initial="hidden" animate="visible">
-            {/* Articles Tab */}
-            {activeTab === 'articles' && (
-              <div className="space-y-6">
-                {blogs.length > 0 ? (
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    {blogs.map((blog, idx) => (
-                      <motion.div
-                        key={blog.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.08 }}
-                      >
-                        <BlogCard
-                          id={blog.id}
-                          title={blog.title}
-                          excerpt={blog.excerpt || 'No preview available'}
-                          slug={blog.slug}
-                          author_name={blog.author_name}
-                          created_at={blog.created_at}
-                          featured_image={blog.featured_image}
-                        />
-                        <div className="mt-3 flex justify-end pr-2">
-                          <button
-                            onClick={() => handleShareContent(blog.title, 'article', blog.slug)}
-                            className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-green-700 shadow-sm transition hover:bg-green-50"
-                            title="Share article"
-                          >
-                            <Share2 size={16} />
-                            Share
-                          </button>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-[28px] border border-dashed border-purple-200 bg-white/70 px-6 py-14 text-center">
-                    <p className="text-lg font-semibold text-gray-900">No articles yet</p>
-                    <p className="mt-2 text-sm text-gray-500">Start with a story, a picture, or a short reflection.</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Shorts (Videos) Tab */}
-            {activeTab === 'shorts' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {videos.length > 0 ? (
-                  videos.map((video, idx) => (
-                    <motion.div
-                      key={video.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: idx * 0.1 }}
-                      className="group cursor-pointer"
-                    >
-                      <div className="relative rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-all bg-gray-900 aspect-video">
-                        {/* Video Thumbnail */}
-                        {video.thumbnail_url ? (
-                          <img
-                            src={video.thumbnail_url}
-                            alt={video.title}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-purple-600 to-purple-900 flex items-center justify-center">
-                            <Video size={48} className="text-white opacity-50" />
-                          </div>
-                        )}
-
-                        {/* Play Button Overlay */}
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/50 transition-all">
-                          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm group-hover:scale-110 transition-transform">
-                            <Play size={32} className="text-white fill-white ml-1" />
-                          </div>
-                        </div>
-
-                        {/* Duration Badge */}
-                        {video.media_duration && (
-                          <div className="absolute bottom-3 right-3 bg-black/70 text-white px-3 py-1 rounded-lg text-sm font-semibold">
-                            {formatDuration(video.media_duration)}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Video Info */}
-                      <div className="mt-4">
-                        <div className="flex justify-between items-start gap-2">
-                          <h3 className="text-lg font-bold text-gray-900 group-hover:text-purple-600 transition-colors line-clamp-2 flex-1">
-                            {video.title}
-                          </h3>
-                          <div className="flex gap-2 flex-shrink-0 mt-1">
-                            <button
-                              onClick={() => handleShareContent(video.title, 'video', video.id)}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Share video"
-                            >
-                              <Share2 size={18} />
-                            </button>
-                            {isAdmin && (
-                              <button
-                                onClick={() => handleDeleteVideo(video.id, video.title)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Delete video"
-                              >
-                                <Trash2 size={18} />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-500 mt-2">
-
-                        </p>
-                      </div>
-                    </motion.div>
-                  ))
-                ) : (
-                  <div className="col-span-full text-center py-12">
-                    <p className="text-gray-500">No shorts yet</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Images Tab */}
-            {activeTab === 'images' && (
-              <div className="w-full">
-                <ImageGrid images={images} isAdmin={isAdmin} onDelete={handleDeleteImage} onEdit={handleEditImage} />
-              </div>
-            )}
-          </motion.div>
+          <>
+            <section aria-label={type === 'all' ? 'All articles' : `${categories.find(item => item.value === type)?.label} articles`} className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {blogs.map(blog => <BlogCard key={blog.id} id={blog.id} title={blog.title} slug={blog.slug} excerpt={blog.excerpt || ''} created_at={blog.created_at} published_at={blog.published_at} featured_image={blog.featured_image} content_type={blog.content_type || 'article'} reading_minutes={readingMinutes(blog.content)} />)}
+            </section>
+            {(hasPrevious || hasNext) && <nav aria-label="Article pages" className="mt-12 flex items-center justify-between border-t border-[#e5dbe9] pt-6 text-sm font-semibold"><div>{hasPrevious && <Link href={pageHref(page - 1, type)} className="text-[#5b267a] hover:underline">← Newer articles</Link>}</div><span className="text-[#675b6b]">Page {page}</span><div>{hasNext && <Link href={pageHref(page + 1, type)} className="text-[#5b267a] hover:underline">Older articles →</Link>}</div></nav>}
+          </>
         )}
       </div>
-
-      {/* Edit Image Description Modal */}
-      {editingImageId && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6"
-          >
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Edit Image Description</h2>
-            
-            <textarea
-              value={editingDescription}
-              onChange={(e) => setEditingDescription(e.target.value)}
-              placeholder="Enter image description (first line will be used as title)"
-              rows={6}
-              className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 resize-none mb-6"
-            />
-
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setEditingImageId(null);
-                  setEditingDescription('');
-                }}
-                className="px-6 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveDescription}
-                className="px-6 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition font-medium"
-              >
-                Save Changes
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </div>
+    </main>
   );
 }

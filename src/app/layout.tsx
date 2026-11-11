@@ -26,13 +26,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Mannosaar",
+    url: SITE_URL,
     title: "Online Counselling in India | Mannosaar",
     description:
       "Private online counselling and emotional support with Neetu Rathore for personal, relationship and everyday emotional concerns.",
     images: [{ url: DEFAULT_SOCIAL_IMAGE, width: 1200, height: 630, alt: "Mannosaar online counselling" }],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Online Counselling in India | Mannosaar",
     description:
       "Private online counselling and emotional support with Neetu Rathore for personal, relationship and everyday emotional concerns.",

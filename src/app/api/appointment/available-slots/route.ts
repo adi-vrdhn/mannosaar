@@ -2,6 +2,8 @@ import { auth } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchWithNetworkRetry } from '@/lib/supabase/retry-fetch';
+import { getServiceById, slotDurationMinutes } from '@/lib/services';
+import { overlaps, slotEndInstant, slotInstant } from '@/lib/whatsapp/core';
 import {
   eachDayOfInterval,
   endOfMonth,
@@ -26,6 +28,7 @@ interface SlotRow {
   end_time: string;
   is_available: boolean;
   is_blocked: boolean;
+  therapist_id: string;
 }
 
 function expandBlockedDates(
@@ -58,6 +61,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const dateParam = searchParams.get('date');
     const monthParam = searchParams.get('month');
+    const service = getServiceById(searchParams.get('type'));
+    if (!service) return NextResponse.json({ error: 'Invalid session type' }, { status: 400 });
 
     const currentDateString = getCurrentDateString();
     const currentTimeMinutes = getCurrentTimeInMinutes();
@@ -82,11 +87,13 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    const [{ data: slots, error: slotsError }, { data: bookings, error: bookingsError }, { data: blockedRanges, error: blockedError }] =
+    const rangeStart = slotInstant(startDate, '00:00:00');
+    const rangeEnd = new Date(Date.parse(slotInstant(endDate, '00:00:00')) + 86400_000).toISOString();
+    const [{ data: slots, error: slotsError }, { data: bookings, error: bookingsError }, { data: blockedRanges, error: blockedError }, { data: reservations, error: reservationError }] =
       await Promise.all([
         supabase
           .from('therapy_slots')
-          .select('id, date, start_time, end_time, is_available, is_blocked')
+          .select('id, date, start_time, end_time, is_available, is_blocked, therapist_id')
           .gte('date', startDate)
           .lte('date', endDate)
           .eq('is_available', true)
@@ -102,13 +109,15 @@ export async function GET(request: NextRequest) {
           .select('start_date, end_date')
           .lte('start_date', endDate)
           .gte('end_date', startDate),
+        supabase.from('booking_reservations').select('therapist_id,span,hold:booking_holds(status,expires_at)').overlaps('span', `[${rangeStart},${rangeEnd})`),
       ]);
 
-    if (slotsError || bookingsError || blockedError) {
+    if (slotsError || bookingsError || blockedError || reservationError) {
       console.error('Error fetching appointment slots:', {
         slotsError,
         bookingsError,
         blockedError,
+        reservationError,
       });
       return NextResponse.json(
         { error: 'Failed to fetch available slots' },
@@ -118,9 +127,20 @@ export async function GET(request: NextRequest) {
 
     const bookedSlotIds = new Set((bookings || []).map((booking) => booking.slot_id));
     const blockedDates = expandBlockedDates(blockedRanges || []);
+    const occupied = (reservations || []).flatMap(reservation => {
+      const hold = Array.isArray(reservation.hold) ? reservation.hold[0] : reservation.hold;
+      if (hold && (hold.status !== 'ACTIVE' || Date.parse(hold.expires_at) <= Date.now())) return [];
+      const [start, end] = String(reservation.span).slice(1, -1).split(',').map(value => value.replaceAll('"', ''));
+      return [{ therapistId: reservation.therapist_id, start, end }];
+    });
 
     const filteredSlots = (slots || [])
+      .filter((slot: SlotRow) => slotDurationMinutes(slot.start_time, slot.end_time) === service.durationMinutes)
       .filter((slot: SlotRow) => !bookedSlotIds.has(slot.id))
+      .filter((slot: SlotRow) => {
+        const span = { start: slotInstant(slot.date, slot.start_time), end: slotEndInstant(slot.date, slot.start_time, slot.end_time) };
+        return !occupied.some(reservation => reservation.therapistId === slot.therapist_id && overlaps(span, reservation));
+      })
       .filter((slot: SlotRow) => !blockedDates.has(slot.date))
       .filter((slot: SlotRow) => slot.date >= currentDateString)
       .filter((slot: SlotRow) =>

@@ -8,6 +8,11 @@ CREATE TABLE blogs (
   author_id UUID NOT NULL REFERENCES users(id),
   author_name VARCHAR(255) NOT NULL,
   featured_image VARCHAR(500),
+  content_type TEXT NOT NULL DEFAULT 'article',
+  editor_name TEXT,
+  primary_keyword TEXT,
+  secondary_keywords TEXT[] NOT NULL DEFAULT '{}',
+  published_at TIMESTAMPTZ,
   is_published BOOLEAN DEFAULT true,
   views_count INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -42,7 +47,7 @@ ALTER TABLE blogs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can read published blogs" 
   ON blogs 
   FOR SELECT 
-  USING (is_published = true);
+  USING (is_published = true AND (published_at IS NULL OR published_at <= now()));
 
 -- Authors can update their own blogs
 CREATE POLICY "Authors can update their own blogs" 

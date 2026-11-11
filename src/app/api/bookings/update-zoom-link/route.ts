@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { authenticatedAdmin } from '@/lib/admin-authorization';
+import { isSameOrigin } from '@/lib/compliance';
 import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authenticatedAdmin();
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    if (!isSameOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
 
     let body;
     try {
@@ -23,14 +25,14 @@ export async function POST(request: NextRequest) {
 
     const { bookingId, meetingLink, meetingPassword, googleCalendarEventId } = body;
 
-    if (!bookingId) {
+    if (typeof bookingId !== 'string' || !/^[0-9a-f-]{36}$/i.test(bookingId)) {
       return NextResponse.json(
         { error: 'Missing booking ID' },
         { status: 400 }
       );
     }
 
-    if (!meetingLink) {
+    if (typeof meetingLink !== 'string' || meetingLink.length > 2048 || !/^https:\/\//i.test(meetingLink)) {
       return NextResponse.json(
         { error: 'Missing meeting link' },
         { status: 400 }
@@ -49,12 +51,6 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
-
-    console.log('Updating booking with Zoom details:', {
-      bookingId,
-      meetingLink,
-      meetingPassword: meetingPassword ? '***' : 'not provided',
-    });
 
     const { data, error } = await supabase
       .from('bookings')

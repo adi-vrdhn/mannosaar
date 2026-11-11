@@ -4,11 +4,11 @@ export interface GeneratedSlot {
 }
 
 /**
- * Generate default slots with 1 slot per hour and 20 mins break between slots
- * No continuous sessions - each hour: 40 mins session + 20 mins break
- * Example: 9:00-9:40 (session), 9:40-10:00 (break), 10:00-10:40 (session), 10:40-11:00 (break), etc.
+ * Personal slots start on the hour and last 40 minutes. Couple slots start
+ * at :45 and last 60 minutes, so both alternatives can be offered without
+ * colliding with the database's unique start-time key.
  */
-export function generateDefaultSlots(): GeneratedSlot[] {
+export function generateDefaultSlots(durationMinutes: 40 | 60 = 40): GeneratedSlot[] {
   const slots: GeneratedSlot[] = [];
   let startHour = 9;
   let startMinute = 0;
@@ -16,10 +16,11 @@ export function generateDefaultSlots(): GeneratedSlot[] {
   // 9 AM to 9 PM (21:00)
   // Pattern: 40 mins session + 20 mins break = 60 mins per hour
   while (startHour < 21) {
-    const startTime = `${String(startHour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}`;
+    const slotStartMinute = durationMinutes === 60 ? 45 : startMinute;
+    const startTime = `${String(startHour).padStart(2, '0')}:${String(slotStartMinute).padStart(2, '0')}`;
 
     // Session is 40 minutes
-    let endMinute = startMinute + 40;
+    let endMinute = slotStartMinute + durationMinutes;
     let endHour = startHour;
 
     if (endMinute >= 60) {

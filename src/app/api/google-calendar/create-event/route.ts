@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { authenticatedAdmin } from '@/lib/admin-authorization';
+import { isSameOrigin } from '@/lib/compliance';
 import { createGoogleCalendarEvent } from '@/lib/google-calendar';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authenticatedAdmin();
     if (!session?.user?.id) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
       );
     }
+    if (!isSameOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
 
     const body = await request.json();
     const {
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required parameters
-    if (!clientEmail || !slotDate || !slotTime || !slotEndTime) {
+    if (typeof clientEmail !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail) || clientEmail.length > 254 || typeof slotDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(slotDate) || typeof slotTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(slotTime) || typeof slotEndTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(slotEndTime) || !Array.isArray(additionalEmails) || additionalEmails.length > 5) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields: clientEmail, slotDate, slotTime, slotEndTime' },
         { status: 400 }

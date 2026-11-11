@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import {
   DEFAULT_BUNDLE_PRICING,
+  getServiceById,
   type BundlePricing,
 } from '@/lib/services';
 import ComplianceConsentCard, {
@@ -779,7 +780,7 @@ function PaymentPageContent() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Duration</span>
-                      <span className="font-semibold text-gray-900">40 mins</span>
+                      <span className="font-semibold text-gray-900">{getServiceById(sessionType)?.durationMinutes || 40} mins</span>
                     </div>
                     <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
                       <span className="text-lg font-bold text-gray-900">Total Amount</span>
@@ -811,7 +812,7 @@ function PaymentPageContent() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Duration</span>
-                      <span className="font-semibold text-gray-900">40 mins</span>
+                      <span className="font-semibold text-gray-900">{getServiceById(sessionType)?.durationMinutes || 40} mins</span>
                     </div>
                     <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
                       <span className="text-lg font-bold text-gray-900">Total Amount</span>

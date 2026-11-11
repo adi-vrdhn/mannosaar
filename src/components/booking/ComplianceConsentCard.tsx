@@ -27,9 +27,9 @@ export default function ComplianceConsentCard({
   onChange: (value: ConsentSelections) => void;
 }) {
   const ready = allRequiredConsentsAccepted(selections);
-  const setRequiredConsent = (checked: boolean) => {
-    const next = { ...selections, MARKETING: false };
-    for (const type of REQUIRED_CONSENT_TYPES) next[type] = checked;
+  const setGroup = (types: readonly (typeof REQUIRED_CONSENT_TYPES)[number][], checked: boolean) => {
+    const next = { ...selections };
+    for (const type of types) next[type] = checked;
     onChange(next);
   };
 
@@ -37,7 +37,7 @@ export default function ComplianceConsentCard({
     <section className="my-6 border border-slate-200 bg-white p-5 sm:p-6" aria-labelledby="before-you-continue">
       <div>
         <h2 id="before-you-continue" className="text-lg font-semibold text-slate-950">One final confirmation</h2>
-        <p className="mt-1 text-sm leading-6 text-slate-600">Review the information below and tick once to continue.</p>
+        <p className="mt-1 text-sm leading-6 text-slate-600">Please review each statement and confirm it separately before payment.</p>
       </div>
 
       <div className="mt-5 space-y-4">
@@ -45,19 +45,25 @@ export default function ComplianceConsentCard({
           <p><strong>Mannosaar is not an emergency or crisis service.</strong> In immediate danger, contact your local emergency or crisis service.</p>
         </div>
 
-        <label className={`flex cursor-pointer items-start gap-3 border p-4 transition ${ready ? 'border-purple-500 bg-purple-50/50' : 'border-slate-300 bg-white hover:border-purple-300'}`}>
-          <input type="checkbox" checked={ready} onChange={event => setRequiredConsent(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 rounded border-slate-300 text-purple-700 focus:ring-purple-600" />
-          <span className="text-sm leading-6 text-slate-700">
-            I confirm that I am 18 or older, voluntarily consent to online therapy and understand its limitations. I acknowledge that Mannosaar is not an emergency service, and I agree to the{' '}
-            <Link href="/online-therapy-consent" target="_blank" className="font-semibold text-purple-700 underline underline-offset-4">Online Therapy Consent</Link> (v{POLICY_VERSIONS.onlineTherapyConsent}),{' '}
-            <Link href="/privacy" target="_blank" className="font-semibold text-purple-700 underline underline-offset-4">Privacy Policy</Link> (v{POLICY_VERSIONS.privacy}),{' '}
-            <Link href="/terms" target="_blank" className="font-semibold text-purple-700 underline underline-offset-4">Terms</Link>, and{' '}
-            <Link href="/refund-policy" target="_blank" className="font-semibold text-purple-700 underline underline-offset-4">cancellation, rescheduling and refund policies</Link>.
-          </span>
+        <label className="flex cursor-pointer items-start gap-3 border border-slate-300 p-4 focus-within:border-purple-500">
+          <input type="checkbox" checked={selections.AGE_18} onChange={event => setGroup(['AGE_18'], event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-purple-700" />
+          <span className="text-sm leading-6 text-slate-700">I confirm that I am 18 or older.</span>
+        </label>
+        <label className="flex cursor-pointer items-start gap-3 border border-slate-300 p-4 focus-within:border-purple-500">
+          <input type="checkbox" checked={selections.ONLINE_THERAPY_VOLUNTARY && selections.ONLINE_THERAPY_LIMITATIONS} onChange={event => setGroup(['ONLINE_THERAPY_VOLUNTARY', 'ONLINE_THERAPY_LIMITATIONS'], event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-purple-700" />
+          <span className="text-sm leading-6 text-slate-700">I voluntarily consent to online counselling, understand its limits, and have read the <Link href="/online-therapy-consent" target="_blank" className="font-semibold text-purple-700 underline underline-offset-4">Online Therapy Consent</Link> (v{POLICY_VERSIONS.onlineTherapyConsent}).</span>
+        </label>
+        <label className="flex cursor-pointer items-start gap-3 border border-slate-300 p-4 focus-within:border-purple-500">
+          <input type="checkbox" checked={selections.NOT_EMERGENCY_SERVICE && selections.EMERGENCY_ACTION} onChange={event => setGroup(['NOT_EMERGENCY_SERVICE', 'EMERGENCY_ACTION'], event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-purple-700" />
+          <span className="text-sm leading-6 text-slate-700">I understand that this is not an emergency service. In immediate danger I will contact local emergency services or crisis support.</span>
+        </label>
+        <label className="flex cursor-pointer items-start gap-3 border border-slate-300 p-4 focus-within:border-purple-500">
+          <input type="checkbox" checked={selections.PRIVACY_POLICY && selections.TERMS_AND_POLICIES} onChange={event => setGroup(['PRIVACY_POLICY', 'TERMS_AND_POLICIES'], event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-purple-700" />
+          <span className="text-sm leading-6 text-slate-700">I have read the <Link href="/privacy" target="_blank" className="font-semibold text-purple-700 underline underline-offset-4">Privacy Policy</Link> (v{POLICY_VERSIONS.privacy}) and agree to the <Link href="/terms" target="_blank" className="font-semibold text-purple-700 underline underline-offset-4">Terms</Link> and <Link href="/refund-policy" target="_blank" className="font-semibold text-purple-700 underline underline-offset-4">refund policy</Link>.</span>
         </label>
 
         <p className={`text-sm font-medium ${ready ? 'text-emerald-700' : 'text-slate-500'}`} aria-live="polite">
-          {ready ? 'Ready to continue to payment.' : 'Tick the confirmation above to continue.'}
+          {ready ? 'Ready to continue to payment.' : 'Confirm all four statements to continue.'}
         </p>
       </div>
     </section>

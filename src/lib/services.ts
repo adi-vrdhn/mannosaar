@@ -41,7 +41,7 @@ export const BOOKABLE_SERVICES: readonly BookableService[] = [
     shortName: 'Couple',
     description:
       'A shared counselling session for couples who want support navigating communication, conflict, connection, or changes in their relationship.',
-    durationMinutes: 40,
+    durationMinutes: 60,
   },
 ] as const;
 
@@ -51,6 +51,14 @@ export function isServiceId(value: string | null | undefined): value is ServiceI
 
 export function getServiceById(value: string | null | undefined) {
   return BOOKABLE_SERVICES.find((service) => service.id === value);
+}
+
+export function slotDurationMinutes(startTime: string, endTime: string) {
+  if (typeof startTime !== 'string' || typeof endTime !== 'string') return NaN;
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [endHour, endMinute] = endTime.split(':').map(Number);
+  if (![startHour, startMinute, endHour, endMinute].every(Number.isFinite)) return NaN;
+  return endHour * 60 + endMinute - startHour * 60 - startMinute;
 }
 
 export function formatInr(amount: number) {

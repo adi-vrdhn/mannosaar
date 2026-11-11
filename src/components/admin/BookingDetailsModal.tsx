@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { Copy, X, Edit2, Save, XCircle } from 'lucide-react';
+import { getServiceById } from '@/lib/services';
 
 interface BookingDetailsModalProps {
   bookingId: string | null;
@@ -148,9 +149,9 @@ export default function BookingDetailsModal({
     if (booking) {
       setNewDate(booking.slot.date);
       setNewStartTime(booking.slot.start_time.substring(0, 5));
-      // Calculate end time as 40 mins after start time
+      const duration = getServiceById(booking.session_type)?.durationMinutes || 40;
       const startDate = new Date(`2000-01-01 ${booking.slot.start_time}`);
-      const endDate = new Date(startDate.getTime() + 40 * 60000);
+      const endDate = new Date(startDate.getTime() + duration * 60000);
       const hours = String(endDate.getHours()).padStart(2, '0');
       const mins = String(endDate.getMinutes()).padStart(2, '0');
       setNewEndTime(`${hours}:${mins}`);
@@ -170,10 +171,10 @@ export default function BookingDetailsModal({
 
   const handleStartTimeChange = (e: string) => {
     setNewStartTime(e);
-    // Auto-calculate end time as 40 mins after start time
+    const duration = getServiceById(booking?.session_type)?.durationMinutes || 40;
     if (e) {
       const startDate = new Date(`2000-01-01 ${e}:00`);
-      const endDate = new Date(startDate.getTime() + 40 * 60000);
+      const endDate = new Date(startDate.getTime() + duration * 60000);
       const hours = String(endDate.getHours()).padStart(2, '0');
       const mins = String(endDate.getMinutes()).padStart(2, '0');
       setNewEndTime(`${hours}:${mins}`);
@@ -627,7 +628,7 @@ export default function BookingDetailsModal({
 
                   {/* Info Message */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-sm text-blue-800 font-medium">ℹ️ Select from existing 40-minute slots</p>
+                    <p className="text-sm text-blue-800 font-medium">ℹ️ Select from existing {getServiceById(booking.session_type)?.durationMinutes || 40}-minute slots</p>
                     <p className="text-xs text-blue-700 mt-1">If no slot is available for your desired date/time, please create new slots in Manage Slots first.</p>
                   </div>
 
@@ -647,7 +648,7 @@ export default function BookingDetailsModal({
                   {/* New Start Time Input */}
                   <section>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      Start Time (40-minute slots)
+                      Start Time ({getServiceById(booking.session_type)?.durationMinutes || 40}-minute slots)
                     </label>
                     <input
                       type="time"
@@ -668,7 +669,7 @@ export default function BookingDetailsModal({
                       readOnly
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 cursor-not-allowed"
                     />
-                    <p className="text-xs text-gray-600 mt-1">Automatically set to 40 minutes after start time</p>
+                    <p className="text-xs text-gray-600 mt-1">Automatically set to {getServiceById(booking.session_type)?.durationMinutes || 40} minutes after start time</p>
                   </section>
 
                   {/* Postponement Reason */}

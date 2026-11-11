@@ -1,6 +1,6 @@
 import { check, db } from './whatsapp/server';
 import { REQUIRED_CONSENT_TYPES } from './compliance';
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { rpc } from './whatsapp/server';
 
 type LocalRateLimitBucket = {
@@ -9,52 +9,6 @@ type LocalRateLimitBucket = {
 };
 
 const localRateLimits = new Map<string, LocalRateLimitBucket>();
-const SIGNED_CONSENT_PREFIX = 'cs1';
-const SIGNED_CONSENT_LIFETIME_MS = 24 * 60 * 60 * 1_000;
-
-function consentSigningSecret() {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) throw new Error('MISSING_CONFIG_NEXTAUTH_SECRET');
-  return secret;
-}
-
-function signConsentPayload(payload: string) {
-  return createHmac('sha256', consentSigningSecret()).update(payload).digest('base64url');
-}
-
-export function createSignedConsentReceipt(userId: string, acceptedAt = new Date()) {
-  const payload = Buffer.from(JSON.stringify({
-    userId,
-    acceptedAt: acceptedAt.toISOString(),
-    expiresAt: acceptedAt.getTime() + SIGNED_CONSENT_LIFETIME_MS,
-    consentVersion: '1.0',
-  })).toString('base64url');
-
-  return `${SIGNED_CONSENT_PREFIX}.${payload}.${signConsentPayload(payload)}`;
-}
-
-function validateSignedConsentReceipt(receiptId: string, userId: string) {
-  const [prefix, payload, signature] = receiptId.split('.');
-  if (prefix !== SIGNED_CONSENT_PREFIX || !payload || !signature) return false;
-
-  try {
-    const expected = Buffer.from(signConsentPayload(payload));
-    const received = Buffer.from(signature);
-    if (expected.length !== received.length || !timingSafeEqual(expected, received)) return false;
-
-    const value = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
-      userId?: string;
-      acceptedAt?: string;
-      expiresAt?: number;
-    };
-
-    return value.userId === userId
-      && Boolean(value.acceptedAt)
-      && Number(value.expiresAt) > Date.now();
-  } catch {
-    return false;
-  }
-}
 
 function allowLocalRequest(key: string, limit: number, windowSeconds: number) {
   const now = Date.now();
@@ -80,10 +34,10 @@ export async function allowRequest(scope: string, identity: string, limit: numbe
       p_window_seconds: windowSeconds,
     });
   } catch (error) {
-    // Supabase can temporarily omit a newly-created RPC from its PostgREST
-    // schema cache (PGRST202). Keep the endpoint protected without blocking
-    // bookings while that cache refreshes.
+    // A process-local limiter cannot protect a scaled production deployment.
+    // Allow it only while developing against an incomplete local schema.
     if (error instanceof Error && error.message.includes('DB_PGRST202_compliance_rate_limit')) {
+      if (process.env.NODE_ENV === 'production') throw error;
       console.warn('Using local compliance rate limiter while database RPC is unavailable.');
       return allowLocalRequest(keyHash, limit, windowSeconds);
     }
@@ -93,10 +47,6 @@ export async function allowRequest(scope: string, identity: string, limit: numbe
 }
 
 export async function validateConsentReceipt(receiptId: string, userId: string) {
-  if (receiptId.startsWith(`${SIGNED_CONSENT_PREFIX}.`)) {
-    return validateSignedConsentReceipt(receiptId, userId);
-  }
-
   if (!/^[0-9a-f-]{36}$/i.test(receiptId)) return false;
   const result = await db()
     .from('consents')
@@ -106,20 +56,18 @@ export async function validateConsentReceipt(receiptId: string, userId: string) 
     .in('consent_type', [...REQUIRED_CONSENT_TYPES]);
   check(result.error);
   const accepted = new Set((result.data || []).filter(row => row.accepted).map(row => row.consent_type));
-  return REQUIRED_CONSENT_TYPES.every(type => accepted.has(type));
+  if (!REQUIRED_CONSENT_TYPES.every(type => accepted.has(type))) return false;
+  const acceptedAt = (result.data || []).map(row => row.accepted_at).filter(Boolean).sort().at(-1);
+  if (!acceptedAt) return false;
+  // A withdrawal invalidates old receipts for future purchases while retaining
+  // the original evidence for bookings already completed.
+  const withdrawal = await db().from('privacy_requests').select('id').eq('user_id', userId).eq('request_type', 'CONSENT_WITHDRAWAL').gt('created_at', acceptedAt).limit(1);
+  check(withdrawal.error);
+  return !withdrawal.data?.length;
 }
 
 export async function linkConsentReceipt(receiptId: string, userId: string, bookingId: string) {
   if (!(await validateConsentReceipt(receiptId, userId))) throw new Error('CONSENT_REQUIRED');
-
-  if (receiptId.startsWith(`${SIGNED_CONSENT_PREFIX}.`)) {
-    try {
-      await writeAudit({ userId, action: 'SIGNED_CONSENT_LINKED', resourceType: 'booking', resourceId: bookingId });
-    } catch (error) {
-      console.warn('Unable to audit signed consent link:', error);
-    }
-    return;
-  }
 
   const linked = await db().from('consents').update({ booking_id: bookingId }).eq('receipt_id', receiptId).eq('user_id', userId).is('booking_id', null);
   check(linked.error);

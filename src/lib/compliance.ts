@@ -1,5 +1,5 @@
 export const POLICY_VERSIONS = {
-  privacy: '1.0',
+  privacy: '1.1',
   terms: '1.0',
   onlineTherapyConsent: '1.0',
   cancellationRefund: '1.0',

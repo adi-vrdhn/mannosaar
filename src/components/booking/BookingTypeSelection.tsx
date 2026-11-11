@@ -47,7 +47,7 @@ const BookingTypeSelection = () => {
       description: 'One-on-one session with Neetu Rathore',
       icon: '👤',
       color: 'from-purple-400 to-pink-400',
-      features: ['Individual focus', 'Personalized approach', '45 minutes'],
+      features: ['Individual focus', 'Personalized approach', '40 minutes'],
     },
     {
       id: 'couple',
@@ -55,7 +55,7 @@ const BookingTypeSelection = () => {
       description: 'Relationship counseling for two people',
       icon: '👥',
       color: 'from-blue-400 to-cyan-400',
-      features: ['Relationship focus', 'Communication work', '45 minutes'],
+      features: ['Relationship focus', 'Communication work', '60 minutes'],
     },
   ];
 

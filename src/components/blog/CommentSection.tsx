@@ -84,6 +84,7 @@ export default function CommentSection({ slug }: CommentSectionProps) {
   return (
     <div className="mt-12 pt-8 border-t border-gray-200">
       <h3 className="text-2xl font-bold text-gray-900 mb-8">Comments ({comments.length})</h3>
+      <p className="mb-5 text-sm text-gray-700">Comments are public. Please do not share therapy details, symptoms, contact information or other private information here.</p>
 
       {/* Comment Input */}
       {session ? (

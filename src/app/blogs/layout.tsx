@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 import { createPageMetadata } from '@/lib/seo';
 
 export const metadata = createPageMetadata({
-  title: 'Mental Health and Wellbeing Resources',
-  description: 'Read practical, non-diagnostic articles and resources from Mannosaar about emotional wellbeing, relationships, stress and counselling.',
+  title: 'Mental Health Articles and Counselling Guides',
+  description: 'Explore Mannosaar articles on stress, relationships, emotional wellbeing and starting counselling in India. Read at your own pace and find support options when you need them.',
   path: '/blogs',
 });
 

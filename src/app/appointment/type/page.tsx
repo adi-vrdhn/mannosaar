@@ -153,7 +153,7 @@ export default function AppointmentTypePage() {
           </motion.section>
 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }} className="mx-auto mt-10 flex max-w-3xl flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm text-[#4c4052] sm:mt-14">
-            <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-[#5b267a]" /> 40-minute online sessions</span>
+            <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-[#5b267a]" /> 40-minute personal · 60-minute couple sessions</span>
             <span className="inline-flex items-center gap-2"><Languages className="h-4 w-4 text-[#5b267a]" /> Hindi & English</span>
             <span className="inline-flex items-center gap-2"><HeartHandshake className="h-4 w-4 text-[#5b267a]" /> Private and supportive</span>
           </motion.div>
