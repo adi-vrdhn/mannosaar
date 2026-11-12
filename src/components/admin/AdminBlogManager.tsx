@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import AdminSectionNav from './AdminSectionNav';
 import { clipboardHtml, insertClipboardHtml } from '@/lib/blog-paste';
 
@@ -67,20 +68,22 @@ function statusStyle(status: Status) {
   return 'bg-amber-50 text-amber-800 border-amber-200';
 }
 
-export default function AdminBlogManager() {
+export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'list' | 'editor'; editId?: string }) {
+  const router = useRouter();
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<Form>(empty);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(editId || null);
+  const [editorLoading, setEditorLoading] = useState(Boolean(editId));
+  const [editorReady, setEditorReady] = useState(!editId);
   const [busy, setBusy] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const editorRef = useRef<HTMLDivElement>(null);
-  const formRef = useRef<HTMLElement>(null);
 
   const load = useCallback(async (requestedPage: number, requestedFilter: Filter) => {
     setLoading(true);
@@ -97,30 +100,38 @@ export default function AdminBlogManager() {
       setLoading(false);
     }
   }, []);
-  useEffect(() => { void load(page, filter); }, [page, filter, load]);
+  useEffect(() => { if (mode === 'list') void load(page, filter); }, [page, filter, load, mode]);
 
   const set = (key: keyof Form, value: string) => setForm(previous => ({ ...previous, [key]: value }));
-  const startNew = () => {
-    setEditingId(null);
-    setForm(empty);
-    if (editorRef.current) editorRef.current.innerHTML = '';
-    setError('');
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-  const edit = (blog: Blog) => {
-    const status = statusOf(blog);
-    setEditingId(blog.id);
-    setForm({
-      title: blog.title, slug: blog.slug, content: blog.content, excerpt: blog.excerpt || '',
-      featured_image: blog.featured_image || '', content_type: blog.content_type || 'article',
-      editor_name: blog.editor_name || '', primary_keyword: blog.primary_keyword || '',
-      secondary_keywords: (blog.secondary_keywords || []).join(', '), status,
-      published_at: blog.published_at ? localDateTime(blog.published_at) : '',
-    });
-    if (editorRef.current) editorRef.current.innerHTML = blog.content;
-    setError('');
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+  useEffect(() => {
+    if (mode !== 'editor' || !editId) return;
+    let cancelled = false;
+    const loadEdit = async () => {
+      try {
+        const response = await fetch(`/api/admin/blogs/${encodeURIComponent(editId)}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not load blog');
+        if (cancelled) return;
+        const blog = data.blog as Blog;
+        setEditingId(blog.id);
+        setForm({
+          title: blog.title, slug: blog.slug, content: blog.content, excerpt: blog.excerpt || '',
+          featured_image: blog.featured_image || '', content_type: blog.content_type || 'article',
+          editor_name: blog.editor_name || '', primary_keyword: blog.primary_keyword || '',
+          secondary_keywords: (blog.secondary_keywords || []).join(', '), status: statusOf(blog),
+          published_at: blog.published_at ? localDateTime(blog.published_at) : '',
+        });
+        if (editorRef.current) editorRef.current.innerHTML = blog.content;
+        setEditorReady(true);
+      } catch (cause) {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load blog');
+      } finally {
+        if (!cancelled) setEditorLoading(false);
+      }
+    };
+    void loadEdit();
+    return () => { cancelled = true; };
+  }, [editId, mode]);
   const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -185,7 +196,9 @@ export default function AdminBlogManager() {
     }
   };
   const save = async (event: React.FormEvent) => {
-    event.preventDefault(); setError(''); setMessage(''); setBusy(true);
+    event.preventDefault();
+    if (!editorReady) return;
+    setError(''); setMessage(''); setBusy(true);
     try {
       if (form.status === 'scheduled' && (!form.published_at || new Date(form.published_at).getTime() <= Date.now())) throw new Error('Choose a future publishing time');
       const content = editorRef.current?.innerHTML || form.content;
@@ -200,11 +213,7 @@ export default function AdminBlogManager() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not save blog');
-      const savedStatus = form.status;
-      startNew();
-      setMessage(savedStatus === 'draft' ? 'Draft saved' : savedStatus === 'scheduled' ? 'Blog scheduled' : 'Blog published');
-      if (page !== 1) setPage(1);
-      else await load(1, filter);
+      router.push('/admin/blogs');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save blog');
     } finally {
@@ -217,18 +226,19 @@ export default function AdminBlogManager() {
       <div className="mx-auto max-w-6xl">
         <AdminSectionNav className="mb-8" />
         <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
-          <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-700">Content management</p><h1 className="mt-1 text-3xl font-bold text-purple-950">Blogs</h1><p className="mt-1 text-slate-600">Create, review and manage your articles in one place.</p></div>
-          <button type="button" onClick={startNew} className="rounded-lg bg-purple-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-purple-800">+ Create new blog</button>
+          <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-700">Content management</p><h1 className="mt-1 text-3xl font-bold text-purple-950">{mode === 'editor' ? editingId ? 'Edit blog' : 'Create a new blog' : 'Blogs'}</h1><p className="mt-1 text-slate-600">{mode === 'editor' ? 'Write and prepare your article for publishing.' : 'Review and manage your articles.'}</p></div>
+          {mode === 'editor' ? <Link href="/admin/blogs" className="rounded-lg border border-purple-200 px-4 py-2.5 text-sm font-semibold text-purple-800 hover:bg-purple-50">← Back to blogs</Link> : <Link href="/admin/blogs/new" className="rounded-lg bg-purple-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-purple-800">+ Create new blog</Link>}
         </header>
         {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">{error}</p>}
         {message && <p role="status" className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-green-700">{message}</p>}
 
-        <section ref={formRef} aria-labelledby="editor-heading" className="scroll-mt-8 rounded-xl border border-purple-100 bg-white p-5 shadow-sm md:p-7">
+        {mode === 'editor' && <section aria-labelledby="editor-heading" className="rounded-xl border border-purple-100 bg-white p-5 shadow-sm md:p-7">
           <div className="mb-6 flex items-start justify-between gap-4 border-b border-slate-100 pb-5">
-            <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-700">01 / Write</p><h2 id="editor-heading" className="mt-1 text-2xl font-bold text-purple-950">{editingId ? 'Edit blog' : 'Create a new blog'}</h2><p className="mt-1 text-sm text-slate-600">Add the article, cover and search details, then choose when to publish.</p></div>
-            {editingId && <button type="button" onClick={startNew} className="shrink-0 text-sm font-semibold text-purple-700 underline">Cancel edit</button>}
+            <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-700">Write</p><h2 id="editor-heading" className="mt-1 text-2xl font-bold text-purple-950">{editingId ? 'Edit blog' : 'Create a new blog'}</h2><p className="mt-1 text-sm text-slate-600">Add the article, cover and search details, then choose when to publish.</p></div>
+            {editingId && <Link href="/admin/blogs" className="shrink-0 text-sm font-semibold text-purple-700 underline">Cancel edit</Link>}
           </div>
-          <form onSubmit={save} className="space-y-6">
+          {editorLoading && <p role="status" className="mb-5 text-sm text-slate-600">Loading blog…</p>}
+          <form onSubmit={save} aria-busy={editorLoading} className={`space-y-6 ${!editorReady ? 'pointer-events-none opacity-50' : ''}`}>
             <div className="grid gap-5 md:grid-cols-2">
               <label className="block text-sm font-semibold">Title<input required maxLength={255} className={field} value={form.title} onChange={event => { const title = event.target.value; setForm(previous => ({ ...previous, title, slug: previous.slug === slugify(previous.title) ? slugify(title) : previous.slug })); }} /></label>
               <label className="block text-sm font-semibold">Slug<input required className={field} value={form.slug} onChange={event => set('slug', slugify(event.target.value))} /></label>
@@ -243,12 +253,12 @@ export default function AdminBlogManager() {
             <label className="block text-sm font-semibold">Excerpt / SEO description<textarea className={field} rows={3} value={form.excerpt} onChange={event => set('excerpt', event.target.value)} /></label>
             <div className="grid gap-5 md:grid-cols-2"><label className="block text-sm font-semibold">Primary SEO keyword<input className={field} value={form.primary_keyword} onChange={event => set('primary_keyword', event.target.value)} /></label><label className="block text-sm font-semibold">Secondary SEO keywords (comma separated)<input className={field} value={form.secondary_keywords} onChange={event => set('secondary_keywords', event.target.value)} /></label></div>
             <div className="grid gap-5 md:grid-cols-2"><label className="block text-sm font-semibold">Publishing<select className={field} value={form.status} onChange={event => set('status', event.target.value)}><option value="draft">Save draft</option><option value="published">Publish now</option><option value="scheduled">Publish later</option></select></label>{form.status === 'scheduled' && <label className="block text-sm font-semibold">Publish at (your local time)<input required type="datetime-local" className={field} value={form.published_at} onChange={event => set('published_at', event.target.value)} /></label>}</div>
-            <button disabled={busy} className="rounded-lg bg-purple-700 px-6 py-3 font-semibold text-white hover:bg-purple-800 disabled:opacity-50">{busy ? 'Saving…' : editingId ? 'Update blog' : 'Save blog'}</button>
+            <button disabled={busy || !editorReady} className="rounded-lg bg-purple-700 px-6 py-3 font-semibold text-white hover:bg-purple-800 disabled:opacity-50">{busy ? 'Saving…' : editingId ? 'Update blog' : 'Save blog'}</button>
           </form>
-        </section>
+        </section>}
 
-        <section aria-labelledby="existing-heading" className="mt-10 rounded-xl border border-purple-100 bg-white p-5 shadow-sm md:p-7">
-          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-100 pb-5"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-700">02 / Review</p><h2 id="existing-heading" className="mt-1 text-2xl font-bold text-purple-950">Existing blogs and drafts</h2><p className="mt-1 text-sm text-slate-600">Status, dates, content checks and publishing actions.</p></div><p className="text-sm text-slate-500">{total} {total === 1 ? 'post' : 'posts'}</p></div>
+        {mode === 'list' && <section aria-labelledby="existing-heading" className="rounded-xl border border-purple-100 bg-white p-5 shadow-sm md:p-7">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-100 pb-5"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-700">Review</p><h2 id="existing-heading" className="mt-1 text-2xl font-bold text-purple-950">Existing blogs and drafts</h2><p className="mt-1 text-sm text-slate-600">Status, dates, content checks and publishing actions.</p></div><p className="text-sm text-slate-500">{total} {total === 1 ? 'post' : 'posts'}</p></div>
           <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Filter blogs by status">{filters.map(item => <button key={item.value} type="button" aria-pressed={filter === item.value} onClick={() => { setFilter(item.value); setPage(1); }} className={`rounded-full border px-4 py-2 text-sm font-medium ${filter === item.value ? 'border-purple-600 bg-purple-100 text-purple-900' : 'border-slate-200 text-slate-600 hover:border-purple-300'}`}>{item.label}</button>)}</div>
           {loading ? <p className="py-10 text-center text-slate-500">Loading blogs…</p> : blogs.length === 0 ? <p className="py-10 text-center text-slate-500">No posts in this status yet.</p> : <div className="mt-5 space-y-4">{blogs.map(blog => {
             const status = statusOf(blog);
@@ -276,7 +286,7 @@ export default function AdminBlogManager() {
                 <div><dt className="text-slate-500">Editor</dt><dd className="font-medium">{blog.editor_name || 'Not set'}</dd></div>
               </dl></details>
               <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-                <button type="button" onClick={() => edit(blog)} className="rounded-lg border border-purple-200 px-3 py-2 text-sm font-semibold text-purple-800 hover:bg-purple-50">Edit</button>
+                <Link href={`/admin/blogs/${encodeURIComponent(blog.id)}/edit`} className="rounded-lg border border-purple-200 px-3 py-2 text-sm font-semibold text-purple-800 hover:bg-purple-50">Edit</Link>
                 {status === 'published' && <Link href={`/blogs/${encodeURIComponent(blog.slug)}`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">View live</Link>}
                 {status !== 'published' && <button type="button" disabled={actionId === blog.id} onClick={() => void changeStatus(blog, 'published')} className="rounded-lg bg-purple-700 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-800 disabled:opacity-50">Publish now</button>}
                 {status !== 'draft' && <button type="button" disabled={actionId === blog.id} onClick={() => void changeStatus(blog, 'draft')} className="rounded-lg border border-amber-200 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50">Move to draft</button>}
@@ -284,7 +294,7 @@ export default function AdminBlogManager() {
             </article>;
           })}</div>}
           {total > 20 && <nav aria-label="Blog list pages" className="mt-6 flex items-center justify-between border-t border-slate-100 pt-5 text-sm"><button type="button" disabled={page === 1} onClick={() => setPage(page - 1)} className="font-semibold text-purple-700 disabled:text-slate-400">← Previous</button><span className="text-slate-500">Page {page} of {Math.ceil(total / 20)}</span><button type="button" disabled={page * 20 >= total} onClick={() => setPage(page + 1)} className="font-semibold text-purple-700 disabled:text-slate-400">Next →</button></nav>}
-        </section>
+        </section>}
       </div>
     </main>
   );

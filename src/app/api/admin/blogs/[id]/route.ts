@@ -4,6 +4,19 @@ import { blogInput } from '@/lib/blog-publishing';
 import { isSameOrigin } from '@/lib/compliance';
 import { db } from '@/lib/whatsapp/server';
 
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await authenticatedAdmin();
+  if (!session) return new Response('Forbidden', { status: 403 });
+  const { id } = await params;
+  const { data, error } = await db().from('blogs')
+    .select('id,title,slug,content,excerpt,featured_image,content_type,editor_name,primary_keyword,secondary_keywords,is_published,published_at,created_at,updated_at,views_count')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: 'Could not load blog' }, { status: 500 });
+  if (!data) return NextResponse.json({ error: 'Blog not found' }, { status: 404 });
+  return NextResponse.json({ blog: data }, { headers: { 'Cache-Control': 'private, no-store' } });
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await authenticatedAdmin();
   if (!session) return new Response('Forbidden', { status: 403 });
