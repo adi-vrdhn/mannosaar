@@ -5,7 +5,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AdminSectionNav from './AdminSectionNav';
-import { clipboardHtml, insertClipboardHtml } from '@/lib/blog-paste';
+import { clipboardHtml, insertClipboardHtml, sanitizeBlogHtml } from '@/lib/blog-paste';
+import { MAX_BLOG_IMPORT_BYTES, parseBlogImport } from '@/lib/blog-import';
 import { istDateTimeInputToIso, toIstDateTimeInput } from '@/lib/blog-time';
 
 type Status = 'draft' | 'published' | 'scheduled';
@@ -89,6 +90,7 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const editorRef = useRef<HTMLDivElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async (requestedPage: number, requestedFilter: Filter) => {
     setLoading(true);
@@ -146,6 +148,34 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
     if (!richHtml && !plainText) return;
     event.preventDefault();
     insertClipboardHtml(editor, clipboardHtml(richHtml, plainText, document), document);
+  };
+  const importBlog = async (file?: File) => {
+    if (!file) return;
+    setError(''); setMessage('');
+    try {
+      if (!file.name.toLowerCase().endsWith('.json')) throw new Error('Choose a .json file.');
+      if (file.size > MAX_BLOG_IMPORT_BYTES) throw new Error('The JSON file must be 1 MB or smaller.');
+      let data: unknown;
+      try { data = JSON.parse(await file.text()); }
+      catch { throw new Error('The file is not valid JSON.'); }
+      const imported = parseBlogImport(data);
+      const content = sanitizeBlogHtml(imported.content, document);
+      const preview = document.createElement('div');
+      preview.innerHTML = content;
+      if (!preview.textContent?.trim()) throw new Error('content must contain readable text after unsafe HTML is removed.');
+      const hasUnsavedContent = Boolean(
+        form.title || form.slug || form.content || form.excerpt || form.editor_name ||
+        form.primary_keyword || form.secondary_keywords || form.content_type !== 'article' ||
+        form.cta_label !== 'Book now' || form.cta_url !== '/book-session' ||
+        editorRef.current?.textContent?.trim()
+      );
+      if (hasUnsavedContent && !window.confirm('Replace the current blog fields with the imported JSON? Unsaved edits to those fields will be lost.')) return;
+      setForm(previous => ({ ...previous, ...imported, content }));
+      if (editorRef.current) editorRef.current.innerHTML = content;
+      setMessage('Blog imported successfully. Review the content, add a cover image, and publish when ready.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not import blog.');
+    }
   };
   const uploadCover = async (file?: File) => {
     if (!file) return;
@@ -266,7 +296,7 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
         {mode === 'editor' && <section aria-labelledby="editor-heading" className="rounded-xl border border-purple-100 bg-white p-5 shadow-sm md:p-7">
           <div className="mb-6 flex items-start justify-between gap-4 border-b border-slate-100 pb-5">
             <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-700">Write</p><h2 id="editor-heading" className="mt-1 text-2xl font-bold text-purple-950">{editingId ? 'Edit blog' : 'Create a new blog'}</h2><p className="mt-1 text-sm text-slate-600">Add the article, cover and search details, then choose when to publish.</p></div>
-            {editingId && <Link href="/admin/blogs" className="shrink-0 text-sm font-semibold text-purple-700 underline">Cancel edit</Link>}
+            {editingId ? <Link href="/admin/blogs" className="shrink-0 text-sm font-semibold text-purple-700 underline">Cancel edit</Link> : <div className="shrink-0"><input ref={importInputRef} type="file" accept=".json,application/json" className="sr-only" aria-label="Choose ChatGPT blog JSON" onChange={event => { void importBlog(event.target.files?.[0]); event.target.value = ''; }} /><button type="button" onClick={() => importInputRef.current?.click()} className="rounded-lg border border-purple-300 bg-white px-4 py-2.5 text-sm font-semibold text-purple-800 hover:bg-purple-50">Import from ChatGPT</button></div>}
           </div>
           {editorLoading && <p role="status" className="mb-5 text-sm text-slate-600">Loading blog…</p>}
           <form onSubmit={save} aria-busy={editorLoading} className={`space-y-6 ${!editorReady ? 'pointer-events-none opacity-50' : ''}`}>
@@ -307,7 +337,7 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
                 <label className="block text-sm font-semibold">Button text<input className={field} maxLength={60} value={form.cta_label} onChange={event => set('cta_label', event.target.value)} placeholder="Book now" /></label>
                 <label className="block text-sm font-semibold">Button link<input className={field} maxLength={500} value={form.cta_url} onChange={event => set('cta_url', event.target.value)} placeholder="/book-session" /></label>
               </div>
-              <div className="mt-5 flex flex-wrap items-center gap-4"><span className="inline-flex rounded-full bg-[#5b267a] px-5 py-2.5 text-sm font-semibold text-white">{form.cta_label.trim() || 'Book now'} →</span><span className="break-all text-xs text-slate-600">Links to {form.cta_url.trim() || '/book-session'}</span></div>
+              <div className="mt-5 flex flex-wrap items-center gap-4"><span className="inline-flex rounded-full bg-[#5b267a] px-5 py-2.5 text-sm font-semibold text-white">{form.cta_label.trim() || 'Book now'}{/→\s*$/.test(form.cta_label) ? '' : ' →'}</span><span className="break-all text-xs text-slate-600">Links to {form.cta_url.trim() || '/book-session'}</span></div>
             </div>
             <div className="grid gap-5 md:grid-cols-2"><label className="block text-sm font-semibold">Publishing<select className={field} value={form.status} onChange={event => set('status', event.target.value)}><option value="draft">Save draft</option><option value="published">Publish now</option><option value="scheduled">Publish later</option></select></label>{form.status === 'scheduled' && <label className="block text-sm font-semibold">Publish at (IST, GMT+5:30)<input required type="datetime-local" className={field} value={form.published_at} onChange={event => set('published_at', event.target.value)} /><span className="mt-1 block text-xs font-normal text-slate-500">Enter the date and time in India Standard Time.</span></label>}</div>
             <button disabled={busy || !editorReady} className="rounded-lg bg-purple-700 px-6 py-3 font-semibold text-white hover:bg-purple-800 disabled:opacity-50">{busy ? 'Saving…' : editingId ? 'Update blog' : 'Save blog'}</button>

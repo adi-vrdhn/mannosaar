@@ -1,9 +1,9 @@
 import type { MetadataRoute } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { publicBlogTimeFilter } from '@/lib/blog-publishing';
-import { absoluteUrl, isSearchableBlog } from '@/lib/seo';
+import { absoluteUrl } from '@/lib/seo';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 const publicPages: MetadataRoute.Sitemap = [
   { url: absoluteUrl('/') },
@@ -32,14 +32,13 @@ const publicPages: MetadataRoute.Sitemap = [
 
 interface PublishedBlog {
   slug: string;
-  title: string | null;
   updated_at: string | null;
   created_at: string | null;
 }
 
 function validLastModified(blog: PublishedBlog): string | undefined {
   const value = blog.updated_at || blog.created_at;
-  return value && !Number.isNaN(Date.parse(value)) ? value.slice(0, 10) : undefined;
+  return value && !Number.isNaN(Date.parse(value)) ? new Date(value).toISOString() : undefined;
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -61,7 +60,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const batchSize = Math.min(pageSize, maxBlogs - offset);
       const { data: blogs, error } = await supabase
         .from('blogs')
-        .select('slug, title, updated_at, created_at')
+        .select('slug, updated_at, created_at')
         .eq('is_published', true)
         .or(publicBlogTimeFilter())
         .order('created_at', { ascending: true })
@@ -73,7 +72,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
 
       for (const blog of blogs as PublishedBlog[]) {
-        if (!blog.slug || !isSearchableBlog(blog.slug, blog.title) || seen.has(blog.slug)) continue;
+        if (!blog.slug || seen.has(blog.slug)) continue;
         seen.add(blog.slug);
         blogPages.push({
           url: absoluteUrl(`/blogs/${encodeURIComponent(blog.slug)}`),

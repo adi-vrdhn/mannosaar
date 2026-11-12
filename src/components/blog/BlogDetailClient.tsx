@@ -356,7 +356,7 @@ export default function BlogDetailClient({ slug, initialBlog }: { slug: string; 
 
           <div className="mb-8 flex justify-center">
             <Link href={blog.cta_url || '/book-session'} className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#5b267a] px-7 py-3 text-sm font-semibold text-white transition hover:bg-[#481d61] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#5b267a]">
-              {blog.cta_label || 'Book now'} <span aria-hidden="true" className="ml-2">→</span>
+              {blog.cta_label || 'Book now'} {!/→\s*$/.test(blog.cta_label || '') && <span aria-hidden="true" className="ml-2">→</span>}
             </Link>
           </div>
 

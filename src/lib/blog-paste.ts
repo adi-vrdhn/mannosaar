@@ -12,6 +12,10 @@ export function clipboardHtml(richHtml: string, plainText: string, document: Doc
   const hasMarkdownSyntax = /(^|\n)\s{0,3}(#{1,6}\s|[-*+]\s|\d+\.\s|>\s)|\*\*[^*]+\*\*|\[[^\]]+\]\((https?:\/\/[^)]+)\)/m.test(plainText);
   if (!richHtml || (!hasSemanticHtml && (hasMarkdownSyntax || !hasStyledHtml))) return markdown.render(plainText);
 
+  return sanitizeBlogHtml(richHtml, document);
+}
+
+export function sanitizeBlogHtml(richHtml: string, document: Document): string {
   const template = document.createElement('template');
   template.innerHTML = richHtml;
   for (const element of Array.from(template.content.querySelectorAll('*'))) {
@@ -25,12 +29,16 @@ export function clipboardHtml(richHtml: string, plainText: string, document: Doc
       if (allowedStyles.has(property) && !/(?:url|expression)\s*\(|[<>]/i.test(value)) styles.push(`${property}: ${value}`);
     }
     for (const attribute of Array.from(element.attributes)) element.removeAttribute(attribute.name);
-    if (href && /^(https?:|mailto:|\/)/i.test(href)) {
+    if (href && (/^\/(?!\/)[^\s\\]*$/.test(href) || /^(https?:\/\/|mailto:)[^\s\\]+$/i.test(href))) {
       element.setAttribute('href', href);
       element.setAttribute('rel', 'noopener noreferrer');
     }
     if (styles.length) element.setAttribute('style', styles.join('; '));
   }
+  const comments = document.createTreeWalker(template.content, NodeFilter.SHOW_COMMENT);
+  const commentsToRemove: Node[] = [];
+  while (comments.nextNode()) commentsToRemove.push(comments.currentNode);
+  commentsToRemove.forEach(node => node.parentNode?.removeChild(node));
   return template.innerHTML;
 }
 
