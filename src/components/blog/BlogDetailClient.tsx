@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -10,6 +9,7 @@ import { MoreVertical, Edit2, Trash2 } from 'lucide-react';
 import CommentSection from '@/components/blog/CommentSection';
 import BlogEditor from '@/components/blog/BlogEditor';
 import ShareButtons from '@/components/shared/ShareButtons';
+import { formatArticleTimeIst } from '@/lib/blog-time';
 
 export interface BlogDetail {
   id: string;
@@ -363,12 +363,12 @@ export default function BlogDetailClient({ slug, initialBlog }: { slug: string; 
           <div className="flex flex-col md:flex-row md:items-center md:justify-between text-gray-600 border-b border-gray-200 pb-6">
             <div className="flex items-center gap-4 mb-4 md:mb-0">
               <time dateTime={blog.published_at || blog.created_at} className="text-sm">
-                {format(new Date(blog.published_at || blog.created_at), 'MMMM d, yyyy')}
+                Published {formatArticleTimeIst(blog.published_at || blog.created_at)}
               </time>
             </div>
             <div className="flex items-center gap-4 text-sm">
-              <time dateTime={blog.updated_at} className="text-gray-500">
-                Updated {format(new Date(blog.updated_at), 'MMM d')}
+              <time dateTime={blog.updated_at || blog.created_at} className="text-gray-500">
+                Updated {formatArticleTimeIst(blog.updated_at || blog.created_at)}
               </time>
             </div>
           </div>

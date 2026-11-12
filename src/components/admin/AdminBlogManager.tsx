@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AdminSectionNav from './AdminSectionNav';
 import { clipboardHtml, insertClipboardHtml } from '@/lib/blog-paste';
+import { istDateTimeInputToIso, toIstDateTimeInput } from '@/lib/blog-time';
 
 type Status = 'draft' | 'published' | 'scheduled';
 type Filter = Status | 'all';
@@ -50,8 +51,7 @@ const empty: Form = {
 };
 const field = 'mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 focus:border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-100';
 const slugify = (value: string) => value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-const localDateTime = (value: string) => { const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
-const formatDate = (value: string | null | undefined) => value ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(new Date(value)) : 'Not set';
+const formatDate = (value: string | null | undefined) => value ? `${new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(new Date(value))} IST` : 'Not set';
 const statusOf = (blog: Blog): Status => !blog.is_published ? 'draft' : blog.published_at && new Date(blog.published_at).getTime() > Date.now() ? 'scheduled' : 'published';
 const filters: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All posts' }, { value: 'published', label: 'Published' },
@@ -125,7 +125,7 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
           editor_name: blog.editor_name || '', primary_keyword: blog.primary_keyword || '',
           secondary_keywords: (blog.secondary_keywords || []).join(', '), status: statusOf(blog),
           cta_label: blog.cta_label || 'Book now', cta_url: blog.cta_url || '/book-session',
-          published_at: blog.published_at ? localDateTime(blog.published_at) : '',
+          published_at: blog.published_at ? toIstDateTimeInput(blog.published_at) : '',
         });
         if (editorRef.current) editorRef.current.innerHTML = blog.content;
         setEditorReady(true);
@@ -202,15 +202,18 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
       setActionId(null);
     }
   };
-  const deleteBlog = async (blog: Blog) => {
+  const deleteBlog = async (blog: Pick<Blog, 'id' | 'title'>) => {
     setActionId(blog.id); setError(''); setMessage('');
     try {
       const response = await fetch(`/api/admin/blogs/${encodeURIComponent(blog.id)}`, { method: 'DELETE' });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not delete blog');
       setDeleteTargetId(null);
-      setMessage(`“${blog.title}” was deleted.`);
-      await load(page, filter);
+      if (mode === 'editor') router.push('/admin/blogs');
+      else {
+        setMessage(`“${blog.title}” was deleted.`);
+        await load(page, filter);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not delete blog');
     } finally {
@@ -222,12 +225,13 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
     if (!editorReady) return;
     setError(''); setMessage(''); setBusy(true);
     try {
-      if (form.status === 'scheduled' && (!form.published_at || new Date(form.published_at).getTime() <= Date.now())) throw new Error('Choose a future publishing time');
+      const publishingTime = form.published_at ? istDateTimeInputToIso(form.published_at) : null;
+      if (form.status === 'scheduled' && (!publishingTime || Date.parse(publishingTime) <= Date.now())) throw new Error('Choose a future publishing time in IST');
       const content = editorRef.current?.innerHTML || form.content;
       const payload = {
         ...form, content,
         secondary_keywords: form.secondary_keywords.split(',').map(word => word.trim()).filter(Boolean),
-        published_at: form.published_at ? new Date(form.published_at).toISOString() : null,
+        published_at: publishingTime,
       };
       const response = await fetch(editingId ? `/api/admin/blogs/${editingId}` : '/api/blogs', {
         method: editingId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
@@ -249,10 +253,15 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
         <AdminSectionNav className="mb-8" />
         <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
           <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-700">Content management</p><h1 className="mt-1 text-3xl font-bold text-purple-950">{mode === 'editor' ? editingId ? 'Edit blog' : 'Create a new blog' : 'Blogs'}</h1><p className="mt-1 text-slate-600">{mode === 'editor' ? 'Write and prepare your article for publishing.' : 'Review and manage your articles.'}</p></div>
-          {mode === 'editor' ? <Link href="/admin/blogs" className="rounded-lg border border-purple-200 px-4 py-2.5 text-sm font-semibold text-purple-800 hover:bg-purple-50">← Back to blogs</Link> : <Link href="/admin/blogs/new" className="rounded-lg bg-purple-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-purple-800">+ Create new blog</Link>}
+          {mode === 'editor' ? <div className="flex flex-wrap gap-2"><Link href="/admin/blogs" className="rounded-lg border border-purple-200 px-4 py-2.5 text-sm font-semibold text-purple-800 hover:bg-purple-50">← Back to blogs</Link>{editingId && <button type="button" disabled={!editorReady || actionId === editingId} onClick={() => setDeleteTargetId(editingId)} className="rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Delete blog</button>}</div> : <Link href="/admin/blogs/new" className="rounded-lg bg-purple-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-purple-800">+ Create new blog</Link>}
         </header>
         {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">{error}</p>}
         {message && <p role="status" className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-green-700">{message}</p>}
+        {mode === 'editor' && editingId && deleteTargetId === editingId && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label={`Confirm deleting ${form.title}`}>
+          <p className="text-sm font-semibold text-red-900">Delete “{form.title}” permanently?</p>
+          <p className="mt-1 text-sm text-red-800">This removes the blog from the site and cannot be undone.</p>
+          <div className="mt-3 flex gap-3"><button type="button" disabled={actionId === editingId} onClick={() => void deleteBlog({ id: editingId, title: form.title })} className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50">{actionId === editingId ? 'Deleting…' : 'Yes, delete'}</button><button type="button" disabled={actionId === editingId} onClick={() => setDeleteTargetId(null)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button></div>
+        </div>}
 
         {mode === 'editor' && <section aria-labelledby="editor-heading" className="rounded-xl border border-purple-100 bg-white p-5 shadow-sm md:p-7">
           <div className="mb-6 flex items-start justify-between gap-4 border-b border-slate-100 pb-5">
@@ -300,7 +309,7 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
               </div>
               <div className="mt-5 flex flex-wrap items-center gap-4"><span className="inline-flex rounded-full bg-[#5b267a] px-5 py-2.5 text-sm font-semibold text-white">{form.cta_label.trim() || 'Book now'} →</span><span className="break-all text-xs text-slate-600">Links to {form.cta_url.trim() || '/book-session'}</span></div>
             </div>
-            <div className="grid gap-5 md:grid-cols-2"><label className="block text-sm font-semibold">Publishing<select className={field} value={form.status} onChange={event => set('status', event.target.value)}><option value="draft">Save draft</option><option value="published">Publish now</option><option value="scheduled">Publish later</option></select></label>{form.status === 'scheduled' && <label className="block text-sm font-semibold">Publish at (your local time)<input required type="datetime-local" className={field} value={form.published_at} onChange={event => set('published_at', event.target.value)} /></label>}</div>
+            <div className="grid gap-5 md:grid-cols-2"><label className="block text-sm font-semibold">Publishing<select className={field} value={form.status} onChange={event => set('status', event.target.value)}><option value="draft">Save draft</option><option value="published">Publish now</option><option value="scheduled">Publish later</option></select></label>{form.status === 'scheduled' && <label className="block text-sm font-semibold">Publish at (IST, GMT+5:30)<input required type="datetime-local" className={field} value={form.published_at} onChange={event => set('published_at', event.target.value)} /><span className="mt-1 block text-xs font-normal text-slate-500">Enter the date and time in India Standard Time.</span></label>}</div>
             <button disabled={busy || !editorReady} className="rounded-lg bg-purple-700 px-6 py-3 font-semibold text-white hover:bg-purple-800 disabled:opacity-50">{busy ? 'Saving…' : editingId ? 'Update blog' : 'Save blog'}</button>
           </form>
         </section>}
@@ -315,7 +324,7 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
               <div className="flex flex-col gap-4 sm:flex-row">
                 {blog.featured_image ? <Image unoptimized src={blog.featured_image} alt="" width={104} height={104} className="h-24 w-24 shrink-0 rounded-lg object-cover" /> : <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-purple-50 text-center text-xs text-purple-700">No cover</div>}
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-xs font-bold capitalize ${statusStyle(status)}`}>{status}</span><span className="text-xs text-slate-500">{blog.content_type || 'article'}</span></div>
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-xs font-bold capitalize ${statusStyle(status)}`}>{status}</span><span className="text-xs text-slate-500">{blog.content_type || 'article'}</span></div><button type="button" disabled={actionId === blog.id} onClick={() => setDeleteTargetId(blog.id)} className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50" aria-label={`Delete ${blog.title}`}>Delete blog</button></div>
                   <h3 className="mt-2 text-lg font-bold text-slate-900">{blog.title}</h3>
                   <p className="mt-1 break-all text-xs text-slate-500">/blogs/{blog.slug}</p>
                   <p className="mt-2 text-xs text-slate-600">Created {formatDate(blog.created_at)} · Updated {formatDate(blog.updated_at || blog.created_at)}</p>
@@ -338,7 +347,6 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
                 {status === 'published' && <Link href={`/blogs/${encodeURIComponent(blog.slug)}`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">View live</Link>}
                 {status !== 'published' && <button type="button" disabled={actionId === blog.id} onClick={() => void changeStatus(blog, 'published')} className="rounded-lg bg-purple-700 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-800 disabled:opacity-50">Publish now</button>}
                 {status !== 'draft' && <button type="button" disabled={actionId === blog.id} onClick={() => void changeStatus(blog, 'draft')} className="rounded-lg border border-amber-200 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50">Move to draft</button>}
-                <button type="button" disabled={actionId === blog.id} onClick={() => setDeleteTargetId(blog.id)} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Delete</button>
               </div>
               {deleteTargetId === blog.id && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label={`Confirm deleting ${blog.title}`}>
                 <p className="text-sm font-semibold text-red-900">Delete “{blog.title}” permanently?</p>
