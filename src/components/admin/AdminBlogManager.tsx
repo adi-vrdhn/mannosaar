@@ -85,6 +85,7 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
   const [editorReady, setEditorReady] = useState(!editId);
   const [busy, setBusy] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const editorRef = useRef<HTMLDivElement>(null);
@@ -197,6 +198,21 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
       await load(page, filter);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not update blog');
+    } finally {
+      setActionId(null);
+    }
+  };
+  const deleteBlog = async (blog: Blog) => {
+    setActionId(blog.id); setError(''); setMessage('');
+    try {
+      const response = await fetch(`/api/admin/blogs/${encodeURIComponent(blog.id)}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not delete blog');
+      setDeleteTargetId(null);
+      setMessage(`“${blog.title}” was deleted.`);
+      await load(page, filter);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not delete blog');
     } finally {
       setActionId(null);
     }
@@ -322,7 +338,13 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
                 {status === 'published' && <Link href={`/blogs/${encodeURIComponent(blog.slug)}`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">View live</Link>}
                 {status !== 'published' && <button type="button" disabled={actionId === blog.id} onClick={() => void changeStatus(blog, 'published')} className="rounded-lg bg-purple-700 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-800 disabled:opacity-50">Publish now</button>}
                 {status !== 'draft' && <button type="button" disabled={actionId === blog.id} onClick={() => void changeStatus(blog, 'draft')} className="rounded-lg border border-amber-200 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50">Move to draft</button>}
+                <button type="button" disabled={actionId === blog.id} onClick={() => setDeleteTargetId(blog.id)} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Delete</button>
               </div>
+              {deleteTargetId === blog.id && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label={`Confirm deleting ${blog.title}`}>
+                <p className="text-sm font-semibold text-red-900">Delete “{blog.title}” permanently?</p>
+                <p className="mt-1 text-sm text-red-800">This removes the {status} post from the site and cannot be undone.</p>
+                <div className="mt-3 flex gap-3"><button type="button" disabled={actionId === blog.id} onClick={() => void deleteBlog(blog)} className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50">{actionId === blog.id ? 'Deleting…' : 'Yes, delete'}</button><button type="button" disabled={actionId === blog.id} onClick={() => setDeleteTargetId(null)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button></div>
+              </div>}
             </article>;
           })}</div>}
           {total > 20 && <nav aria-label="Blog list pages" className="mt-6 flex items-center justify-between border-t border-slate-100 pt-5 text-sm"><button type="button" disabled={page === 1} onClick={() => setPage(page - 1)} className="font-semibold text-purple-700 disabled:text-slate-400">← Previous</button><span className="text-slate-500">Page {page} of {Math.ceil(total / 20)}</span><button type="button" disabled={page * 20 >= total} onClick={() => setPage(page + 1)} className="font-semibold text-purple-700 disabled:text-slate-400">Next →</button></nav>}

@@ -36,3 +36,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (error) return NextResponse.json({ error: error.code === '23505' ? 'Slug is already in use' : /cta_label|cta_url/i.test(error.message) ? 'Blog button setup is incomplete. Run scripts/migrations/20261112_blog_cta.sql in Supabase SQL Editor.' : /column|schema cache/i.test(error.message) ? 'Blog database update required: run scripts/migrations/20261105_blog_publishing.sql in Supabase SQL Editor' : error.message }, { status: error.code === '23505' ? 409 : 500 });
   return NextResponse.json({ blog: data });
 }
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await authenticatedAdmin();
+  if (!session) return new Response('Forbidden', { status: 403 });
+  if (!isSameOrigin(request)) return new Response('Forbidden', { status: 403 });
+  const { id } = await params;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return NextResponse.json({ error: 'Invalid blog ID' }, { status: 400 });
+
+  const { data, error } = await db().from('blogs').delete().eq('id', id).select('id').maybeSingle();
+  if (error) return NextResponse.json({ error: 'Could not delete blog' }, { status: 500 });
+  if (!data) return NextResponse.json({ error: 'Blog not found' }, { status: 404 });
+  return NextResponse.json({ success: true });
+}
