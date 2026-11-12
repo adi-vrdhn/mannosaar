@@ -5,7 +5,7 @@ import { sendBookingPostponedEmail } from '@/lib/email';
 import { createGoogleCalendarEvent, deleteGoogleCalendarEvent } from '@/lib/google-calendar';
 import { isSameOrigin, requestIp } from '@/lib/compliance';
 import { writeAudit } from '@/lib/compliance-server';
-import { getServiceById, slotDurationMinutes } from '@/lib/services';
+import { sessionEndTime } from '@/lib/services';
 
 export async function POST(request: NextRequest) {
   try {
@@ -79,7 +79,6 @@ export async function POST(request: NextRequest) {
       .select('*')
       .eq('date', newDate)
       .eq('start_time', newStartTime)
-      .eq('end_time', newEndTime)
       .single();
 
     // If slot doesn't exist, return error
@@ -89,7 +88,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (slotDurationMinutes(newSlot.start_time, newSlot.end_time) !== getServiceById(booking.session_type)?.durationMinutes) return NextResponse.json({ error: 'The selected slot has the wrong session duration.' }, { status: 409 });
+    const newSessionEnd = sessionEndTime(newSlot.start_time, booking.session_type);
+    if (!newSessionEnd || newSessionEnd.slice(0, 5) !== newEndTime.slice(0, 5)) return NextResponse.json({ error: 'Invalid session time.' }, { status: 409 });
+    newSlot.end_time = newSessionEnd;
 
     // Slot exists, check if available
     if (!newSlot.is_available || newSlot.is_blocked) {

@@ -9,7 +9,10 @@ import { createClient } from '@/lib/supabase/client';
 import {
   DEFAULT_BUNDLE_PRICING,
   getServiceById,
+  isServiceId,
+  sessionEndTime,
   type BundlePricing,
+  type FirstSessionOffers,
 } from '@/lib/services';
 import ComplianceConsentCard, {
   allRequiredConsentsAccepted,
@@ -166,6 +169,7 @@ function PaymentPageContent() {
   const [cachedSlotInfo, setCachedSlotInfo] = useState<SlotInfo | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [prices, setPrices] = useState<BundlePricing>({ ...DEFAULT_BUNDLE_PRICING });
+  const [offers, setOffers] = useState<FirstSessionOffers | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [processingMode, setProcessingMode] = useState<'payu' | 'test' | null>(null);
@@ -178,6 +182,8 @@ function PaymentPageContent() {
   const priceKey = `${sessionType}_${bundleSize}` as keyof typeof prices;
   const sessionPrice = prices[priceKey] || 0;
   const totalPrice = sessionPrice;
+  const firstSessionOffer = bundleSize === 1 && isServiceId(sessionType) ? offers?.[sessionType] : null;
+  const hasFirstSessionOffer = Boolean(firstSessionOffer?.enabled && firstSessionOffer.eligible);
   const isAdminUser = session?.user?.role === 'admin' || userProfile?.role === 'admin';
   const resolvedSingleSlotInfo =
     slotInfo ||
@@ -271,10 +277,11 @@ function PaymentPageContent() {
       try {
         const response = await fetch('/api/admin/pricing');
         if (response.ok) {
-          const data = await readJsonResponse<ApiResponse & { pricing?: BundlePricing }>(response);
+          const data = await readJsonResponse<ApiResponse & { pricing?: BundlePricing; effectivePricing?: BundlePricing }>(response);
           // API returns { success, pricing, timestamp } - extract pricing only
-          if (data.pricing) {
-            setPrices(data.pricing);
+          if (data.effectivePricing || data.pricing) {
+            setPrices(data.effectivePricing || data.pricing!);
+            setOffers(data.offers as FirstSessionOffers || null);
           }
         }
       } catch (err) {
@@ -381,7 +388,7 @@ function PaymentPageContent() {
           setError('Failed to load slot information: ' + JSON.stringify(fetchError));
         } else if (data) {
           console.log('Slot loaded:', data);
-          setSlotInfo(data);
+          setSlotInfo({ ...data, end_time: sessionEndTime(data.start_time, sessionType) || data.end_time });
         } else {
           console.warn('No slot data and no error');
           if (resolvedSingleSlotInfo) {
@@ -782,6 +789,7 @@ function PaymentPageContent() {
                       <span className="text-gray-600">Duration</span>
                       <span className="font-semibold text-gray-900">{getServiceById(sessionType)?.durationMinutes || 40} mins</span>
                     </div>
+                    {hasFirstSessionOffer && <div className="flex justify-between text-sm text-[#5b267a]"><span>First session offer</span><span className="line-through">₹{firstSessionOffer!.regularPrice}</span></div>}
                     <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
                       <span className="text-lg font-bold text-gray-900">Total Amount</span>
                       <span className="text-2xl font-bold text-purple-600">₹{sessionPrice}</span>
@@ -814,6 +822,7 @@ function PaymentPageContent() {
                       <span className="text-gray-600">Duration</span>
                       <span className="font-semibold text-gray-900">{getServiceById(sessionType)?.durationMinutes || 40} mins</span>
                     </div>
+                    {hasFirstSessionOffer && <div className="flex justify-between text-sm text-[#5b267a]"><span>First session offer</span><span className="line-through">₹{firstSessionOffer!.regularPrice}</span></div>}
                     <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
                       <span className="text-lg font-bold text-gray-900">Total Amount</span>
                       <span className="text-2xl font-bold text-purple-600">₹{sessionPrice}</span>

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import {
   DEFAULT_BUNDLE_PRICING, formatInr, isServiceId,
-  type BundlePricing,
+  type BundlePricing, type FirstSessionOffers,
 } from '@/lib/services';
 
 function AppointmentNotePageContent() {
@@ -24,6 +24,7 @@ function AppointmentNotePageContent() {
   const [isReady, setIsReady] = useState(false);
   const [loadingPrices, setLoadingPrices] = useState(true);
   const [pricing, setPricing] = useState<BundlePricing>({ ...DEFAULT_BUNDLE_PRICING });
+  const [offers, setOffers] = useState<FirstSessionOffers | null>(null);
   const [note, setNote] = useState('');
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [bundleSize, setBundleSize] = useState<1 | 2 | 3>(1);
@@ -33,7 +34,11 @@ function AppointmentNotePageContent() {
     const fetchPricing = async () => {
       try {
         const response = await fetch('/api/admin/pricing');
-        if (response.ok) setPricing((await response.json()).pricing);
+        if (response.ok) {
+          const data = await response.json();
+          setPricing(data.effectivePricing || data.pricing);
+          setOffers(data.offers || null);
+        }
       } catch (error) {
         console.error('Error fetching pricing:', error);
       } finally {
@@ -151,16 +156,21 @@ function AppointmentNotePageContent() {
               <div className="mt-5 grid gap-2.5">
                 {([1, 2, 3] as const).map((size) => {
                   const active = bundleSize === size;
+                  const offer = size === 1 ? offers?.[sessionType] : null;
+                  const hasOffer = Boolean(offer?.enabled && offer.eligible);
                   return (
                     <button key={size} type="button" onClick={() => setBundleSize(size)} aria-pressed={active} className={`group flex min-h-[76px] w-full items-center justify-between gap-4 rounded-2xl border px-4 py-3.5 text-left transition ${active ? 'border-[#5b267a] bg-[#5b267a] text-white shadow-[0_10px_24px_rgba(91,38,122,0.2)]' : 'border-[#8a7099]/25 bg-white/30 text-[#34213f] hover:border-[#5b267a]/50 hover:bg-white/50'}`}>
                       <span className="flex items-center gap-3">
                         <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${active ? 'border-white/60 bg-white text-[#5b267a]' : 'border-[#80698f]/50 text-transparent'}`}><Check className="h-3 w-3" strokeWidth={3} /></span>
                         <span>
                           <span className="block text-base font-bold">{size} session{size > 1 ? 's' : ''}</span>
-                          <span className={`mt-0.5 block text-xs ${active ? 'text-white/75' : 'text-[#65586c]'}`}>{size === 1 ? 'A place to begin' : size === 2 ? 'A little continuity' : 'Steady support'}</span>
+                          <span className={`mt-0.5 block text-xs ${active ? 'text-white/75' : 'text-[#65586c]'}`}>{hasOffer ? 'First session offer' : size === 1 ? 'A place to begin' : size === 2 ? 'A little continuity' : 'Steady support'}</span>
                         </span>
                       </span>
-                      <span className="text-base font-bold">{loadingPrices ? '—' : formatInr(getPriceForBundle(size))}</span>
+                      <span className="text-right">
+                        {hasOffer && <span className={`block text-xs line-through ${active ? 'text-white/70' : 'text-[#65586c]'}`}>{formatInr(offer!.regularPrice)}</span>}
+                        <span className="block text-base font-bold">{loadingPrices ? '—' : formatInr(getPriceForBundle(size))}</span>
+                      </span>
                     </button>
                   );
                 })}

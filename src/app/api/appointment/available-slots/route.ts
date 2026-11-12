@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchWithNetworkRetry } from '@/lib/supabase/retry-fetch';
-import { getServiceById, slotDurationMinutes } from '@/lib/services';
+import { getServiceById, sessionEndTime } from '@/lib/services';
 import { overlaps, slotEndInstant, slotInstant } from '@/lib/whatsapp/core';
 import {
   eachDayOfInterval,
@@ -48,6 +48,11 @@ function expandBlockedDates(
   }
 
   return blockedDates;
+}
+
+function isMissingReservationsTable(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (error.code === 'PGRST205' || error.code === '42P01')
+    && error.message?.includes('booking_reservations'));
 }
 
 export async function GET(request: NextRequest) {
@@ -102,7 +107,7 @@ export async function GET(request: NextRequest) {
           .order('start_time', { ascending: true }),
         supabase
           .from('bookings')
-          .select('slot_id')
+          .select('slot_id,slot_date,slot_start_time,slot_end_time,session_type,session_dates,slot:therapy_slots(therapist_id)')
           .eq('status', 'confirmed'),
         supabase
           .from('block_schedules')
@@ -112,7 +117,8 @@ export async function GET(request: NextRequest) {
         supabase.from('booking_reservations').select('therapist_id,span,hold:booking_holds(status,expires_at)').overlaps('span', `[${rangeStart},${rangeEnd})`),
       ]);
 
-    if (slotsError || bookingsError || blockedError || reservationError) {
+    const reservationsUnavailable = isMissingReservationsTable(reservationError);
+    if (slotsError || bookingsError || blockedError || (reservationError && !reservationsUnavailable)) {
       console.error('Error fetching appointment slots:', {
         slotsError,
         bookingsError,
@@ -134,11 +140,27 @@ export async function GET(request: NextRequest) {
       return [{ therapistId: reservation.therapist_id, start, end }];
     });
 
+    for (const booking of bookings || []) {
+      const slotRelation = Array.isArray(booking.slot) ? booking.slot[0] : booking.slot;
+      const therapistId = slotRelation?.therapist_id;
+      if (!therapistId) continue;
+      const dates = Array.isArray(booking.session_dates) && booking.session_dates.length
+        ? booking.session_dates as Array<{ date: string; start_time: string; end_time?: string }>
+        : [{ date: booking.slot_date, start_time: booking.slot_start_time, end_time: booking.slot_end_time }];
+      for (const entry of dates) {
+        if (!entry.date || !entry.start_time) continue;
+        const endTime = entry.end_time || sessionEndTime(entry.start_time, booking.session_type);
+        if (!endTime) continue;
+        occupied.push({ therapistId, start: slotInstant(entry.date, entry.start_time), end: slotEndInstant(entry.date, entry.start_time, endTime) });
+      }
+    }
+
     const filteredSlots = (slots || [])
-      .filter((slot: SlotRow) => slotDurationMinutes(slot.start_time, slot.end_time) === service.durationMinutes)
       .filter((slot: SlotRow) => !bookedSlotIds.has(slot.id))
       .filter((slot: SlotRow) => {
-        const span = { start: slotInstant(slot.date, slot.start_time), end: slotEndInstant(slot.date, slot.start_time, slot.end_time) };
+        const endTime = sessionEndTime(slot.start_time, service.id);
+        if (!endTime) return false;
+        const span = { start: slotInstant(slot.date, slot.start_time), end: slotEndInstant(slot.date, slot.start_time, endTime) };
         return !occupied.some(reservation => reservation.therapistId === slot.therapist_id && overlaps(span, reservation));
       })
       .filter((slot: SlotRow) => !blockedDates.has(slot.date))
@@ -158,7 +180,8 @@ export async function GET(request: NextRequest) {
           MINIMUM_BOOKING_LEAD_MINUTES,
           currentComparableTimestamp
         )
-      );
+      )
+      .map((slot: SlotRow) => ({ ...slot, end_time: sessionEndTime(slot.start_time, service.id)! }));
 
     const availableDates = Array.from(
       new Set(filteredSlots.map((slot: SlotRow) => slot.date))
@@ -166,6 +189,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       availableDates,
+      bookingReady: true,
       slots: dateParam
         ? filteredSlots.filter((slot: SlotRow) => slot.date === dateParam)
         : filteredSlots,

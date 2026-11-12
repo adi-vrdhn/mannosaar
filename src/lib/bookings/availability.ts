@@ -1,5 +1,5 @@
 import { check, db } from '../whatsapp/server';
-import { getServiceById, slotDurationMinutes, type ServiceId } from '../services';
+import { sessionEndTime, slotDurationMinutes, type ServiceId } from '../services';
 import { overlaps, slotEndInstant, slotInstant } from '../whatsapp/core';
 import { freeBusy, type Therapist } from '../google-calendar/whatsapp';
 import { getCurrentDateString } from '../time';
@@ -30,11 +30,12 @@ export async function availableSlots(therapistId: string, date?: string, service
     const bounds = String(r.span).slice(1, -1).split(',').map(s => s.replaceAll('"', ''));
     return [{ start: bounds[0], end: bounds[1] }];
   });
-  const expectedDuration = serviceId ? getServiceById(serviceId)?.durationMinutes : null;
   return (results[0].data || []).filter(slot => {
-    const span = { start: slotInstant(slot.date, slot.start_time), end: slotEndInstant(slot.date, slot.start_time, slot.end_time) };
-    return (expectedDuration === null || slotDurationMinutes(slot.start_time, slot.end_time) === expectedDuration) && Date.parse(span.start) >= Date.now() + 4 * 3600_000 && Date.parse(span.end) > Date.parse(span.start) &&
+    const sessionEnd = serviceId ? sessionEndTime(slot.start_time, serviceId) : slot.end_time;
+    if (!sessionEnd) return false;
+    const span = { start: slotInstant(slot.date, slot.start_time), end: slotEndInstant(slot.date, slot.start_time, sessionEnd) };
+    return Date.parse(span.start) >= Date.now() + 4 * 3600_000 && Date.parse(span.end) > Date.parse(span.start) &&
       ![...busy, ...ranges].some(range => overlaps(span, range)) &&
-      !(results[2].data || []).some(block => slot.date >= block.start_date && slot.date <= block.end_date && (block.block_type === 'full_day' || (slot.start_time < block.end_time && block.start_time < slot.end_time)));
-  }).map(slot => ({ ...slot, duration_minutes: slotDurationMinutes(slot.start_time, slot.end_time) }));
+      !(results[2].data || []).some(block => slot.date >= block.start_date && slot.date <= block.end_date && (block.block_type === 'full_day' || (slot.start_time < block.end_time && block.start_time < sessionEnd)));
+  }).map(slot => ({ ...slot, end_time: serviceId ? sessionEndTime(slot.start_time, serviceId)! : slot.end_time, duration_minutes: serviceId ? slotDurationMinutes(slot.start_time, sessionEndTime(slot.start_time, serviceId)!) : slotDurationMinutes(slot.start_time, slot.end_time) }));
 }

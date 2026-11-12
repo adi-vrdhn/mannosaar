@@ -13,10 +13,10 @@ interface BundlePricing {
 
 const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
   const [pricing, setPricing] = useState<BundlePricing>({
-    personal_1: 2500,
+    personal_1: 999,
     personal_2: 4500,
     personal_3: 6000,
-    couple_1: 3500,
+    couple_1: 1500,
     couple_2: 6500,
     couple_3: 9000,
   });
@@ -37,10 +37,10 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
         
         const data = await response.json();
         setPricing(data.pricing || {
-          personal_1: 2500,
+          personal_1: 999,
           personal_2: 4500,
           personal_3: 6000,
-          couple_1: 3500,
+          couple_1: 1500,
           couple_2: 6500,
           couple_3: 9000,
         });
@@ -286,22 +286,22 @@ const PricingSettingsForm = ({ userRole }: PricingFormProps) => {
 
       {/* Savings Summary */}
       <div className="mb-8 rounded-lg border border-blue-200 bg-blue-50 p-5 sm:p-6">
-        <h3 className="font-semibold text-blue-900 mb-4">💡 Bundle Savings Overview</h3>
+        <h3 className="font-semibold text-blue-900 mb-4">Bundle pricing overview</h3>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div>
             <p className="text-sm text-blue-700 mb-2">Personal Sessions</p>
             <div className="space-y-1 text-sm text-blue-900">
               <p>Single: ₹{pricing.personal_1.toFixed(0)}</p>
-              <p>2 Sessions combined total: ₹{pricing.personal_2.toFixed(0)} (save ₹{(pricing.personal_1 * 2 - pricing.personal_2).toFixed(0)})</p>
-              <p>3 Sessions combined total: ₹{pricing.personal_3.toFixed(0)} (save ₹{(pricing.personal_1 * 3 - pricing.personal_3).toFixed(0)})</p>
+              <p>2 Sessions combined total: ₹{pricing.personal_2.toFixed(0)}{pricing.personal_2 < pricing.personal_1 * 2 ? ` (save ₹${(pricing.personal_1 * 2 - pricing.personal_2).toFixed(0)})` : ''}</p>
+              <p>3 Sessions combined total: ₹{pricing.personal_3.toFixed(0)}{pricing.personal_3 < pricing.personal_1 * 3 ? ` (save ₹${(pricing.personal_1 * 3 - pricing.personal_3).toFixed(0)})` : ''}</p>
             </div>
           </div>
           <div>
             <p className="text-sm text-blue-700 mb-2">Couple Sessions</p>
             <div className="space-y-1 text-sm text-blue-900">
               <p>Single: ₹{pricing.couple_1.toFixed(0)}</p>
-              <p>2 Sessions combined total: ₹{pricing.couple_2.toFixed(0)} (save ₹{(pricing.couple_1 * 2 - pricing.couple_2).toFixed(0)})</p>
-              <p>3 Sessions combined total: ₹{pricing.couple_3.toFixed(0)} (save ₹{(pricing.couple_1 * 3 - pricing.couple_3).toFixed(0)})</p>
+              <p>2 Sessions combined total: ₹{pricing.couple_2.toFixed(0)}{pricing.couple_2 < pricing.couple_1 * 2 ? ` (save ₹${(pricing.couple_1 * 2 - pricing.couple_2).toFixed(0)})` : ''}</p>
+              <p>3 Sessions combined total: ₹{pricing.couple_3.toFixed(0)}{pricing.couple_3 < pricing.couple_1 * 3 ? ` (save ₹${(pricing.couple_1 * 3 - pricing.couple_3).toFixed(0)})` : ''}</p>
             </div>
           </div>
         </div>

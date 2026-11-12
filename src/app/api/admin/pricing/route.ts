@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getBundlePricing } from '@/lib/pricing';
+import { auth } from '@/lib/auth';
+import { getPricingSnapshot } from '@/lib/pricing';
 
 export async function GET() {
   try {
-    const pricing = await getBundlePricing();
+    const session = await auth();
+    const snapshot = await getPricingSnapshot(session?.user?.id);
 
     return NextResponse.json({
       success: true,
-      pricing,
+      ...snapshot,
       timestamp: new Date().toISOString(),
-    });
+    }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (err) {
     console.error('Error in pricing endpoint:', err);
     return NextResponse.json({

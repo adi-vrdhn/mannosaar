@@ -8,7 +8,7 @@ import { sendRescheduleNotificationWhatsApp } from '@/lib/whatsapp';
 import { sendAdminRescheduleNotificationEmail, sendBookingPostponedEmail } from '@/lib/email';
 import { getTherapistNotificationRecipients } from '@/lib/therapist-email';
 import { isSameOrigin, requestIp } from '@/lib/compliance';
-import { getServiceById, slotDurationMinutes } from '@/lib/services';
+import { sessionEndTime } from '@/lib/services';
 import { writeAudit } from '@/lib/compliance-server';
 
 export async function POST(request: Request) {
@@ -115,7 +115,9 @@ export async function POST(request: Request) {
     if (!newSlot.is_available || newSlot.is_blocked) {
       return NextResponse.json({ error: 'This slot is no longer available. Please choose another.' }, { status: 409 });
     }
-    if (slotDurationMinutes(newSlot.start_time, newSlot.end_time) !== getServiceById(booking.session_type)?.durationMinutes) return NextResponse.json({ error: 'This slot has the wrong session duration.' }, { status: 409 });
+    const newSessionEnd = sessionEndTime(newSlot.start_time, booking.session_type);
+    if (!newSessionEnd) return NextResponse.json({ error: 'Invalid session time.' }, { status: 409 });
+    newSlot.end_time = newSessionEnd;
     if (booking.therapist_id && newSlot.therapist_id && booking.therapist_id !== newSlot.therapist_id) {
       return NextResponse.json({ error: 'Please choose a slot offered by your current therapist.' }, { status: 400 });
     }

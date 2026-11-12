@@ -44,8 +44,8 @@ export async function POST(request: Request) {
     blocked_reason: slot.blocked_reason ?? null,
     therapist_id: slot.therapist_id ?? defaultTherapistId,
   }));
-  if (normalizedSlots.length > 500 || normalizedSlots.some(slot => !/^\d{4}-\d{2}-\d{2}$/.test(slot.date) || ![40, 60].includes(slot.duration_minutes))) {
-    return NextResponse.json({ error: 'Each slot must be 40 or 60 minutes; maximum 500 slots per request.' }, { status: 400 });
+  if (normalizedSlots.length > 500 || normalizedSlots.some(slot => !/^\d{4}-\d{2}-\d{2}$/.test(slot.date) || slot.duration_minutes !== 40)) {
+    return NextResponse.json({ error: 'Each shared opening must use a 40-minute base interval; maximum 500 slots per request.' }, { status: 400 });
   }
 
   const uniqueDates = [...new Set(normalizedSlots.map((slot) => slot.date))];

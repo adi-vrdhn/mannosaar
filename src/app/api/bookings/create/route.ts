@@ -9,7 +9,7 @@ import { isSameOrigin, requestIp } from '@/lib/compliance';
 import { allowRequest, linkConsentReceipt, validateConsentReceipt, writeAudit } from '@/lib/compliance-server';
 import { decodePayUContext, normalizePayUAmount, verifyPayUPayment } from '@/lib/payu';
 import { authenticatedAdmin } from '@/lib/admin-authorization';
-import { getServiceById, slotDurationMinutes } from '@/lib/services';
+import { sessionEndTime } from '@/lib/services';
 
 interface BookingSessionDate { date: string; slotId: string; startTime: string; endTime: string }
 interface BookingSlot { id: string; date: string; start_time: string; end_time: string; therapist_id?: string }
@@ -65,18 +65,11 @@ export async function POST(request: Request) {
       effectiveConsentReceiptId = paymentContext.consentReceiptId;
 
       const expectedBundle = Math.max(1, Number(bundle || sessionDates?.length || 1));
-      const { data: officialPrice } = await supabase
-        .from('pricing_config')
-        .select('price')
-        .eq('session_type', sessionType)
-        .eq('bundle_size', expectedBundle)
-        .eq('currency', 'INR')
-        .single();
       const productInfo = String(recoveredPayment.raw.productinfo || '');
 
       if (
-        !officialPrice
-        || normalizePayUAmount(Number(officialPrice.price)) !== normalizePayUAmount(Number(recoveredPayment.amount))
+        !Number.isFinite(Number(paymentContext.amount))
+        || normalizePayUAmount(Number(paymentContext.amount)) !== normalizePayUAmount(Number(recoveredPayment.amount))
         || (expectedBundle > 1 && !productInfo.includes(`x${expectedBundle}`))
       ) {
         return NextResponse.json({ error: 'The captured payment does not match this booking.' }, { status: 400 });
@@ -146,7 +139,9 @@ export async function POST(request: Request) {
         );
       }
       slotData = slotDataResult;
-      if (slotDurationMinutes(slotData.start_time, slotData.end_time) !== getServiceById(sessionType)?.durationMinutes) return NextResponse.json({ error: 'The selected slot has the wrong session duration.' }, { status: 409 });
+      const bookedEnd = sessionEndTime(slotData.start_time, sessionType);
+      if (!bookedEnd) return NextResponse.json({ error: 'Invalid session time.' }, { status: 409 });
+      slotData = { ...slotData, end_time: bookedEnd };
 
       // Check if slot is already booked (prevent race condition)
       console.log('🔵 Checking if slot is still available...');
@@ -171,7 +166,7 @@ export async function POST(request: Request) {
       const selected = await supabase.from('therapy_slots').select('id,date,start_time,end_time,is_available,is_blocked').in('id', requestedIds);
       if (selected.error || selected.data?.length !== requestedIds.length || sessionDates.some(entry => {
         const slot = selected.data.find(candidate => candidate.id === entry.slotId);
-        return !slot || !slot.is_available || slot.is_blocked || slot.date !== entry.date || slot.start_time.slice(0, 5) !== entry.startTime.slice(0, 5) || slot.end_time.slice(0, 5) !== entry.endTime.slice(0, 5) || slotDurationMinutes(slot.start_time, slot.end_time) !== getServiceById(sessionType)?.durationMinutes;
+        return !slot || !slot.is_available || slot.is_blocked || slot.date !== entry.date || slot.start_time.slice(0, 5) !== entry.startTime.slice(0, 5) || sessionEndTime(slot.start_time, sessionType)?.slice(0, 5) !== entry.endTime.slice(0, 5);
       })) return NextResponse.json({ error: 'A selected bundle time is no longer available for this duration.' }, { status: 409 });
     }
 

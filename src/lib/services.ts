@@ -17,11 +17,20 @@ export interface BundlePricing {
   couple_3: number;
 }
 
+export interface FirstSessionOffer {
+  enabled: boolean;
+  eligible: boolean;
+  offerPrice: number;
+  regularPrice: number;
+}
+
+export type FirstSessionOffers = Record<ServiceId, FirstSessionOffer>;
+
 export const DEFAULT_BUNDLE_PRICING: BundlePricing = {
-  personal_1: 2500,
+  personal_1: 999,
   personal_2: 4500,
   personal_3: 6000,
-  couple_1: 3500,
+  couple_1: 1500,
   couple_2: 6500,
   couple_3: 9000,
 };
@@ -59,6 +68,16 @@ export function slotDurationMinutes(startTime: string, endTime: string) {
   const [endHour, endMinute] = endTime.split(':').map(Number);
   if (![startHour, startMinute, endHour, endMinute].every(Number.isFinite)) return NaN;
   return endHour * 60 + endMinute - startHour * 60 - startMinute;
+}
+
+// Slots are shared start times. The selected service determines when the session ends.
+export function sessionEndTime(startTime: string, serviceId: string) {
+  const service = getServiceById(serviceId);
+  if (!service || typeof startTime !== 'string') return null;
+  const [hour, minute] = startTime.split(':').map(Number);
+  if (![hour, minute].every(Number.isInteger) || hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  const end = hour * 60 + minute + service.durationMinutes;
+  return `${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}:00`;
 }
 
 export function formatInr(amount: number) {

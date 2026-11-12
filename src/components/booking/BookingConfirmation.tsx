@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import {
   DEFAULT_BUNDLE_PRICING,
   getServiceById,
+  sessionEndTime,
   type BundlePricing,
 } from '@/lib/services';
 
@@ -147,8 +148,8 @@ const BookingConfirmation = () => {
         if (response.ok) {
           const data = await response.json();
           // API returns { success, pricing, timestamp } - extract pricing only
-          if (data.pricing) {
-            setPrices(data.pricing);
+          if (data.effectivePricing || data.pricing) {
+            setPrices(data.effectivePricing || data.pricing);
           }
         }
       } catch (err) {
@@ -185,7 +186,7 @@ const BookingConfirmation = () => {
           setError('');
         }
       } else if (data) {
-        setSlotInfo(data);
+        setSlotInfo({ ...data, end_time: sessionEndTime(data.start_time, sessionType) || data.end_time });
       } else if (resolvedSingleSlotInfo) {
         setSlotInfo(resolvedSingleSlotInfo);
       }

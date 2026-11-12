@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useRef, useEffect } from 'react';
 import { signOut } from 'next-auth/react';
 import { useSession } from 'next-auth/react';
+import { LogIn, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 
 interface NavbarProps {
   onLogout?: () => void;
@@ -49,27 +51,29 @@ const Navbar = ({ onLogout }: NavbarProps) => {
 
   return (
     <nav className="sticky top-0 z-50 border-b border-white/30 bg-[#cbb7df] shadow-sm" suppressHydrationWarning>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className="mx-auto max-w-[1440px] px-4 py-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
         <div className="flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group flex-shrink-0">
-            <img 
-              src="/mannosaar_logog_only.png" 
-              alt="Mannosaar" 
-              className="w-12 h-12 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6"
+          <Link href="/" className="group flex shrink-0 items-center gap-3 sm:gap-4">
+            <Image
+              src="/mannosaar_logog_only.png"
+              alt=""
+              width={535}
+              height={349}
+              className="h-10 w-auto shrink-0 transition-transform duration-300 group-hover:scale-105 sm:h-12 lg:h-14"
             />
             <div className="flex flex-col">
-              <span className="text-2xl font-bold text-[#34213f] leading-tight transition-all duration-300 group-hover:text-[#34213f]/75" style={{ fontFamily: 'var(--font-playfair-display)' }}>
+              <span className="text-xl font-bold leading-tight text-[#34213f] transition-colors duration-300 group-hover:text-[#34213f]/75 sm:text-2xl lg:text-[1.75rem]" style={{ fontFamily: 'var(--font-playfair-display)' }}>
                 Mannosaar
               </span>
-              <span className="text-xs text-[#34213f]/80 font-medium tracking-wide">
+              <span className="text-[10px] font-medium tracking-wide text-[#34213f]/80 sm:text-xs">
                 Heal • Grow • Transform
               </span>
             </div>
           </Link>
 
           {/* Navigation Links - Center (Desktop Only) */}
-          <div className="hidden lg:flex items-center space-x-8">
+          <div className="hidden items-center gap-6 lg:flex xl:gap-8">
             <Link
               href="/"
               className="text-[#34213f] hover:text-[#34213f]/70 transition-colors font-medium text-sm"
@@ -95,12 +99,6 @@ const Navbar = ({ onLogout }: NavbarProps) => {
               Blog
             </Link>
             <Link
-              href="/social"
-              className="text-[#34213f] hover:text-[#34213f]/70 transition-colors font-medium text-sm"
-            >
-              Social
-            </Link>
-            <Link
               href="/#reviews"
               className="text-[#34213f] hover:text-[#34213f]/70 transition-colors font-medium text-sm"
             >
@@ -109,7 +107,7 @@ const Navbar = ({ onLogout }: NavbarProps) => {
           </div>
 
           {/* User Section - Right */}
-          <div ref={mobileMenuRef} className="flex items-center gap-4" suppressHydrationWarning>
+          <div ref={mobileMenuRef} className="flex items-center gap-4 xl:gap-6" suppressHydrationWarning>
             <Link
               href="/book-session"
               className="hidden min-h-11 items-center justify-center rounded-full bg-purple-700 px-5 py-2 text-sm font-semibold text-white transition hover:bg-purple-800 hover:shadow-lg lg:inline-flex"
@@ -134,53 +132,66 @@ const Navbar = ({ onLogout }: NavbarProps) => {
                 {session?.user ? (
                   <div ref={dropdownRef} className="relative">
                     <button
-                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-white/15 transition-colors"
+                      type="button"
+                      onClick={() => setIsDropdownOpen((isOpen) => !isOpen)}
+                      aria-label="Open account menu"
+                      aria-expanded={isDropdownOpen}
+                      aria-controls="account-menu"
+                      className="flex size-11 items-center justify-center rounded-full border border-[#34213f]/25 bg-white/25 text-[#34213f] transition-colors hover:border-[#34213f]/45 hover:bg-white/45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5b267a]"
                     >
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-500 flex items-center justify-center">
-                        <span className="text-sm font-semibold text-white">
-                          {(session.user.name || session.user.email || '').charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <span className="text-sm font-medium text-[#34213f] hidden sm:block">
-                        {session.user.name || session.user.email?.split('@')[0] || 'User'}
-                      </span>
+                      <UserRound size={22} strokeWidth={1.8} aria-hidden="true" />
                     </button>
 
                     {/* Dropdown Menu */}
                     {isDropdownOpen && (
-                      <div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-lg border border-white/30 bg-purple-700 shadow-xl">
-                        <Link
-                          href="/profile"
-                          onClick={() => setIsDropdownOpen(false)}
-                          className="block px-4 py-2 text-sm text-white hover:bg-white/15 transition-colors"
-                        >
-                          Profile
-                        </Link>
-                        {session.user.role === 'admin' && (
+                      <div id="account-menu" className="absolute right-0 mt-3 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-[#34213f]/10 bg-white shadow-[0_18px_45px_rgba(52,33,63,0.18)]">
+                        <div className="border-b border-[#34213f]/10 px-5 py-4">
+                          <p className="truncate text-sm font-semibold text-[#34213f]">
+                            {session.user.name || session.user.email?.split('@')[0] || 'Your account'}
+                          </p>
+                          {session.user.email && (
+                            <p className="mt-1 truncate text-xs text-[#63576a]">{session.user.email}</p>
+                          )}
+                        </div>
+                        <div className="p-2">
                           <Link
-                            href="/admin"
+                            href="/profile"
                             onClick={() => setIsDropdownOpen(false)}
-                            className="block border-t border-white/20 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15 transition-colors"
+                            className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-[#34213f] transition-colors hover:bg-[#f3edf7]"
                           >
-                            Admin Panel
+                            <UserRound size={18} strokeWidth={1.8} aria-hidden="true" />
+                            My profile
                           </Link>
-                        )}
-                        <button
-                          onClick={handleLogout}
-                          className="w-full border-t border-white/20 px-4 py-2 text-left text-sm text-white hover:bg-white/15 transition-colors"
-                        >
-                          Logout
+                          {session.user.role === 'admin' && (
+                            <Link
+                              href="/admin"
+                              onClick={() => setIsDropdownOpen(false)}
+                              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-[#34213f] transition-colors hover:bg-[#f3edf7]"
+                            >
+                              <ShieldCheck size={18} strokeWidth={1.8} aria-hidden="true" />
+                              Admin Panel
+                            </Link>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleLogout}
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-[#34213f] transition-colors hover:bg-[#f3edf7]"
+                          >
+                            <LogOut size={18} strokeWidth={1.8} aria-hidden="true" />
+                            Log out
                           </button>
+                        </div>
                       </div>
                     )}
                   </div>
                 ) : (
                   <Link
                     href="/auth/login"
-                    className="rounded-full border border-white/50 bg-purple-700 px-6 py-2 font-medium text-white transition-all hover:bg-purple-800 hover:shadow-lg"
+                    aria-label="Log in"
+                    className="flex size-11 items-center justify-center rounded-full border border-white/50 bg-purple-700 font-medium text-white transition-all hover:bg-purple-800 hover:shadow-lg sm:w-auto sm:px-6"
                   >
-                    Login
+                    <LogIn size={19} aria-hidden="true" className="sm:hidden" />
+                    <span className="hidden sm:inline">Login</span>
                   </Link>
                 )}
               </>
@@ -222,13 +233,6 @@ const Navbar = ({ onLogout }: NavbarProps) => {
                 className="block rounded-lg px-4 py-3 font-medium text-[#34213f] hover:bg-white/15 transition-colors"
               >
                 Blog
-              </Link>
-              <Link
-                href="/social"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="block rounded-lg px-4 py-3 font-medium text-[#34213f] hover:bg-white/15 transition-colors"
-              >
-                Social
               </Link>
               <Link
                 href="/#reviews"

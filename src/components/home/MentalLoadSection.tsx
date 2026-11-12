@@ -24,7 +24,7 @@ const MentalLoadSection = () => {
 
   return (
     <section aria-labelledby="carrying-heading" className="bg-[#cbb7df] px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
-      <div className="mx-auto max-w-2xl text-center">
+      <div className="mx-auto max-w-4xl rounded-[28px] border border-[#5b267a]/25 bg-[#e7d9ed] px-6 py-10 text-center shadow-[0_16px_40px_rgba(52,33,63,0.08)] sm:px-12 sm:py-14">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5b267a]">A small pause</p>
         <h2 id="carrying-heading" className="mt-3 font-playfair text-3xl font-bold tracking-[-0.035em] text-[#34213f] sm:text-4xl">What am I carrying today?</h2>
         <p className="mt-4 text-base leading-7 text-[#4c4052]">Choose the thought that feels closest. There&apos;s no need to explain it perfectly.</p>

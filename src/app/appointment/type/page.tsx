@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import {
   BOOKABLE_SERVICES, DEFAULT_BUNDLE_PRICING, formatInr,
-  type BundlePricing, type ServiceId,
+  type BundlePricing, type FirstSessionOffers, type ServiceId,
 } from '@/lib/services';
 
 const serviceDetails = {
@@ -46,13 +46,18 @@ export default function AppointmentTypePage() {
   const { data: session, status } = useSession();
   const [isReady, setIsReady] = useState(false);
   const [pricing, setPricing] = useState<BundlePricing>({ ...DEFAULT_BUNDLE_PRICING });
+  const [offers, setOffers] = useState<FirstSessionOffers | null>(null);
   const [loadingPrices, setLoadingPrices] = useState(true);
 
   useEffect(() => {
     const fetchPricing = async () => {
       try {
         const response = await fetch('/api/admin/pricing');
-        if (response.ok) setPricing((await response.json()).pricing);
+        if (response.ok) {
+          const data = await response.json();
+          setPricing(data.effectivePricing || data.pricing);
+          setOffers(data.offers || null);
+        }
       } catch (error) {
         console.error('Error fetching pricing:', error);
       } finally {
@@ -114,6 +119,8 @@ export default function AppointmentTypePage() {
               const details = serviceDetails[service.id];
               const Icon = details.icon;
               const price = pricing[`${service.id}_1`];
+              const offer = offers?.[service.id];
+              const hasOffer = Boolean(offer?.enabled && offer.eligible);
               return (
                 <motion.article key={service.id} variants={itemVariants} className="appointment-pin-card group relative">
                   <span className={`appointment-pin appointment-pin-${details.tone}`} aria-hidden="true" />
@@ -123,7 +130,8 @@ export default function AppointmentTypePage() {
                         <Icon className="h-6 w-6" strokeWidth={1.7} />
                       </div>
                       <div className="text-right">
-                        <p className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[#6f6275]">from</p>
+                        <p className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[#6f6275]">{hasOffer ? 'First session offer' : 'Single session'}</p>
+                        {hasOffer && <p className="mt-1 text-sm text-[#6f6275] line-through">{formatInr(offer!.regularPrice)}</p>}
                         <p className="mt-1 text-xl font-bold text-[#34213f]">{loadingPrices ? '—' : formatInr(price)}</p>
                       </div>
                     </div>

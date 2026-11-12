@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { Copy, X, Edit2, Save, XCircle } from 'lucide-react';
-import { getServiceById } from '@/lib/services';
+import { getServiceById, sessionEndTime } from '@/lib/services';
 
 interface BookingDetailsModalProps {
   bookingId: string | null;
@@ -406,7 +406,7 @@ export default function BookingDetailsModal({
                         <div>
                           <p className="text-sm text-gray-600 mb-1">Time</p>
                           <p className="text-lg font-semibold text-gray-900">
-                            {booking.slot.start_time.substring(0, 5)} - {booking.slot.end_time.substring(0, 5)}
+                            {booking.slot.start_time.substring(0, 5)} - {(sessionEndTime(booking.slot.start_time, booking.session_type) || booking.slot.end_time).substring(0, 5)}
                           </p>
                         </div>
                         <div>
@@ -620,7 +620,7 @@ export default function BookingDetailsModal({
                       <div>
                         <p className="text-gray-600">Time</p>
                         <p className="font-semibold text-gray-900">
-                          {booking.slot.start_time.substring(0, 5)} - {booking.slot.end_time.substring(0, 5)}
+                          {booking.slot.start_time.substring(0, 5)} - {(sessionEndTime(booking.slot.start_time, booking.session_type) || booking.slot.end_time).substring(0, 5)}
                         </p>
                       </div>
                     </div>
@@ -628,7 +628,7 @@ export default function BookingDetailsModal({
 
                   {/* Info Message */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-sm text-blue-800 font-medium">ℹ️ Select from existing {getServiceById(booking.session_type)?.durationMinutes || 40}-minute slots</p>
+                    <p className="text-sm text-blue-800 font-medium">Select from the shared available start times</p>
                     <p className="text-xs text-blue-700 mt-1">If no slot is available for your desired date/time, please create new slots in Manage Slots first.</p>
                   </div>
 
@@ -648,7 +648,7 @@ export default function BookingDetailsModal({
                   {/* New Start Time Input */}
                   <section>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      Start Time ({getServiceById(booking.session_type)?.durationMinutes || 40}-minute slots)
+                      Start Time
                     </label>
                     <input
                       type="time"

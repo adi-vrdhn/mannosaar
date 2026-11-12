@@ -3,43 +3,15 @@ export interface GeneratedSlot {
   end_time: string;
 }
 
-/**
- * Personal slots start on the hour and last 40 minutes. Couple slots start
- * at :45 and last 60 minutes, so both alternatives can be offered without
- * colliding with the database's unique start-time key.
- */
-export function generateDefaultSlots(durationMinutes: 40 | 60 = 40): GeneratedSlot[] {
+/** One hourly opening for both services. The booking service sets its actual end time. */
+export function generateDefaultSlots(): GeneratedSlot[] {
   const slots: GeneratedSlot[] = [];
-  let startHour = 9;
-  let startMinute = 0;
-
-  // 9 AM to 9 PM (21:00)
-  // Pattern: 40 mins session + 20 mins break = 60 mins per hour
-  while (startHour < 21) {
-    const slotStartMinute = durationMinutes === 60 ? 45 : startMinute;
-    const startTime = `${String(startHour).padStart(2, '0')}:${String(slotStartMinute).padStart(2, '0')}`;
-
-    // Session is 40 minutes
-    let endMinute = slotStartMinute + durationMinutes;
-    let endHour = startHour;
-
-    if (endMinute >= 60) {
-      endMinute -= 60;
-      endHour += 1;
-    }
-
-    const endTime = `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`;
-
-    slots.push({ start_time: startTime, end_time: endTime });
-
-    // Move to next hour (40 mins session + 20 mins break = 60 mins)
-    startMinute += 60;
-    if (startMinute >= 60) {
-      startMinute -= 60;
-      startHour += 1;
-    }
+  for (let hour = 9; hour < 21; hour += 1) {
+    slots.push({
+      start_time: `${String(hour).padStart(2, '0')}:00`,
+      end_time: `${String(hour).padStart(2, '0')}:40`,
+    });
   }
-
   return slots;
 }
 

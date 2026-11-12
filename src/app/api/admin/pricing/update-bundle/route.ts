@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { auth } from '@/lib/auth';
+import { authenticatedAdmin } from '@/lib/admin-authorization';
+import { isSameOrigin } from '@/lib/compliance';
+import { DEFAULT_BUNDLE_PRICING, type BundlePricing } from '@/lib/services';
 
 export async function POST(request: NextRequest) {
   try {
     // Check authentication and admin role
-    const session = await auth();
-    if (!session?.user?.id || session?.user?.role !== 'admin') {
+    if (!isSameOrigin(request) || !(await authenticatedAdmin())) {
       return NextResponse.json(
         { error: 'Unauthorized - admin access required' },
         { status: 403 }
@@ -21,7 +22,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { pricing } = body;
 
-    if (!pricing || typeof pricing !== 'object') {
+    const keys = Object.keys(DEFAULT_BUNDLE_PRICING) as (keyof BundlePricing)[];
+    if (!pricing || typeof pricing !== 'object' || keys.some(key => !Number.isFinite(pricing[key]) || pricing[key] <= 0 || pricing[key] > 100000)) {
       return NextResponse.json(
         { error: 'Invalid pricing data' },
         { status: 400 }
@@ -30,10 +32,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Updating bundle pricing:', pricing);
 
-    // Delete old pricing config if it exists
-    await supabase.from('pricing_config').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-
-    // Insert new pricing config
+    // Upsert prices without clearing the first-session offer settings.
     const insertData = [
       { session_type: 'personal', bundle_size: 1, price: pricing.personal_1 },
       { session_type: 'personal', bundle_size: 2, price: pricing.personal_2 },
@@ -45,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     const { error: insertError } = await supabase
       .from('pricing_config')
-      .insert(insertData);
+      .upsert(insertData, { onConflict: 'session_type,bundle_size' });
 
     if (insertError) {
       console.error('Error inserting pricing:', insertError);

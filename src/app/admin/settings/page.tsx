@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import AdminSectionNav from '@/components/admin/AdminSectionNav';
 import GoogleConnectButton from '@/components/admin/GoogleConnectButton';
 import PricingSettingsForm from '@/components/admin/PricingSettingsForm';
+import FirstSessionOfferSettings from '@/components/admin/FirstSessionOfferSettings';
 import ReviewsManagement from '@/components/admin/ReviewsManagement';
 import HealthReportPanel from '@/components/admin/HealthReportPanel';
 
@@ -38,6 +39,7 @@ export default async function SettingsPage() {
 
           {/* Pricing Settings Section */}
           <PricingSettingsForm userRole={session?.user?.role} />
+          <FirstSessionOfferSettings canEdit={session.user.role === 'admin'} />
 
           {/* Reviews Management Section */}
           <ReviewsManagement userRole={session?.user?.role} />

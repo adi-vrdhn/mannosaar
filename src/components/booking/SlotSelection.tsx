@@ -81,6 +81,9 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   const [loading, setLoading] = useState(true);
   const [displayMonth, setDisplayMonth] = useState(new Date());
   const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
+  const [availabilityError, setAvailabilityError] = useState('');
+  const [slotError, setSlotError] = useState('');
+  const [bookingReady, setBookingReady] = useState(true);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [oldBooking, setOldBooking] = useState<ExistingBooking | null>(null);
@@ -140,13 +143,20 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
 
         if (!response.ok) {
           console.error('Error fetching month slots:', await response.json());
+          setAvailabilityError('Available dates could not be loaded. Please try again.');
+          setAvailableDates(new Set());
           return;
         }
 
         const data = await response.json();
-        setAvailableDates(new Set(data.availableDates || []));
+        const dates: string[] = data.availableDates || [];
+        setAvailabilityError('');
+        setAvailableDates(new Set(dates));
+        setSelectedDate(current => dates.includes(current) ? current : dates[0] || monthParam);
       } catch (error) {
         console.error('Error fetching month availability:', error);
+        setAvailabilityError('Available dates could not be loaded. Please try again.');
+        setAvailableDates(new Set());
       }
     };
 
@@ -158,6 +168,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
     const fetchSlots = async () => {
       setLoading(true);
       setSelectedSlot(null);
+      setSlotError('');
       try {
         const response = await fetch(
           `/api/appointment/available-slots?date=${selectedDate}&type=${encodeURIComponent(typeParam)}`
@@ -165,12 +176,18 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
 
         if (!response.ok) {
           console.error('Error fetching slots:', await response.json());
-          setLoading(false);
+          setSlots([]);
+          setSlotError('Available times could not be loaded. Please try again.');
           return;
         }
 
         const data = await response.json();
         setSlots(data.slots || []);
+        setBookingReady(data.bookingReady !== false);
+      } catch (error) {
+        console.error('Error fetching slots:', error);
+        setSlots([]);
+        setSlotError('Available times could not be loaded. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -503,6 +520,8 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                 </button>
               </div>
 
+              {availabilityError && <p role="alert" className="mb-4 rounded-xl bg-[#f7edf0] px-4 py-3 text-sm text-[#7a2d47]">{availabilityError}</p>}
+
               {/* Weekday Headers */}
               <div className="mb-3 grid grid-cols-7 gap-1 sm:gap-2">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
@@ -580,10 +599,14 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                 </div>
               </div>
 
+              {!bookingReady && <p role="status" className="mb-5 rounded-xl border border-[#7a2d47]/20 bg-[#f7edf0] px-4 py-3 text-sm text-[#7a2d47]">Times are visible, but online booking is temporarily unavailable. Please contact Mannosaar to arrange a session.</p>}
+
               {loading ? (
                 <div className="flex min-h-64 items-center justify-center gap-3 text-sm font-medium text-[#65586c]">
                   <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#5b267a]/25 border-t-[#5b267a]" /> Looking for open times…
                 </div>
+              ) : slotError ? (
+                <div role="alert" className="flex min-h-64 items-center justify-center rounded-3xl border border-[#7a2d47]/20 bg-[#f7edf0] px-6 text-center text-sm font-medium text-[#7a2d47]">{slotError}</div>
               ) : slots.length === 0 ? (
                 <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-[#80698f]/30 bg-white/20 px-6 py-10 text-center">
                   <Clock3 className="h-8 w-8 text-[#5b267a]/55" />
@@ -596,10 +619,11 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                     {slots.map((slot) => (
                       <motion.button
                         key={slot.id}
-                        whileHover={{ y: -2 }}
+                        whileHover={bookingReady ? { y: -2 } : undefined}
                         onClick={() => handleSelectSlot(slot.id)}
+                        disabled={!bookingReady}
                         aria-pressed={selectedSlot === slot.id}
-                        className={`group w-full min-h-[108px] rounded-2xl border px-4 py-4 text-left transition-all ${
+                        className={`group w-full min-h-[108px] rounded-2xl border px-4 py-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
                           selectedSlot === slot.id
                             ? 'border-[#5b267a] bg-[#5b267a] text-white shadow-[0_10px_24px_rgba(91,38,122,0.2)]'
                             : 'border-[#80698f]/25 bg-white/30 text-[#34213f] hover:border-[#5b267a]/55 hover:bg-white/50'

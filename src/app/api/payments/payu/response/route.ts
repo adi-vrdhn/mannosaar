@@ -255,6 +255,12 @@ async function handlePayUResponse(request: NextRequest, payload: Record<string, 
     }
 
     if (status !== 'success') {
+      if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        await createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+          .from('first_session_offer_claims')
+          .delete()
+          .eq('txnid', txnid);
+      }
       return NextResponse.redirect(getRedirectUrl(request, initialReturnUrl || '/appointment/payment', {
         paymentStatus: 'failed',
         paymentError: 'payment-failed',

@@ -17,7 +17,7 @@ export async function GET(request: Request, context: { params: Promise<{ table: 
   const params = new URL(request.url).searchParams;
   const projection = table === 'users' ? 'id,name,email,role,phone_number'
     : table === 'bookings' ? '*,user:users(name,email,phone_number),slot:therapy_slots(*),therapy_slots(*)'
-    : table === 'therapy_slots' ? 'id,date,start_time,end_time,duration_minutes,is_available,is_blocked,therapist_id,meeting_link'
+    : table === 'therapy_slots' ? 'id,date,start_time,end_time,duration_minutes,is_available,is_blocked,therapist_id'
     : 'id,start_date,end_date,start_time,end_time,block_type,reason';
   let query = db().from(table).select(projection);
   if (!admin) {

@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
   const durationMinutes = slotDurationMinutes(startTime, endTime);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || ![40, 60].includes(durationMinutes)) return NextResponse.json({ error: 'Slots must be 40 or 60 minutes.' }, { status: 400 });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || durationMinutes !== 40) return NextResponse.json({ error: 'Openings use a 40-minute base interval; the selected service sets the session length.' }, { status: 400 });
 
   const therapistId = '00000000-0000-0000-0000-000000000000';
   const { data: existingSlot } = await supabase

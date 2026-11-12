@@ -3,14 +3,13 @@ function query(data){let q; q=new Proxy({}, {get(_,key){if(key==='then')return (
 const therapist={therapist_id:'therapist',oauth_user_id:'user',calendar_id:'primary',timezone:'Asia/Kolkata'};
 const booking={id:'00000000-0000-0000-0000-000000000001',booking_version:1,slot_date:'2030-09-08',slot_start_time:'19:00:00',slot_end_time:'19:45:00',fulfillment_status:'PAID_PENDING_SESSION_CREATION'};
 
-test('personal and couple slots have distinct real durations',()=>{
+test('personal and couple sessions share an opening with service-specific end times',()=>{
  const services=load('src/lib/services.ts');
  const generator=load('src/utils/slotGenerator.ts');
- const personal=generator.generateDefaultSlots(40)[0];
- const couple=generator.generateDefaultSlots(60)[0];
- assert.deepEqual(personal,{start_time:'09:00',end_time:'09:40'});
- assert.deepEqual(couple,{start_time:'09:45',end_time:'10:45'});
- assert.equal(services.slotDurationMinutes(couple.start_time,couple.end_time),services.getServiceById('couple').durationMinutes);
+ const opening=generator.generateDefaultSlots()[0];
+ assert.deepEqual(opening,{start_time:'09:00',end_time:'09:40'});
+ assert.equal(services.sessionEndTime(opening.start_time,'personal'),'09:40:00');
+ assert.equal(services.sessionEndTime(opening.start_time,'couple'),'10:00:00');
  assert.equal(services.getServiceById('personal').durationMinutes,40);
 });
 const server={check:()=>{},required:()=> 'configured',db:()=>({from:()=>query({access_token:'token',token_expiry:'2099-01-01'})})};
@@ -55,15 +54,15 @@ test('availability subtracts Calendar busy, holds, block ranges and enforces fou
  });
  assert.deepEqual((await api.availableSlots('therapist',date)).map(s=>s.id),['slot-3']);
 });
-test('availability only offers slots matching the selected service duration',async()=>{
+test('availability offers the same opening to either service with its actual end time',async()=>{
  const date='2030-09-08';
- const rows=[{id:'personal-slot',date,start_time:'09:00:00',end_time:'09:40:00',duration_minutes:45},{id:'couple-slot',date,start_time:'09:45:00',end_time:'10:45:00',duration_minutes:45}];
+ const rows=[{id:'shared-slot',date,start_time:'09:00:00',end_time:'09:40:00',duration_minutes:40}];
  const api=load('src/lib/bookings/availability.ts',{
   '../google-calendar/whatsapp':{freeBusy:async()=>[]},
   '../whatsapp/server':{...server,db:()=>({from(table){return query(table==='whatsapp_therapists'?[{...therapist,active:true}]:table==='therapy_slots'?rows:[]);}})},
  });
- assert.deepEqual((await api.availableSlots('therapist',date,'personal')).map(slot=>slot.id),['personal-slot']);
- assert.deepEqual((await api.availableSlots('therapist',date,'couple')).map(slot=>slot.id),['couple-slot']);
+ assert.deepEqual((await api.availableSlots('therapist',date,'personal')).map(slot=>[slot.id,slot.end_time]),[['shared-slot','09:40:00']]);
+ assert.deepEqual((await api.availableSlots('therapist',date,'couple')).map(slot=>[slot.id,slot.end_time]),[['shared-slot','10:00:00']]);
 });
 test('notification retry never resends an accepted Meta message',async()=>{
  let fetches=0;const old=global.fetch;global.fetch=async()=>{fetches++;throw new Error('should not send');};
