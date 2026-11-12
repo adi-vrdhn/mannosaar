@@ -16,6 +16,15 @@ export function blogInput(body: Record<string, unknown>) {
   if (!['draft', 'published', 'scheduled'].includes(status)) throw new Error('Invalid publishing status');
   if (status === 'scheduled' && (!publishAt || Number.isNaN(publishAt.getTime()) || publishAt.getTime() <= Date.now())) throw new Error('Choose a future publishing time');
   const keywords = Array.isArray(body.secondary_keywords) ? body.secondary_keywords : String(body.secondary_keywords || '').split(',');
+  const ctaLabel = String(body.cta_label ?? 'Book now').trim() || 'Book now';
+  const ctaUrl = String(body.cta_url ?? '/book-session').trim() || '/book-session';
+  if (ctaLabel.length > 60) throw new Error('Button text must be 60 characters or less');
+  let externalHttps = false;
+  try {
+    const url = new URL(ctaUrl);
+    externalHttps = url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password && !/[\s\\]/.test(ctaUrl);
+  } catch { /* A relative site path is valid below. */ }
+  if (ctaUrl.length > 500 || !(/^\/(?!\/)[^\s\\]*$/.test(ctaUrl) || externalHttps)) throw new Error('Enter a valid site path or HTTPS link for the button');
   return {
     title, slug, content,
     excerpt: String(body.excerpt || '').trim() || content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 200),
@@ -24,6 +33,8 @@ export function blogInput(body: Record<string, unknown>) {
     editor_name: String(body.editor_name || '').trim().slice(0, 255) || null,
     primary_keyword: String(body.primary_keyword || '').trim().slice(0, 255) || null,
     secondary_keywords: keywords.map(value => String(value).trim()).filter(Boolean).slice(0, 30),
+    cta_label: ctaLabel,
+    cta_url: ctaUrl,
     is_published: status !== 'draft',
     published_at: status === 'draft' ? null : status === 'scheduled' ? publishAt!.toISOString() : publishAt && !Number.isNaN(publishAt.getTime()) && publishAt.getTime() <= Date.now() ? publishAt.toISOString() : new Date().toISOString(),
   };

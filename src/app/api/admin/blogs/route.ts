@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   if (!['all', 'draft', 'scheduled', 'published'].includes(status)) return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   const now = new Date().toISOString();
   let query = db().from('blogs')
-    .select('id,title,slug,content,excerpt,featured_image,content_type,editor_name,primary_keyword,secondary_keywords,is_published,published_at,created_at,updated_at,views_count', { count: 'exact' });
+    .select('*', { count: 'exact' });
   if (status === 'draft') query = query.eq('is_published', false);
   if (status === 'scheduled') query = query.eq('is_published', true).gt('published_at', now);
   if (status === 'published') query = query.eq('is_published', true).or(`published_at.is.null,published_at.lte.${now}`);

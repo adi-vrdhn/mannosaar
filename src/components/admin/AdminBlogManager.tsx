@@ -20,6 +20,8 @@ type Blog = {
   editor_name: string | null;
   primary_keyword: string | null;
   secondary_keywords: string[] | null;
+  cta_label?: string | null;
+  cta_url?: string | null;
   is_published: boolean;
   published_at: string | null;
   created_at: string;
@@ -36,13 +38,15 @@ type Form = {
   editor_name: string;
   primary_keyword: string;
   secondary_keywords: string;
+  cta_label: string;
+  cta_url: string;
   status: Status;
   published_at: string;
 };
 
 const empty: Form = {
   title: '', slug: '', content: '', excerpt: '', featured_image: '', content_type: 'article',
-  editor_name: '', primary_keyword: '', secondary_keywords: '', status: 'draft', published_at: '',
+  editor_name: '', primary_keyword: '', secondary_keywords: '', cta_label: 'Book now', cta_url: '/book-session', status: 'draft', published_at: '',
 };
 const field = 'mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 focus:border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-100';
 const slugify = (value: string) => value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -119,6 +123,7 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
           featured_image: blog.featured_image || '', content_type: blog.content_type || 'article',
           editor_name: blog.editor_name || '', primary_keyword: blog.primary_keyword || '',
           secondary_keywords: (blog.secondary_keywords || []).join(', '), status: statusOf(blog),
+          cta_label: blog.cta_label || 'Book now', cta_url: blog.cta_url || '/book-session',
           published_at: blog.published_at ? localDateTime(blog.published_at) : '',
         });
         if (editorRef.current) editorRef.current.innerHTML = blog.content;
@@ -176,6 +181,7 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
     featured_image: blog.featured_image, content_type: blog.content_type,
     editor_name: blog.editor_name, primary_keyword: blog.primary_keyword,
     secondary_keywords: blog.secondary_keywords || [], status,
+    cta_label: blog.cta_label || 'Book now', cta_url: blog.cta_url || '/book-session',
     published_at: status === 'scheduled' ? blog.published_at : null,
   });
   const changeStatus = async (blog: Blog, status: 'draft' | 'published') => {
@@ -246,12 +252,38 @@ export default function AdminBlogManager({ mode = 'list', editId }: { mode?: 'li
               <label className="block text-sm font-semibold">Editor name<input className={field} value={form.editor_name} onChange={event => set('editor_name', event.target.value)} /></label>
             </div>
             <div>
-              <label className="block text-sm font-semibold">Square cover image<input className={field} type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={event => void uploadCover(event.target.files?.[0])} /></label>
-              {form.featured_image && <div className="mt-3 flex items-center gap-4"><Image unoptimized src={form.featured_image} alt="Cover preview" width={112} height={112} className="h-28 w-28 rounded-lg object-cover" /><button type="button" className="text-sm font-semibold text-red-700 underline" onClick={() => set('featured_image', '')}>Remove cover</button></div>}
+              <p className="text-sm font-semibold">Square cover image</p>
+              <input id="blog-cover-upload" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={event => { void uploadCover(event.target.files?.[0]); event.target.value = ''; }} />
+              <div onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); void uploadCover(event.dataTransfer.files?.[0]); }} className="mt-2 rounded-xl border-2 border-dashed border-purple-200 bg-purple-50/40 p-5">
+                {form.featured_image ? <div className="flex flex-wrap items-center gap-5">
+                  <Image unoptimized src={form.featured_image} alt="Uploaded blog cover preview" width={176} height={176} className="aspect-square h-44 w-44 rounded-lg border border-purple-100 object-cover" />
+                  <div><p className="font-semibold text-slate-900">Cover uploaded</p><p className="mt-1 text-sm text-slate-600">This image will appear above the article.</p><div className="mt-4 flex gap-4"><label htmlFor="blog-cover-upload" className="cursor-pointer text-sm font-semibold text-purple-700 underline">Change image</label><button type="button" className="text-sm font-semibold text-red-700 underline" onClick={() => set('featured_image', '')}>Remove</button></div></div>
+                </div> : <label htmlFor="blog-cover-upload" className="block cursor-pointer py-5 text-center"><span className="block font-semibold text-purple-900">{busy ? 'Uploading image…' : 'Click to upload or drop an image here'}</span><span className="mt-1 block text-sm text-slate-600">Square JPG, PNG, WebP or AVIF · up to 10 MB</span></label>}
+              </div>
             </div>
             <div><label className="block text-sm font-semibold">Content</label><p className="mt-1 text-xs text-slate-500">Paste from ChatGPT here. Headings, lists, bold text and hyperlinks are kept.</p><div ref={editorRef} contentEditable suppressContentEditableWarning onPaste={handlePaste} role="textbox" aria-label="Blog content" aria-multiline="true" className="blog-rich-text mt-2 min-h-96 rounded-lg border border-slate-300 p-4 text-gray-800 leading-relaxed focus:border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-100" /></div>
             <label className="block text-sm font-semibold">Excerpt / SEO description<textarea className={field} rows={3} value={form.excerpt} onChange={event => set('excerpt', event.target.value)} /></label>
             <div className="grid gap-5 md:grid-cols-2"><label className="block text-sm font-semibold">Primary SEO keyword<input className={field} value={form.primary_keyword} onChange={event => set('primary_keyword', event.target.value)} /></label><label className="block text-sm font-semibold">Secondary SEO keywords (comma separated)<input className={field} value={form.secondary_keywords} onChange={event => set('secondary_keywords', event.target.value)} /></label></div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+              <p className="text-sm font-semibold text-slate-900">Search preview</p>
+              <p className="mt-4 truncate text-xs text-emerald-800">mannosaar.com › blogs › {form.slug || 'your-article'}</p>
+              <p className="mt-1 text-lg font-medium text-blue-800">{form.title || 'Your blog title'}</p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">{form.excerpt || 'Your SEO description will appear here.'}</p>
+              <div className="mt-4 flex flex-wrap gap-2" aria-label="SEO keyword preview">
+                {form.primary_keyword.trim() && <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-900">Primary: {form.primary_keyword.trim()}</span>}
+                {form.secondary_keywords.split(',').map(keyword => keyword.trim()).filter(Boolean).map((keyword, index) => <span key={`${keyword}-${index}`} className="rounded-full bg-white px-3 py-1 text-xs text-slate-700 ring-1 ring-slate-200">{keyword}</span>)}
+                {!form.primary_keyword.trim() && !form.secondary_keywords.trim() && <span className="text-xs text-slate-500">Add keywords to preview them here.</span>}
+              </div>
+            </div>
+            <div className="rounded-xl border border-purple-100 bg-purple-50/50 p-5">
+              <h3 className="font-semibold text-purple-950">Article button</h3>
+              <p className="mt-1 text-sm text-slate-600">Shown directly below the title and cover image.</p>
+              <div className="mt-4 grid gap-5 md:grid-cols-2">
+                <label className="block text-sm font-semibold">Button text<input className={field} maxLength={60} value={form.cta_label} onChange={event => set('cta_label', event.target.value)} placeholder="Book now" /></label>
+                <label className="block text-sm font-semibold">Button link<input className={field} maxLength={500} value={form.cta_url} onChange={event => set('cta_url', event.target.value)} placeholder="/book-session" /></label>
+              </div>
+              <div className="mt-5 flex flex-wrap items-center gap-4"><span className="inline-flex rounded-full bg-[#5b267a] px-5 py-2.5 text-sm font-semibold text-white">{form.cta_label.trim() || 'Book now'} →</span><span className="break-all text-xs text-slate-600">Links to {form.cta_url.trim() || '/book-session'}</span></div>
+            </div>
             <div className="grid gap-5 md:grid-cols-2"><label className="block text-sm font-semibold">Publishing<select className={field} value={form.status} onChange={event => set('status', event.target.value)}><option value="draft">Save draft</option><option value="published">Publish now</option><option value="scheduled">Publish later</option></select></label>{form.status === 'scheduled' && <label className="block text-sm font-semibold">Publish at (your local time)<input required type="datetime-local" className={field} value={form.published_at} onChange={event => set('published_at', event.target.value)} /></label>}</div>
             <button disabled={busy || !editorReady} className="rounded-lg bg-purple-700 px-6 py-3 font-semibold text-white hover:bg-purple-800 disabled:opacity-50">{busy ? 'Saving…' : editingId ? 'Update blog' : 'Save blog'}</button>
           </form>

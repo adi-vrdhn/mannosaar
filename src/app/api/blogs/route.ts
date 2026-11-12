@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       console.error('Insert error:', insertError);
       return NextResponse.json(
-        { error: insertError.code === '23505' ? 'Slug is already in use' : /column|schema cache/i.test(insertError.message) ? 'Blog database update required: run scripts/migrations/20261105_blog_publishing.sql in Supabase SQL Editor' : 'Failed to create blog' },
+        { error: insertError.code === '23505' ? 'Slug is already in use' : /cta_label|cta_url/i.test(insertError.message) ? 'Blog button setup is incomplete. Run scripts/migrations/20261112_blog_cta.sql in Supabase SQL Editor.' : /column|schema cache/i.test(insertError.message) ? 'Blog database update required: run scripts/migrations/20261105_blog_publishing.sql in Supabase SQL Editor' : 'Failed to create blog' },
         { status: insertError.code === '23505' ? 409 : 500 }
       );
     }

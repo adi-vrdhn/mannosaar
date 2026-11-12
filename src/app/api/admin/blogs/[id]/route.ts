@@ -9,7 +9,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!session) return new Response('Forbidden', { status: 403 });
   const { id } = await params;
   const { data, error } = await db().from('blogs')
-    .select('id,title,slug,content,excerpt,featured_image,content_type,editor_name,primary_keyword,secondary_keywords,is_published,published_at,created_at,updated_at,views_count')
+    .select('*')
     .eq('id', id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: 'Could not load blog' }, { status: 500 });
@@ -33,6 +33,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     input.published_at = existing.data.published_at;
   }
   const { data, error } = await db().from('blogs').update({ ...input, updated_at: new Date().toISOString() }).eq('id', id).select().single();
-  if (error) return NextResponse.json({ error: error.code === '23505' ? 'Slug is already in use' : /column|schema cache/i.test(error.message) ? 'Blog database update required: run scripts/migrations/20261105_blog_publishing.sql in Supabase SQL Editor' : error.message }, { status: error.code === '23505' ? 409 : 500 });
+  if (error) return NextResponse.json({ error: error.code === '23505' ? 'Slug is already in use' : /cta_label|cta_url/i.test(error.message) ? 'Blog button setup is incomplete. Run scripts/migrations/20261112_blog_cta.sql in Supabase SQL Editor.' : /column|schema cache/i.test(error.message) ? 'Blog database update required: run scripts/migrations/20261105_blog_publishing.sql in Supabase SQL Editor' : error.message }, { status: error.code === '23505' ? 409 : 500 });
   return NextResponse.json({ blog: data });
 }

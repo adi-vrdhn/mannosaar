@@ -20,7 +20,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
   const supabase = createClient(supabaseUrl, supabaseKey);
   const { data, error } = await supabase
     .from('blogs')
-    .select('id, title, content, excerpt, author_name, author_id, editor_name, content_type, published_at, created_at, updated_at, featured_image')
+    .select('*')
     .eq('slug', slug)
     .eq('is_published', true)
     .or(publicBlogTimeFilter())
@@ -29,7 +29,14 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
   if (error) throw error;
   if (!data) notFound();
 
-  const blog = data as PublicBlog;
+  const blog: PublicBlog = {
+    id: data.id, title: data.title, content: data.content, excerpt: data.excerpt,
+    author_name: data.author_name, author_id: data.author_id,
+    editor_name: data.editor_name, content_type: data.content_type,
+    published_at: data.published_at, created_at: data.created_at, updated_at: data.updated_at,
+    featured_image: data.featured_image,
+    cta_label: data.cta_label || 'Book now', cta_url: data.cta_url || '/book-session',
+  };
   const articleUrl = absoluteUrl(`/blogs/${encodeURIComponent(slug)}`);
   const schema = {
     '@context': 'https://schema.org',

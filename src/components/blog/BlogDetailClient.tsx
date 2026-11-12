@@ -24,6 +24,8 @@ export interface BlogDetail {
   content_type?: string | null;
   published_at?: string | null;
   featured_image?: string | null;
+  cta_label?: string | null;
+  cta_url?: string | null;
 }
 
 export default function BlogDetailClient({ slug, initialBlog }: { slug: string; initialBlog: BlogDetail }) {
@@ -351,6 +353,12 @@ export default function BlogDetailClient({ slug, initialBlog }: { slug: string; 
             height={720}
             className="mx-auto mb-8 aspect-square w-full max-w-[640px] rounded-2xl object-cover"
           />
+
+          <div className="mb-8 flex justify-center">
+            <Link href={blog.cta_url || '/book-session'} className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#5b267a] px-7 py-3 text-sm font-semibold text-white transition hover:bg-[#481d61] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#5b267a]">
+              {blog.cta_label || 'Book now'} <span aria-hidden="true" className="ml-2">→</span>
+            </Link>
+          </div>
 
           <div className="flex flex-col md:flex-row md:items-center md:justify-between text-gray-600 border-b border-gray-200 pb-6">
             <div className="flex items-center gap-4 mb-4 md:mb-0">
