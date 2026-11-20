@@ -1,0 +1,410 @@
+{
+  "version": "2.0",
+  "instrument": "Original non-diagnostic self-reflection tool; not a validated instrument",
+  "audience": "Adults (18+)",
+  "lookback": "Over the past two weeks",
+  "responseScale": [
+    {
+      "value": 0,
+      "label": "Never"
+    },
+    {
+      "value": 1,
+      "label": "Rarely"
+    },
+    {
+      "value": 2,
+      "label": "Sometimes"
+    },
+    {
+      "value": 3,
+      "label": "Often"
+    },
+    {
+      "value": 4,
+      "label": "Almost always"
+    }
+  ],
+  "concerns": [
+    {
+      "id": "stress",
+      "title": "Stress & Pressure",
+      "description": "Daily demands, control and recovery",
+      "focus": "Daily demands and recovery",
+      "insight": "Your answers may help you explore how responsibilities, control and time to recover are affecting you.",
+      "suggestion": "Consider identifying one demand you can reduce and one small opportunity to rest.",
+      "questions": [
+        {
+          "id": "stress-1",
+          "text": "I felt that daily responsibilities were piling up faster than I could manage."
+        },
+        {
+          "id": "stress-2",
+          "text": "I found it difficult to relax even when I had free time."
+        },
+        {
+          "id": "stress-3",
+          "text": "I felt pulled in too many directions at once."
+        },
+        {
+          "id": "stress-4",
+          "text": "Unexpected changes made my day feel harder to manage."
+        },
+        {
+          "id": "stress-5",
+          "text": "I felt I had little control over how I spent my time."
+        },
+        {
+          "id": "stress-6",
+          "text": "I kept thinking about unfinished responsibilities after my day ended."
+        },
+        {
+          "id": "stress-7",
+          "text": "I had difficulty making room for breaks or recovery."
+        }
+      ]
+    },
+    {
+      "id": "worry",
+      "title": "Worry & Overthinking",
+      "description": "Uncertainty, rumination and reassurance",
+      "focus": "Worry and uncertainty",
+      "insight": "Your answers may point to patterns in how worry, uncertainty and repeated thinking use your attention.",
+      "suggestion": "Try writing down one worry and separating actionable next steps from unknowns.",
+      "questions": [
+        {
+          "id": "worry-1",
+          "text": "I found myself worrying about several different things."
+        },
+        {
+          "id": "worry-2",
+          "text": "Once a worry started, it was difficult to set aside."
+        },
+        {
+          "id": "worry-3",
+          "text": "I repeatedly imagined what could go wrong in the future."
+        },
+        {
+          "id": "worry-4",
+          "text": "I replayed past conversations or decisions in my mind."
+        },
+        {
+          "id": "worry-5",
+          "text": "Uncertainty made it difficult to move forward with decisions."
+        },
+        {
+          "id": "worry-6",
+          "text": "I sought repeated reassurance before feeling comfortable about a decision."
+        },
+        {
+          "id": "worry-7",
+          "text": "Worry distracted me from things I wanted to focus on."
+        }
+      ]
+    },
+    {
+      "id": "mood",
+      "title": "Mood & Motivation",
+      "description": "Enjoyment, interest and energy",
+      "focus": "Mood and everyday motivation",
+      "insight": "Your answers may reveal how enjoyment, energy and motivation have been showing up recently.",
+      "suggestion": "Choose one small meaningful or enjoyable activity without pressuring yourself to feel a particular way.",
+      "questions": [
+        {
+          "id": "mood-1",
+          "text": "Activities I usually enjoy felt less interesting than normal."
+        },
+        {
+          "id": "mood-2",
+          "text": "I found it difficult to get started with everyday activities."
+        },
+        {
+          "id": "mood-3",
+          "text": "My mood felt lower than I would have liked."
+        },
+        {
+          "id": "mood-4",
+          "text": "Small tasks required more effort than usual."
+        },
+        {
+          "id": "mood-5",
+          "text": "I found it difficult to look forward to things."
+        },
+        {
+          "id": "mood-6",
+          "text": "I withdrew from activities I normally choose to do."
+        },
+        {
+          "id": "mood-7",
+          "text": "I felt less motivated to pursue things that matter to me."
+        }
+      ]
+    },
+    {
+      "id": "sleep",
+      "title": "Sleep & Rest",
+      "description": "Sleep quality and daytime restoration",
+      "focus": "Rest and daytime energy",
+      "insight": "Your answers may help you identify whether sleep and recovery deserve more attention.",
+      "suggestion": "Experiment with a regular wind-down routine; consider medical advice for persistent sleep problems.",
+      "questions": [
+        {
+          "id": "sleep-1",
+          "text": "I had difficulty falling asleep when I wanted to."
+        },
+        {
+          "id": "sleep-2",
+          "text": "I woke during the night and struggled to return to sleep."
+        },
+        {
+          "id": "sleep-3",
+          "text": "I woke feeling less rested than I hoped."
+        },
+        {
+          "id": "sleep-4",
+          "text": "Tiredness made everyday activities harder."
+        },
+        {
+          "id": "sleep-5",
+          "text": "Thoughts or concerns kept me awake at bedtime."
+        },
+        {
+          "id": "sleep-6",
+          "text": "My sleep schedule felt difficult to keep consistent."
+        },
+        {
+          "id": "sleep-7",
+          "text": "I felt that poor rest affected my mood or concentration."
+        }
+      ]
+    },
+    {
+      "id": "esteem",
+      "title": "Self-Esteem & Self-Talk",
+      "description": "Self-criticism, comparison and confidence",
+      "focus": "Self-talk and confidence",
+      "insight": "Your answers may highlight how self-criticism, comparison and confidence influence your everyday experience.",
+      "suggestion": "Notice one self-critical thought and consider a fairer, more balanced alternative.",
+      "questions": [
+        {
+          "id": "esteem-1",
+          "text": "I criticised myself for small mistakes."
+        },
+        {
+          "id": "esteem-2",
+          "text": "I compared myself with others in ways that left me feeling inadequate."
+        },
+        {
+          "id": "esteem-3",
+          "text": "I had difficulty accepting positive feedback about myself."
+        },
+        {
+          "id": "esteem-4",
+          "text": "I doubted my ability to handle challenges I would normally attempt."
+        },
+        {
+          "id": "esteem-5",
+          "text": "I focused more on my shortcomings than my strengths."
+        },
+        {
+          "id": "esteem-6",
+          "text": "I worried that other people would judge me negatively."
+        },
+        {
+          "id": "esteem-7",
+          "text": "I spoke to myself more harshly than I would speak to a friend."
+        }
+      ]
+    },
+    {
+      "id": "relationships",
+      "title": "Relationships & Boundaries",
+      "description": "Communication, conflict and needs",
+      "focus": "Communication and boundaries",
+      "insight": "Your answers may highlight areas of communication, boundaries or support you want to work on.",
+      "suggestion": "Consider one low-pressure conversation where you can express a specific need clearly.",
+      "questions": [
+        {
+          "id": "relationships-1",
+          "text": "I held back from expressing what I needed in close relationships."
+        },
+        {
+          "id": "relationships-2",
+          "text": "Unresolved disagreements stayed on my mind."
+        },
+        {
+          "id": "relationships-3",
+          "text": "I found it difficult to say no when something felt too demanding."
+        },
+        {
+          "id": "relationships-4",
+          "text": "I worried about disappointing people when setting boundaries."
+        },
+        {
+          "id": "relationships-5",
+          "text": "I felt misunderstood during important conversations."
+        },
+        {
+          "id": "relationships-6",
+          "text": "I avoided conversations because I feared conflict."
+        },
+        {
+          "id": "relationships-7",
+          "text": "I found it hard to ask people close to me for support."
+        }
+      ]
+    },
+    {
+      "id": "emotions",
+      "title": "Emotional Balance",
+      "description": "Awareness, intensity and coping",
+      "focus": "Understanding and managing emotions",
+      "insight": "Your answers may point to opportunities to identify emotions and respond to them with more choice.",
+      "suggestion": "Try naming the emotion, noticing what triggered it and pausing before acting.",
+      "questions": [
+        {
+          "id": "emotions-1",
+          "text": "My emotional reactions felt more intense than I expected."
+        },
+        {
+          "id": "emotions-2",
+          "text": "It was difficult to identify exactly what I was feeling."
+        },
+        {
+          "id": "emotions-3",
+          "text": "Strong feelings made it hard to pause before responding."
+        },
+        {
+          "id": "emotions-4",
+          "text": "I needed a long time to settle after an upsetting event."
+        },
+        {
+          "id": "emotions-5",
+          "text": "I kept difficult feelings to myself even when I wanted support."
+        },
+        {
+          "id": "emotions-6",
+          "text": "I felt frustrated by how quickly my mood shifted."
+        },
+        {
+          "id": "emotions-7",
+          "text": "I struggled to find helpful ways to manage difficult emotions."
+        }
+      ]
+    },
+    {
+      "id": "focus",
+      "title": "Focus & Attention",
+      "description": "Concentration, distraction and routines",
+      "focus": "Attention and daily routines",
+      "insight": "Your answers may show how concentration, distractions and routines are affecting everyday activities.",
+      "suggestion": "Try choosing one realistic task and giving it a short distraction-reduced time block.",
+      "questions": [
+        {
+          "id": "focus-1",
+          "text": "I struggled to stay focused on a task I wanted to complete."
+        },
+        {
+          "id": "focus-2",
+          "text": "I switched between activities before finishing them."
+        },
+        {
+          "id": "focus-3",
+          "text": "Distractions interrupted my work or daily activities."
+        },
+        {
+          "id": "focus-4",
+          "text": "It was hard to organise tasks in a manageable order."
+        },
+        {
+          "id": "focus-5",
+          "text": "I put off tasks even when they mattered to me."
+        },
+        {
+          "id": "focus-6",
+          "text": "I lost track of what I was doing during routine activities."
+        },
+        {
+          "id": "focus-7",
+          "text": "Difficulty concentrating affected my productivity or satisfaction."
+        }
+      ]
+    },
+    {
+      "id": "connection",
+      "title": "Loneliness & Connection",
+      "description": "Belonging and meaningful support",
+      "focus": "Closeness and belonging",
+      "insight": "Your answers may help clarify what connection and emotional support have felt like recently.",
+      "suggestion": "Consider reaching out to someone you trust for a conversation or shared activity.",
+      "questions": [
+        {
+          "id": "connection-1",
+          "text": "I felt lonely even when other people were around."
+        },
+        {
+          "id": "connection-2",
+          "text": "I wished I had someone I could speak openly with."
+        },
+        {
+          "id": "connection-3",
+          "text": "I felt that my relationships lacked the closeness I wanted."
+        },
+        {
+          "id": "connection-4",
+          "text": "I hesitated to reach out to others when I needed company."
+        },
+        {
+          "id": "connection-5",
+          "text": "I felt disconnected from people who matter to me."
+        },
+        {
+          "id": "connection-6",
+          "text": "I felt left out of social plans or conversations."
+        },
+        {
+          "id": "connection-7",
+          "text": "I had fewer meaningful interactions than I wanted."
+        }
+      ]
+    },
+    {
+      "id": "fulfilment",
+      "title": "Life Satisfaction & Direction",
+      "description": "Meaning, values and fulfilment",
+      "focus": "Meaning and life direction",
+      "insight": "Your answers may highlight questions around meaning, priorities and everyday satisfaction.",
+      "suggestion": "Identify one value that matters to you and a small action that expresses it.",
+      "questions": [
+        {
+          "id": "fulfilment-1",
+          "text": "My daily routine felt disconnected from what matters most to me."
+        },
+        {
+          "id": "fulfilment-2",
+          "text": "I struggled to find a sense of fulfilment in everyday life."
+        },
+        {
+          "id": "fulfilment-3",
+          "text": "I felt unsure about what I wanted to prioritise."
+        },
+        {
+          "id": "fulfilment-4",
+          "text": "I had difficulty making time for activities that feel meaningful."
+        },
+        {
+          "id": "fulfilment-5",
+          "text": "I felt stuck in routines I would like to change."
+        },
+        {
+          "id": "fulfilment-6",
+          "text": "I questioned whether my current choices reflected my personal values."
+        },
+        {
+          "id": "fulfilment-7",
+          "text": "I found it hard to recognise progress toward things important to me."
+        }
+      ]
+    }
+  ]
+}

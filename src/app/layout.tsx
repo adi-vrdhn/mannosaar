@@ -1,11 +1,7 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import "./globals.css";
-import WhatsAppButton from "@/components/shared/WhatsAppButton";
-import Navbar from "@/components/shared/Navbar";
-import Footer from "@/components/shared/Footer";
 import { Providers } from "@/components/Providers";
-import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
+import SiteShell from "@/components/SiteShell";
 import { DEFAULT_SOCIAL_IMAGE, SITE_URL } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -95,13 +91,7 @@ export default function RootLayout({
           }}
         />
         <Providers>
-          <Suspense fallback={null}>
-            <GoogleAnalytics />
-          </Suspense>
-          <Navbar />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <WhatsAppButton />
+          <SiteShell>{children}</SiteShell>
         </Providers>
       </body>
     </html>
