@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { format } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
+import { formatSlotDate } from '@/lib/time';
 import {
   DEFAULT_BUNDLE_PRICING,
   getServiceById,
@@ -468,13 +469,13 @@ const BookingConfirmation = () => {
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-sm text-gray-500">Date</span>
                       <span className="text-sm font-semibold text-gray-900">
-                        {format(new Date(resolvedSingleSlotInfo.date), 'MMM dd, yyyy')}
+                        {formatSlotDate(resolvedSingleSlotInfo.date)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
-                      <span className="text-sm text-gray-500">Time</span>
+                      <span className="text-sm text-gray-500">Time (IST)</span>
                       <span className="text-sm font-semibold text-gray-900">
-                        {formatTime(resolvedSingleSlotInfo.start_time)} - {formatTime(resolvedSingleSlotInfo.end_time)}
+                        {formatTime(resolvedSingleSlotInfo.start_time)} - {formatTime(resolvedSingleSlotInfo.end_time)} IST
                       </span>
                     </div>
                   </div>
@@ -487,11 +488,11 @@ const BookingConfirmation = () => {
                             Session {idx + 1} of {bundleSize}
                           </p>
                           <p className="text-sm text-gray-500">
-                            {format(new Date(session.date), 'MMM dd, yyyy')}
+                            {formatSlotDate(session.date)}
                           </p>
                         </div>
                         <span className="text-sm font-semibold text-gray-900">
-                          {formatTime(session.startTime)} - {formatTime(session.endTime)}
+                          {formatTime(session.startTime)} - {formatTime(session.endTime)} IST
                         </span>
                       </div>
                     ))}

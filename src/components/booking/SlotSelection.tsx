@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { format, addDays, addMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { getServiceById } from '@/lib/services';
+import { formatSlotDate, getCurrentDateString } from '@/lib/time';
 import {
   ArrowLeft,
   ArrowRight,
@@ -79,12 +80,12 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   const [currentSessionIndex, setCurrentSessionIndex] = useState(0);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(true);
-  const [displayMonth, setDisplayMonth] = useState(new Date());
+  const [displayMonth, setDisplayMonth] = useState(() => new Date(`${getCurrentDateString()}T12:00:00`));
   const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
   const [availabilityError, setAvailabilityError] = useState('');
   const [slotError, setSlotError] = useState('');
   const [bookingReady, setBookingReady] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState(getCurrentDateString());
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [oldBooking, setOldBooking] = useState<ExistingBooking | null>(null);
   const [confirmReschedule, setConfirmReschedule] = useState(false);
@@ -96,7 +97,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   const [updatedBooking, setUpdatedBooking] = useState<RescheduledBooking | null>(null);
 
   const formatTime = (time: string) => time.slice(0, 5);
-  const todayString = format(new Date(), 'yyyy-MM-dd');
+  const todayString = getCurrentDateString();
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -284,7 +285,9 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
       } else {
         // Move to next session selection
         setCurrentSessionIndex(newSessions.length);
-        setSelectedDate(format(addDays(new Date(selectedDate), 1), 'yyyy-MM-dd'));
+        const nextDate = new Date(`${selectedDate}T12:00:00Z`);
+        nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+        setSelectedDate(nextDate.toISOString().slice(0, 10));
         setSelectedSlot(null);
       }
     }
@@ -376,7 +379,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
       const newSessions = selectedSessions.slice(0, -1);
       setSelectedSessions(newSessions);
       setCurrentSessionIndex(newSessions.length);
-      setSelectedDate(newSessions[newSessions.length - 1]?.date || format(new Date(), 'yyyy-MM-dd'));
+      setSelectedDate(newSessions[newSessions.length - 1]?.date || getCurrentDateString());
       setSelectedSlot(null);
     } else {
       router.back();
@@ -466,7 +469,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                   : `Pick session ${currentSessionIndex + 1} of ${bundleParam}`}
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-[#4c4052]">
-                Session type: <span className="font-bold capitalize text-[#5b267a]">{typeParam} Therapy</span>
+                Session type: <span className="font-bold capitalize text-[#5b267a]">{typeParam} Therapy</span> · All appointment times are India Standard Time (IST, UTC+05:30).
                 {bundleParam > 1 && ` • Bundle: ${bundleParam} Sessions${bundleSchedule === 'progressive' ? ' • One at a time' : ''}`}
               </p>
             </div>
@@ -495,7 +498,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                 <div key={idx} className="rounded-2xl border border-white/60 bg-white/35 p-4">
                   <p className="text-sm text-[#65586c]">Session {idx + 1}</p>
                   <p className="font-semibold text-[#34213f]">
-                    {format(new Date(session.date), 'MMM dd, yyyy')} • {session.startTime}
+                    {formatSlotDate(session.date)} • {session.startTime} IST
                   </p>
                 </div>
               ))}
@@ -602,7 +605,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                 <p className="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-[#5b267a]">
                   Available slots
                 </p>
-                <h2 className="font-playfair text-2xl font-medium text-[#34213f] sm:text-3xl">{format(new Date(selectedDate), 'EEEE, MMMM d')}</h2>
+                <h2 className="font-playfair text-2xl font-medium text-[#34213f] sm:text-3xl">{formatSlotDate(selectedDate, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
                 <p className="mt-1 text-sm text-[#65586c]">Choose one time that works for you.</p>
                 </div>
               </div>
@@ -669,7 +672,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                   <div className="min-w-0">
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#5b267a]">Selected time</p>
                   <p className="mt-1 truncate text-sm font-semibold text-[#34213f] sm:text-base">
-                    {format(new Date(selectedDate), 'MMM dd, yyyy')} · {formatTime(selectedSlotDetails.start_time)}–{formatTime(selectedSlotDetails.end_time)}
+                    {formatSlotDate(selectedDate)} · {formatTime(selectedSlotDetails.start_time)}–{formatTime(selectedSlotDetails.end_time)} IST
                   </p>
                   </div>
                 </div>
@@ -709,7 +712,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                   <div className="bg-red-50 p-4 border border-red-200">
                     <p className="text-sm text-gray-600 mb-1">Current Session</p>
                     <p className="font-semibold text-gray-900">
-                      {format(new Date(oldBooking.slot.date), 'MMM dd, yyyy')} • {oldBooking.slot.start_time.substring(0, 5)}
+                      {formatSlotDate(oldBooking.slot.date)} • {oldBooking.slot.start_time.substring(0, 5)} IST
                     </p>
                   </div>
 
@@ -718,7 +721,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                   <div className="bg-green-50 p-4 border border-green-200">
                     <p className="text-sm text-gray-600 mb-1">New Session</p>
                     <p className="font-semibold text-gray-900">
-                      {format(new Date(selectedDate), 'MMM dd, yyyy')} • {slots.find(s => s.id === selectedSlot)?.start_time.substring(0, 5)}
+                      {formatSlotDate(selectedDate)} • {slots.find(s => s.id === selectedSlot)?.start_time.substring(0, 5)} IST
                     </p>
                   </div>
                 </div>
@@ -797,7 +800,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
                   <div>
                     <p className="text-xs font-semibold text-gray-600 uppercase mb-1">New Date & Time</p>
                     <p className="font-semibold text-gray-900">
-                      {format(new Date(updatedBooking.slot_date), 'MMM dd, yyyy')} • {updatedBooking.slot_start_time.substring(0, 5)} - {updatedBooking.slot_end_time.substring(0, 5)}
+                      {formatSlotDate(updatedBooking.slot_date)} • {updatedBooking.slot_start_time.substring(0, 5)} - {updatedBooking.slot_end_time.substring(0, 5)} IST
                     </p>
                   </div>
 

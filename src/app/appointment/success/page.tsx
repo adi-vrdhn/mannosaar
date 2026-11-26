@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { formatSlotDate } from '@/lib/time';
 
 interface Booking {
   id: string;
@@ -193,7 +194,7 @@ function SuccessPageContent() {
                         {booking.session_dates.map((session, idx) => (
                           <div key={idx} className="rounded-2xl bg-gray-50 px-4 py-3">
                             <p className="text-sm font-semibold text-gray-900">Session {idx + 1}</p>
-                            <p className="mt-1 text-sm text-gray-600">{format(new Date(session.date), 'MMM dd, yyyy')} • {formatTime(session.startTime)} - {formatTime(session.endTime)}</p>
+                            <p className="mt-1 text-sm text-gray-600">{formatSlotDate(session.date)} • {formatTime(session.startTime)} - {formatTime(session.endTime)} IST</p>
                           </div>
                         ))}
                         {booking.session_dates.length < booking.number_of_sessions && (
@@ -208,14 +209,14 @@ function SuccessPageContent() {
                       <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3">
                         <span className="text-sm text-gray-500">Date</span>
                         <span className="text-sm font-semibold text-gray-900">
-                          {format(new Date(booking.slot_date), 'MMM dd, yyyy')}
+                          {formatSlotDate(booking.slot_date)}
                         </span>
                       </div>
                       <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3">
-                        <span className="text-sm text-gray-500">Time</span>
+                        <span className="text-sm text-gray-500">Time (IST)</span>
                         <span className="text-sm font-semibold text-gray-900">
                           {booking.slot_start_time && booking.slot_end_time
-                            ? `${formatTime(booking.slot_start_time)} - ${formatTime(booking.slot_end_time)}`
+                            ? `${formatTime(booking.slot_start_time)} - ${formatTime(booking.slot_end_time)} IST`
                             : 'N/A'}
                         </span>
                       </div>
@@ -233,7 +234,7 @@ function SuccessPageContent() {
                               Session {idx + 1}
                             </p>
                             <p className="mt-1 text-sm text-gray-600">
-                              {format(new Date(session.date), 'MMM dd, yyyy')} • {formatTime(session.startTime)} - {formatTime(session.endTime)}
+                              {formatSlotDate(session.date)} • {formatTime(session.startTime)} - {formatTime(session.endTime)} IST
                             </p>
                           </div>
                         ))}

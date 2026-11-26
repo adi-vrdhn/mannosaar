@@ -6,6 +6,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
+import { formatSlotDate } from '@/lib/time';
 import {
   DEFAULT_BUNDLE_PRICING,
   getServiceById,
@@ -772,11 +773,11 @@ function PaymentPageContent() {
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Session Date</span>
                       <span className="font-semibold text-gray-900">
-                        {format(new Date(slotInfo.date), 'MMM dd, yyyy')}
+                        {formatSlotDate(slotInfo.date)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Session Time</span>
+                      <span className="text-gray-600">Session Time (IST)</span>
                       <span className="font-semibold text-gray-900">
                         {slotInfo.start_time} - {slotInfo.end_time}
                       </span>
@@ -805,11 +806,11 @@ function PaymentPageContent() {
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Session Date</span>
                       <span className="font-semibold text-gray-900">
-                        {format(new Date(resolvedSingleSlotInfo.date), 'MMM dd, yyyy')}
+                        {formatSlotDate(resolvedSingleSlotInfo.date)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Session Time</span>
+                      <span className="text-gray-600">Session Time (IST)</span>
                       <span className="font-semibold text-gray-900">
                         {resolvedSingleSlotInfo.start_time} - {resolvedSingleSlotInfo.end_time}
                       </span>
@@ -854,7 +855,7 @@ function PaymentPageContent() {
                       <p className="font-semibold text-gray-900">Sessions:</p>
                       {sessionDates.map((session, idx) => (
                         <div key={idx} className="text-sm text-gray-600 ml-4">
-                          <span className="font-medium">Session {idx + 1}:</span> {format(new Date(session.date), 'MMM dd')} at {session.startTime}
+                          <span className="font-medium">Session {idx + 1}:</span> {formatSlotDate(session.date, { month: 'short', day: '2-digit' })} at {session.startTime} IST
                         </div>
                       ))}
                       {bundleSchedule === 'progressive' && bundleSize > sessionDates.length && (

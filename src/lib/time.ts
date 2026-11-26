@@ -1,5 +1,12 @@
 export const APP_TIME_ZONE = 'Asia/Kolkata';
 
+// Slot dates are calendar dates in India, not UTC timestamps. Format at midday
+// UTC in IST so viewers in the Americas never see the previous day.
+export function formatSlotDate(date: string, options: Intl.DateTimeFormatOptions = { month: 'short', day: '2-digit', year: 'numeric' }) {
+  return new Intl.DateTimeFormat('en-IN', { ...options, timeZone: APP_TIME_ZONE })
+    .format(new Date(`${date}T12:00:00Z`));
+}
+
 function getZonedParts(date: Date, timeZone: string) {
   const formatter = new Intl.DateTimeFormat('en-GB', {
     timeZone,
