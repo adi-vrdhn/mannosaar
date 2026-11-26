@@ -56,7 +56,7 @@ async function getZoomAccessToken(): Promise<string> {
 
 async function createZoomMeeting(
   topic: string,
-  duration: number = 40,
+  duration: number = 45,
   startTime: Date
 ): Promise<{ meeting: ZoomMeetingResponse; password: string }> {
   const accessToken = await getZoomAccessToken();
@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
     // Create Zoom meeting with actual slot time
     const { meeting, password } = await createZoomMeeting(
       `Therapy Session - ${sessionType.charAt(0).toUpperCase() + sessionType.slice(1)}`,
-      getServiceById(sessionType)?.durationMinutes || 40,
+      getServiceById(sessionType)?.durationMinutes || 45,
       startTime
     );
 

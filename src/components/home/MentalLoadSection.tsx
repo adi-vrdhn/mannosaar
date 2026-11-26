@@ -84,7 +84,7 @@ export default function MentalLoadSection() {
             <div className="sm:flex sm:items-start sm:justify-between sm:gap-8">
               <div>
                 <p className="font-playfair text-2xl leading-tight">{firstSessionOffer ? 'Your first online session' : 'Personal online session'}</p>
-                <p className="mt-2 text-sm text-[#e7d9ed]">40 minutes · Online counselling</p>
+                <p className="mt-2 text-sm text-[#e7d9ed]">45 minutes · Online counselling</p>
               </div>
               <div className="mt-5 min-h-12 sm:mt-0 sm:text-right">
                 {firstSessionOffer ? <p className="flex items-baseline gap-3 sm:justify-end"><span className="text-4xl font-semibold tracking-tight">₹700</span><span className="text-lg text-[#cbb7df] line-through">₹999</span></p>

@@ -448,7 +448,7 @@ const BookingConfirmation = () => {
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
                       Duration
                     </p>
-                    <p className="text-lg font-semibold text-gray-900">{getServiceById(sessionType)?.durationMinutes || 40} mins</p>
+                    <p className="text-lg font-semibold text-gray-900">{getServiceById(sessionType)?.durationMinutes || 45} mins</p>
                   </div>
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">

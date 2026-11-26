@@ -47,7 +47,7 @@ const BookingTypeSelection = () => {
       description: 'One-on-one session with Neetu Rathore',
       icon: '👤',
       color: 'from-purple-400 to-pink-400',
-      features: ['Individual focus', 'Personalized approach', '40 minutes'],
+      features: ['Individual focus', 'Personalized approach', '45 minutes'],
     },
     {
       id: 'couple',

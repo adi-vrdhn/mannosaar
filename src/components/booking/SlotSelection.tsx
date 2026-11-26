@@ -90,6 +90,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   const [confirmReschedule, setConfirmReschedule] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
   const [schedulingNext, setSchedulingNext] = useState(false);
+  const [navigatingToConfirmation, setNavigatingToConfirmation] = useState(false);
   const [rescheduleSuccess, setRescheduleSuccess] = useState(false);
   const [rescheduleMessage, setRescheduleMessage] = useState('');
   const [updatedBooking, setUpdatedBooking] = useState<RescheduledBooking | null>(null);
@@ -290,6 +291,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
   };
 
   const proceedToConfirmation = (sessions: SessionSelection[]) => {
+    setNavigatingToConfirmation(true);
     // Store selected appointment data for the next step.
     if (typeof window !== 'undefined') {
       if (bundleParam === 1) {
@@ -316,9 +318,7 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
       params.set('sessionDates', JSON.stringify(sessions));
     }
 
-    router.push(`/appointment/confirm?${params.toString()}`, {
-      scroll: false,
-    });
+    router.push(`/appointment/confirm?${params.toString()}`);
   };
 
   const handleConfirmReschedule = async () => {
@@ -415,6 +415,14 @@ const SlotSelection = ({ sessionType = 'personal', bundleSize = 1 }: SlotSelecti
 
   return (
     <main className={`appointment-pinterest relative z-10 min-h-screen overflow-x-clip px-4 py-8 sm:px-6 sm:py-12 lg:px-8 ${selectedSlot ? '!pb-48 sm:!pb-44' : ''}`}>
+      {navigatingToConfirmation && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#fbf7fc]/90 backdrop-blur-sm" role="status" aria-live="polite">
+          <div className="flex items-center gap-3 rounded-2xl border border-white bg-white px-6 py-5 text-sm font-semibold text-[#4c4052] shadow-xl">
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#5b267a]/25 border-t-[#5b267a]" aria-hidden="true" />
+            Preparing your confirmation…
+          </div>
+        </div>
+      )}
       <div className="relative mx-auto max-w-6xl">
         <div className="appointment-orb appointment-orb-left" aria-hidden="true" />
         <div className="appointment-orb appointment-orb-right" aria-hidden="true" />

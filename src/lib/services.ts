@@ -42,7 +42,7 @@ export const BOOKABLE_SERVICES: readonly BookableService[] = [
     shortName: 'Personal',
     description:
       'One-on-one counselling in a private, supportive setting to explore emotional wellbeing, stress, relationships, work, or personal concerns.',
-    durationMinutes: 40,
+    durationMinutes: 45,
   },
   {
     id: 'couple',

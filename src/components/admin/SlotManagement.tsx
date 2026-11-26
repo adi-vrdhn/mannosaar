@@ -211,7 +211,7 @@ const SlotManagement = () => {
             date: dateStr,
             start_time: slot.start_time,
             end_time: slot.end_time,
-            duration_minutes: 40,
+            duration_minutes: 45,
             is_available: true,
             is_blocked: false,
           });

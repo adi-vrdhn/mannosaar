@@ -31,7 +31,7 @@ export default function TherapistHeader({
             Session Time
           </p>
           <div className="flex items-end gap-2">
-            <p className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900">40</p>
+            <p className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900">45</p>
             <p className="pb-1 text-sm md:text-base font-medium text-gray-600">mins</p>
           </div>
         </motion.div>

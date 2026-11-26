@@ -98,7 +98,7 @@ export async function GET(
         end_time: firstSessionWasRescheduled
           ? firstSession?.end_time || firstSession?.endTime || booking.slot_end_time || booking.slot?.end_time || ''
           : booking.slot_end_time || firstSession?.end_time || firstSession?.endTime || booking.slot?.end_time || '',
-        duration_minutes: getServiceById(booking.session_type)?.durationMinutes || (booking.slot?.start_time && booking.slot?.end_time ? slotDurationMinutes(booking.slot.start_time, booking.slot.end_time) : 40),
+        duration_minutes: getServiceById(booking.session_type)?.durationMinutes || (booking.slot?.start_time && booking.slot?.end_time ? slotDurationMinutes(booking.slot.start_time, booking.slot.end_time) : 45),
       },
       session_type: booking.session_type,
       status: booking.status,

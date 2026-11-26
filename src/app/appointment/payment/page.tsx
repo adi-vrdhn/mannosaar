@@ -787,7 +787,7 @@ function PaymentPageContent() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Duration</span>
-                      <span className="font-semibold text-gray-900">{getServiceById(sessionType)?.durationMinutes || 40} mins</span>
+                      <span className="font-semibold text-gray-900">{getServiceById(sessionType)?.durationMinutes || 45} mins</span>
                     </div>
                     {hasFirstSessionOffer && <div className="flex justify-between text-sm text-[#5b267a]"><span>First session offer</span><span className="line-through">₹{firstSessionOffer!.regularPrice}</span></div>}
                     <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
@@ -820,7 +820,7 @@ function PaymentPageContent() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Duration</span>
-                      <span className="font-semibold text-gray-900">{getServiceById(sessionType)?.durationMinutes || 40} mins</span>
+                      <span className="font-semibold text-gray-900">{getServiceById(sessionType)?.durationMinutes || 45} mins</span>
                     </div>
                     {hasFirstSessionOffer && <div className="flex justify-between text-sm text-[#5b267a]"><span>First session offer</span><span className="line-through">₹{firstSessionOffer!.regularPrice}</span></div>}
                     <div className="border-t border-gray-300 pt-4 flex justify-between items-center">

@@ -9,7 +9,7 @@ export function generateDefaultSlots(): GeneratedSlot[] {
   for (let hour = 9; hour < 21; hour += 1) {
     slots.push({
       start_time: `${String(hour).padStart(2, '0')}:00`,
-      end_time: `${String(hour).padStart(2, '0')}:40`,
+      end_time: `${String(hour).padStart(2, '0')}:45`,
     });
   }
   return slots;
